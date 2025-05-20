@@ -91,3 +91,28 @@ form button {
 form button:hover {
     background-color: #1143c8;
 }
+
+.saved-quantity {
+    font-weight: bold;
+    color: #444;
+}
+
+.quantity-input {
+    background-color: #f0f0f0;
+    border: none;
+    text-align: center;
+}
+
+.zero-stock {
+    background-color: #ffe5e5;
+    opacity: 0.6;
+}
+
+.update-stock-form {
+    margin-top: 30px;
+}
+
+input.invalid {
+    border: 2px solid red;
+    background-color: #ffe5e5;
+}

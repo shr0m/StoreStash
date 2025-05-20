@@ -9,9 +9,9 @@
 
     <!-- Navigation Bar -->
     <div class="navbar">
-        <a href="#">Dashboard</a>
-        <a href="#">Admin</a>
-        <a href="#">Settings</a>
+        <a href="/">Dashboard</a>
+        <a href="/admin">Admin</a>
+        <a href="/settings">Settings</a>
     </div>
 
     <!-- Page Title -->
@@ -24,38 +24,55 @@
             <thead>
                 <tr>
                     <th>Item Type</th>
-                    <th>Quantity</th>
+                    <th>Saved Quantity</th>
+                    <th>Edited Quantity</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in stock_items %}
-                <tr>
+                <tr data-item-id="{{ item.id }}">
                     <td>{{ item.type }}</td>
-                    <td>{{ item.quantity }}</td>
+
+                    <!-- Saved quantity (read-only text) -->
+                    <td class="saved-quantity">{{ item.quantity }}</td>
+
+                    <!-- Editable via buttons, but input is readonly -->
                     <td>
-                        <form method="POST" action="/update_stock" class="stock-action-form">
-                            <input type="hidden" name="item_id" value="{{ item.id }}">
-                            <input type="number" name="amount" value="1" min="1">
-                            <button type="submit" name="action" value="add">+</button>
-                            <button type="submit" name="action" value="remove">−</button>
-                        </form>
+                        <input type="number"
+                            value="{{ item.quantity }}"
+                            min="0"
+                            class="quantity-input"
+                            data-original="{{ item.quantity }}">
+                    </td>
+
+                    <!-- Action buttons -->
+                    <td>
+                        <button type="button" onclick="changeQuantity(this, 1)">+</button>
+                        <button type="button" onclick="changeQuantity(this, -1)">−</button>
+                        <button type"button" onclick="removeQuantity(this)">DEL</button>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        <!-- Update Button -->
+        <form method="POST" action="/update_stock_batch" onsubmit="prepareUpdateData(event)">
+            <input type="hidden" name="update_data" id="update-data-input">
+            <button type="submit">Update Stock</button>
+        </form>
     </section>
 
     <!-- Section: Add New Stock Type -->
     <section class="add-stock">
         <h2>Add New Stock Type</h2>
-        <form method="POST" action="/add_stock_type">
-            <input type="text" name="new_type" placeholder="Type of Item" required>
-            <input type="number" name="initial_quantity" placeholder="Initial Quantity" required min="0">
+        <form id="add-stock-form" method="POST" action="/add_stock_type">
+            <input type="text" id="new-type-input" name="new_type" placeholder="Type of Item" required>
+            <input type="number" id="initial-quantity-input" name="initial_quantity" placeholder="Initial Quantity" required min="1">
             <button type="submit">Add Stock Type</button>
         </form>
     </section>
 
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>
