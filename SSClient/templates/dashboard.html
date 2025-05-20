@@ -17,5 +17,45 @@
     <!-- Page Title -->
     <h1>Welcome to StoreStash</h1>
 
+    <!-- Section: Display Stock -->
+    <section class="stock-display">
+        <h2>Current Stock</h2>
+        <table class="stock-table">
+            <thead>
+                <tr>
+                    <th>Item Type</th>
+                    <th>Quantity</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in stock_items %}
+                <tr>
+                    <td>{{ item.type }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>
+                        <form method="POST" action="/update_stock" class="stock-action-form">
+                            <input type="hidden" name="item_id" value="{{ item.id }}">
+                            <input type="number" name="amount" value="1" min="1">
+                            <button type="submit" name="action" value="add">+</button>
+                            <button type="submit" name="action" value="remove">−</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Section: Add New Stock Type -->
+    <section class="add-stock">
+        <h2>Add New Stock Type</h2>
+        <form method="POST" action="/add_stock_type">
+            <input type="text" name="new_type" placeholder="Type of Item" required>
+            <input type="number" name="initial_quantity" placeholder="Initial Quantity" required min="0">
+            <button type="submit">Add Stock Type</button>
+        </form>
+    </section>
+
 </body>
 </html>
