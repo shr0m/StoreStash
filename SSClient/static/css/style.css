@@ -1,0 +1,36 @@
+/* General Styling */
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: white;
+    color: #333;
+}
+
+/* Header Styling */
+h1 {
+    border: 2px solid #eee;
+    color: #ff6600; /* Orange */
+    text-align: center;
+    padding: 10px;
+}
+
+/* Navbar Styling */
+.navbar {
+    background-color: #ff6600; /* Orange */
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+}
+
+.navbar a {
+    color: white;
+    padding: 14px 20px;
+    text-decoration: none;
+    display: block;
+    font-weight: bold;
+}
+
+.navbar a:hover {
+    background-color: white;
+    color: #ff6600;
+}
