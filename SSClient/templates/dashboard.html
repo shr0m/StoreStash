@@ -12,6 +12,7 @@
         <a href="/">Dashboard</a>
         <a href="/admin">Admin</a>
         <a href="/settings">Settings</a>
+        <a href="/support">Support</a>
     </div>
 
     <!-- Page Title -->
@@ -19,6 +20,10 @@
 
     <!-- Section: Display Stock -->
     <section class="stock-display">
+        <form method="POST" action="/update_stock_batch" onsubmit="prepareUpdateData(event)">
+            <input type="hidden" name="update_data" id="update-data-input">
+            <button type="submit">Update Stock</button>
+        </form>
         <h2>Current Stock</h2>
         <table class="stock-table">
             <thead>
@@ -37,7 +42,7 @@
                     <!-- Saved quantity (read-only text) -->
                     <td class="saved-quantity">{{ item.quantity }}</td>
 
-                    <!-- Editable via buttons, but input is readonly -->
+                    <!-- Editable via buttons -->
                     <td>
                         <input type="number"
                             value="{{ item.quantity }}"
@@ -50,17 +55,13 @@
                     <td>
                         <button type="button" onclick="changeQuantity(this, 1)">+</button>
                         <button type="button" onclick="changeQuantity(this, -1)">−</button>
-                        <button type"button" onclick="removeQuantity(this)">DEL</button>
+                        <button type="button" onclick="removeQuantity(this)">DEL</button>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-        <!-- Update Button -->
-        <form method="POST" action="/update_stock_batch" onsubmit="prepareUpdateData(event)">
-            <input type="hidden" name="update_data" id="update-data-input">
-            <button type="submit">Update Stock</button>
-        </form>
+        
     </section>
 
     <!-- Section: Add New Stock Type -->

@@ -7,7 +7,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS stock (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             type TEXT NOT NULL,
-            quantity INTEGER NOT NULL DEFAULT 0
+            quantity INTEGER NOT NULL DEFAULT 1
         )
     ''')
     conn.commit()
