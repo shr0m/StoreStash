@@ -116,3 +116,50 @@ input.invalid {
     border: 2px solid red;
     background-color: #ffe5e5;
 }
+
+.support-form-section {
+    margin: 30px auto;
+    padding: 20px;
+    max-width: 600px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+}
+
+.support-form-section h2 {
+    color: #1143a1;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.support-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.support-form input,
+.support-form select,
+.support-form textarea,
+.support-form button {
+    padding: 10px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-family: inherit;
+}
+
+.support-form textarea {
+    resize: vertical;
+}
+
+.support-form button {
+    background-color: #1143a1;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+.support-form button:hover {
+    background-color: #1143c8;
+}

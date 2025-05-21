@@ -12,6 +12,7 @@
         <a href="/">Dashboard</a>
         <a href="/admin">Admin</a>
         <a href="/settings">Settings</a>
+        <a href="/support">Support</a>
     </div>
 
     <!-- Page Title -->
@@ -37,7 +38,7 @@
                     <!-- Saved quantity (read-only text) -->
                     <td class="saved-quantity">{{ item.quantity }}</td>
 
-                    <!-- Editable via buttons, but input is readonly -->
+                    <!-- Editable via buttons -->
                     <td>
                         <input type="number"
                             value="{{ item.quantity }}"
@@ -50,7 +51,7 @@
                     <td>
                         <button type="button" onclick="changeQuantity(this, 1)">+</button>
                         <button type="button" onclick="changeQuantity(this, -1)">−</button>
-                        <button type"button" onclick="removeQuantity(this)">DEL</button>
+                        <button type="button" onclick="removeQuantity(this)">DEL</button>
                     </td>
                 </tr>
                 {% endfor %}

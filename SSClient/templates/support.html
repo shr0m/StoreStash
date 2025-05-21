@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>Support</title>
+</head>
+<body>
+
+    <!-- Navigation Bar -->
+    <div class="navbar">
+        <a href="/">Dashboard</a>
+        <a href="/admin">Admin</a>
+        <a href="/settings">Settings</a>
+        <a href="/support">Support</a>
+    </div>
+
+    <!-- Page Title -->
+    <h1>Contact Support</h1>
+
+    <!-- Support Form Section -->
+    <section class="support-form-section">
+        <h2>Submit a Support Request</h2>
+        <form method="POST" action="/submit_support" class="support-form">
+            <label for="name">Your Name:</label>
+            <input type="text" id="name" name="name" placeholder="Jane Doe" required>
+
+            <label for="email">Your Email:</label>
+            <input type="email" id="email" name="email" placeholder="you@example.com" required>
+
+            <label for="issue">Issue Type:</label>
+            <select id="issue" name="issue" required>
+                <option value="">Select an option</option>
+                <option value="technical">Technical Issue</option>
+                <option value="feedback">Feedback</option>
+                <option value="other">Other</option>
+            </select>
+
+            <label for="message">Message:</label>
+            <textarea id="message" name="message" rows="5" placeholder="Describe your issue..." required></textarea>
+
+            <button type="submit">Submit Request</button>
+        </form>
+    </section>
+
+</body>
+</html>
