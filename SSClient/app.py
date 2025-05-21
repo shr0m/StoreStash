@@ -1,11 +1,12 @@
 import smtplib
 import os
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
 import sqlite3
 from email.message import EmailMessage
 import json
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 load_dotenv(dotenv_path="../.env")
@@ -71,6 +72,8 @@ def get_stock_items():
 
 @app.route('/')
 def dashboard():
+    #if 'user_id' not in session:
+     #   return redirect(url_for('login'))
     stock_items = get_stock_items()
     return render_template('dashboard.html', stock_items=stock_items)
 
@@ -133,3 +136,34 @@ def update_stock_batch():
 @app.route('/support')
 def support():
     return render_template('support.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username'].strip()
+        password = request.form['password']
+
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM users WHERE username = ?', (username,))
+        user = cursor.fetchone()
+        conn.close()
+
+        if user and check_password_hash(user[2], password):  # user[2] = password_hash
+            session['user_id'] = user[0]
+            session['username'] = user[1]
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Invalid username or password')
+            return redirect(url_for('login'))
+
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+@app.route('/admin')
+def admin():
+    return render_template('admin.html')
