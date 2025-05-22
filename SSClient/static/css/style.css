@@ -9,7 +9,7 @@ body {
 /* Header Styling */
 h1 {
     border: 2px solid #eee;
-    color: #1143a1; /* Orange */
+    color: #1143a1;
     text-align: center;
     padding: 10px;
 }
@@ -20,8 +20,8 @@ h1 {
     overflow: hidden;
     display: flex;
     justify-content: left;
-    height: 42px; /* Fixed height (optional) */
-    align-items: center; /* Vertically center links */
+    height: 42px;
+    align-items: center;
 }
 
 .navbar a {
@@ -36,6 +36,7 @@ h1 {
     color: #1143a1;
 }
 
+/* Section Styling */
 section {
     margin: 30px auto;
     padding: 20px;
@@ -45,7 +46,6 @@ section {
     background-color: #dddddd;
 }
 
-/* Section Headings */
 section h2 {
     color: #1143a1;
     margin-bottom: 15px;
@@ -92,6 +92,13 @@ form button:hover {
     background-color: #1143c8;
 }
 
+/* Input Validation */
+input.invalid {
+    border: 2px solid red;
+    background-color: #ffe5e5;
+}
+
+/* Quantity Styling */
 .saved-quantity {
     font-weight: bold;
     color: #444;
@@ -108,15 +115,12 @@ form button:hover {
     opacity: 0.6;
 }
 
+/* Update Stock */
 .update-stock-form {
     margin-top: 30px;
 }
 
-input.invalid {
-    border: 2px solid red;
-    background-color: #ffe5e5;
-}
-
+/* Support Form */
 .support-form-section {
     margin: 30px auto;
     padding: 20px;
@@ -162,4 +166,80 @@ input.invalid {
 
 .support-form button:hover {
     background-color: #1143c8;
+}
+
+/* Generic Form Container (Admin, OTP, Login, etc.) */
+.form-container,
+.login-container {
+    margin: 40px auto;
+    padding: 30px;
+    max-width: 400px;
+    background: #f9f9f9;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.form-container h2,
+.login-container h2 {
+    margin-bottom: 20px;
+    font-size: 22px;
+    color: #1143a1;
+    text-align: center;
+}
+
+.form-container input[type="email"],
+.form-container input[type="text"],
+.form-container input[type="number"],
+.form-container input[type="password"],
+.login-container input[type="email"],
+.login-container input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
+
+.form-container button,
+.login-container button {
+    width: 100%;
+    padding: 10px;
+    background-color: #1143a1;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 15px;
+}
+
+.form-container button:hover,
+.login-container button:hover {
+    background-color: #1143c8;
+}
+
+/* Flash Messages */
+.flash-messages {
+    max-width: 400px;
+    margin: 20px auto;
+    padding: 10px;
+}
+
+.flash.success {
+    background-color: #d4edda;
+    color: #155724;
+    border-left: 4px solid #28a745;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+}
+
+.flash.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border-left: 4px solid #dc3545;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 4px;
 }

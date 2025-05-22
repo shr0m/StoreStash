@@ -18,7 +18,31 @@
     <!-- Page Title -->
     <h1>Admin Dashboard</h1>
 
-    <!-- Support Form Section -->
+    <div class="form-container">
+        <h2>Manage Users</h2>
+        <form action="/send_otp" method="POST">
+            <label>Email:</label>
+            <input type="email" name="email" required>
+            <label>Privilege:</label>
+            <select name="privilege">
+                <option value="admin">Admin</option>
+                <option value="store team">Store Team</option>
+                <option value="view">View</option>
+            </select>
+            <button type="submit">Add User</button>
+        </form>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        <div class="flash-messages">
+        {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+        </div>
+    {% endif %}
+    {% endwith %}
+    
     
 
 </body>
