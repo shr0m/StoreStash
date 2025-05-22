@@ -73,7 +73,7 @@ def dashboard():
     if 'user_id' not in session:
        return redirect(url_for('login'))
     stock_items = get_stock_items()
-    return render_template('dashboard.html', stock_items=stock_items)
+    return render_template('dashboard.html', stock_items=stock_items, session=session)
 
 @app.route('/add_stock_type', methods=['POST'])
 def add_stock_type():
@@ -133,6 +133,8 @@ def update_stock_batch():
 
 @app.route('/support')
 def support():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
     return render_template('support.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -164,9 +166,17 @@ def logout():
 
 @app.route('/admin')
 def admin():
-   # if session.get('privilege') != 'admin':
-    #    return redirect(url_for('login'))
-    return render_template('admin.html')
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, username, privilege FROM users')
+    users = cursor.fetchall()
+    conn.close()
+
+    return render_template('admin.html', users=users)
 
 def generate_otp(length=6):
     return ''.join(random.choices(string.digits, k=length))
@@ -269,7 +279,7 @@ def otp_login():
     user = cursor.fetchone()
 
     if not user:
-        flash("User not found", "error")
+        flash("Invalid credentials", "error")
         return redirect(url_for('login'))
 
     user_id, username, password_hash, privilege, requires_password_change = user
@@ -311,9 +321,9 @@ def otp_login():
 
             return redirect(url_for('change_password'))
         else:
-            flash("OTP expired", "error")
+            flash("Invalid credentials", "error")
     else:
-        flash("Incorrect password or OTP", "error")
+        flash("Invalid credentials", "error")
 
     conn.close()
     return redirect(url_for('login'))
@@ -340,3 +350,30 @@ def change_password():
         return redirect(url_for('dashboard'))
 
     return render_template('change_password.html')
+
+@app.route('/reset_password/<int:user_id>', methods=['POST'])
+def reset_password(user_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    default_password = generate_password_hash('password')
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('UPDATE users SET password_hash = ?, requires_password_change = 1 WHERE id = ?', (default_password, user_id))
+    conn.commit()
+    conn.close()
+    flash("Password reset to default.", "success")
+    return redirect(url_for('admin'))
+
+@app.route('/delete_user/<int:user_id>', methods=['POST'])
+def delete_user(user_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+    flash("User deleted.", "success")
+    return redirect(url_for('admin'))

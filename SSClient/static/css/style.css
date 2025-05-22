@@ -36,6 +36,10 @@ h1 {
     color: #1143a1;
 }
 
+#logout {
+    margin-left:auto;
+}
+
 /* Section Styling */
 section {
     margin: 30px auto;

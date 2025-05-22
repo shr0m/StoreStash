@@ -13,6 +13,10 @@
         <a href="/admin">Admin</a>
         <a href="/settings">Settings</a>
         <a href="/support">Support</a>
+
+        {% if 'user_id' in session %}
+            <a id="logout" href="/logout">Logout</a>
+        {% endif %}
     </div>
 
     <!-- Page Title -->
