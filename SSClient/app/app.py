@@ -4,6 +4,7 @@ from email.mime.text import MIMEText
 from dotenv import load_dotenv
 from email.message import EmailMessage
 from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
 
 app = Flask(__name__)
 load_dotenv(dotenv_path="../.env")
@@ -14,6 +15,15 @@ SUPPORT_EMAIL_PASSWORD = os.getenv("SUPPORT_EMAIL_PASSWORD")
 SUPPORT_EMAIL_TO = os.getenv("SUPPORT_EMAIL_TO")
 
 DB_FILE = '../SSServer/storestash.db'
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get('privilege') != 'admin':
+            flash("You don't have permission to access this resource.", "warning")
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 def send_support_email(name, email, issue, message):
     try:
@@ -69,6 +79,7 @@ def get_stock_items():
     return items
 
 @app.route('/', methods=['GET'])
+@app.route('/dashboard', methods=['GET'])
 def dashboard():
     if 'user_id' not in session:
        return redirect(url_for('login'))
@@ -165,9 +176,14 @@ def logout():
     return redirect(url_for('login'))
 
 @app.route('/admin')
+@admin_required
 def admin():
+    privilege = request.form.get('privilege')
+
     if 'user_id' not in session:
         return redirect(url_for('login'))
+    if privilege != 'admin':
+        return redirect(url_for('dashboard'))
 
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
@@ -198,6 +214,7 @@ def send_otp_email(recipient_email, otp):
         return False
     
 @app.route('/send_otp', methods=['POST'])
+@admin_required
 def send_otp():
     email = request.form.get('email')
     privilege = request.form.get('privilege')
@@ -352,6 +369,7 @@ def change_password():
     return render_template('change_password.html')
 
 @app.route('/reset_password/<int:user_id>', methods=['POST'])
+@admin_required
 def reset_password(user_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
@@ -366,6 +384,7 @@ def reset_password(user_id):
     return redirect(url_for('admin'))
 
 @app.route('/delete_user/<int:user_id>', methods=['POST'])
+@admin_required
 def delete_user(user_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
