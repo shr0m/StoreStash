@@ -35,7 +35,7 @@
     {% endif %}
     {% endwith %}
 
-    <form action="{{ url_for('otp_login') }}" method="POST">
+    <form action="{{ url_for('auth.otp_login') }}" method="POST">
         <label for="email">Email:</label>
         <input type="email" name="email" required>
 

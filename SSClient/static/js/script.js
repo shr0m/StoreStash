@@ -74,3 +74,17 @@ function prepareUpdateData(event) {
 
     document.getElementById('update-data-input').value = JSON.stringify(data);
 }
+
+function filterStockTable() {
+    const input = document.getElementById('stock-search');
+    const filter = input.value.toLowerCase();
+    const rows = document.querySelectorAll('.stock-table tbody tr');
+
+    rows.forEach(row => {
+        const typeCell = row.querySelector('td:first-child');
+        if (typeCell) {
+            const text = typeCell.textContent.toLowerCase();
+            row.style.display = text.includes(filter) ? '' : 'none';
+        }
+    });
+}
