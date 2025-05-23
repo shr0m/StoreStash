@@ -10,7 +10,9 @@
     <!-- Navigation Bar -->
     <div class="navbar">
         <a href="/">Dashboard</a>
-        <a href="/admin">Admin</a>
+        {% if session.get('privilege') == 'admin' %}
+            <a href="/admin">Admin</a>
+        {% endif %}
         <a href="/settings">Settings</a>
         <a href="/support">Support</a>
 
@@ -24,51 +26,66 @@
 
     <!-- Section: Display Stock -->
     <section class="stock-display">
-        <form method="POST" action="/update_stock_batch" onsubmit="prepareUpdateData(event)">
-            <input type="hidden" name="update_data" id="update-data-input">
-            <button type="submit">Update Stock</button>
-        </form>
+        
+
+        <div class="stock-toolbar">
+            <div class="stock-search-bar">
+                <input
+                    type="text"
+                    id="stock-search"
+                    placeholder="Search stock types..."
+                    oninput="filterStockTable()"
+                >
+            </div>
+            {% if session.get('privilege') in ['admin', 'store team'] %}
+                <form method="POST" action="/update_stock_batch" onsubmit="prepareUpdateData(event)">
+                    <input type="hidden" name="update_data" id="update-data-input">
+                    <button type="submit">Update Stock</button>
+                </form>
+            {% endif %}
+        </div>
+
         <h2>Current Stock</h2>
         <table class="stock-table">
             <thead>
                 <tr>
                     <th>Item Type</th>
-                    <th>Saved Quantity</th>
-                    <th>Edited Quantity</th>
-                    <th>Actions</th>
+                    <th>Quantity</th>
+                    {% if session.get('privilege') in ['admin', 'store team'] %}
+                        <th>Edited Quantity</th>
+                        <th>Actions</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
                 {% for item in stock_items %}
                 <tr data-item-id="{{ item.id }}">
                     <td>{{ item.type }}</td>
-
-                    <!-- Saved quantity (read-only text) -->
                     <td class="saved-quantity">{{ item.quantity }}</td>
 
-                    <!-- Editable via buttons -->
-                    <td>
-                        <input type="number"
-                            value="{{ item.quantity }}"
-                            min="0"
-                            class="quantity-input"
-                            data-original="{{ item.quantity }}">
-                    </td>
-
-                    <!-- Action buttons -->
-                    <td>
-                        <button type="button" onclick="changeQuantity(this, 1)">+</button>
-                        <button type="button" onclick="changeQuantity(this, -1)">−</button>
-                        <button type="button" onclick="removeQuantity(this)">DEL</button>
-                    </td>
+                    {% if session.get('privilege') in ['admin', 'store team'] %}
+                        <td>
+                            <input type="number"
+                                value="{{ item.quantity }}"
+                                min="0"
+                                class="quantity-input"
+                                data-original="{{ item.quantity }}">
+                        </td>
+                        <td>
+                            <div class="quantity-btn-group">
+                                <button type="button" class="quantity-btn plus" onclick="changeQuantity(this, 1)">+</button>
+                                <button type="button" class="quantity-btn minus" onclick="changeQuantity(this, -1)">−</button>
+                            </div>
+                        </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-        
     </section>
 
     <!-- Section: Add New Stock Type -->
+    {% if session.get('privilege') in ['admin', 'store team'] %}
     <section class="add-stock">
         <h2>Add New Stock Type</h2>
         <form id="add-stock-form" method="POST" action="/add_stock_type">
@@ -77,6 +94,7 @@
             <button type="submit">Add Stock Type</button>
         </form>
     </section>
+    {% endif %}
 
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>

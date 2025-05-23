@@ -10,7 +10,9 @@
     <!-- Navigation Bar -->
     <div class="navbar">
         <a href="/">Dashboard</a>
-        <a href="/admin">Admin</a>
+        {% if session.get('privilege') == 'admin' %}
+            <a href="/admin">Admin</a>
+        {% endif %}
         <a href="/settings">Settings</a>
         <a href="/support">Support</a>
 
@@ -32,7 +34,7 @@
     {% endif %}
     {% endwith %}
 
-    <form action="{{ url_for('otp_login') }}" method="POST">
+    <form action="{{ url_for('auth.otp_login') }}" method="POST">
         <label for="email">Email:</label>
         <input type="email" name="email" required>
 

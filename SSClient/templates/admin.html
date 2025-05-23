@@ -3,24 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <title>Support</title>
+    <title>Admin</title>
 </head>
 <body>
-
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        <div class="flash-messages">
-        {% for category, message in messages %}
-            <div class="flash {{ category }}">{{ message }}</div>
-        {% endfor %}
-        </div>
-    {% endif %}
-    {% endwith %}
 
     <!-- Navigation Bar -->
     <div class="navbar">
         <a href="/">Dashboard</a>
-        <a href="/admin">Admin</a>
+        {% if session.get('privilege') == 'admin' %}
+            <a href="/admin">Admin</a>
+        {% endif %}
         <a href="/settings">Settings</a>
         <a href="/support">Support</a>
 
@@ -33,6 +25,18 @@
     <h1>Admin Dashboard</h1>
 
     <div class="form-container">
+
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        <div class="flash-messages">
+        {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+        </div>
+    {% endif %}
+    {% endwith %}
+
         <h2>Add Users</h2>
         <form action="/send_otp" method="POST">
             <label>Email:</label>
@@ -69,10 +73,10 @@
 
                 <!-- Action buttons -->
                     <td>
-                        <form method="POST" action="{{ url_for('reset_password', user_id=user.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to reset this password?')">
+                        <form method="POST" action="{{ url_for('admin.reset_password', user_id=user.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to reset this password?')">
                             <button type="submit">Reset PW</button>
                         </form>
-                        <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this user?');">
+                        <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this user?');">
                             <button type="submit">Delete</button>
                         </form>
                     </td>
