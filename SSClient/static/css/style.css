@@ -319,3 +319,16 @@ input.invalid {
 .quantity-btn.delete:hover {
     background-color: #c82333;
 }
+
+.logo-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-right: 40px;
+    margin-bottom: -150px;
+}
+
+#logo {
+    max-width: 600px;
+    height: auto;
+}
