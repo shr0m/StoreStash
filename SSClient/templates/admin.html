@@ -13,6 +13,7 @@
         {% if session.get('privilege') == 'admin' %}
             <a href="/admin">Admin</a>
         {% endif %}
+
         <a href="/settings">Settings</a>
         <a href="/support">Support</a>
 
@@ -23,6 +24,8 @@
 
     <!-- Page Title -->
     <h1>Admin Dashboard</h1>
+
+    
 
     <div class="form-container">
 
@@ -36,6 +39,7 @@
         </div>
     {% endif %}
     {% endwith %}
+
 
         <h2>Add Users</h2>
         <form action="/send_otp" method="POST">
@@ -85,6 +89,7 @@
             </tbody>
         </table>
     </section>
+
 
 </body>
 </html>
