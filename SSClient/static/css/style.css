@@ -332,3 +332,70 @@ input.invalid {
     max-width: 600px;
     height: auto;
 }
+
+.settings-category {
+    margin: 30px auto;
+    padding: 20px;
+    max-width: 800px;
+    background-color: #f2f2f2;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+}
+
+.settings-category h2 {
+    color: #1143a1;
+    margin-bottom: 20px;
+    font-size: 20px;
+}
+
+.setting-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.setting-option input[type="radio"] {
+    margin-top: 4px;
+}
+
+.setting-option label {
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+}
+
+.setting-label {
+    font-weight: bold;
+    font-size: 16px;
+    color: #333;
+}
+
+.setting-description {
+    font-size: 14px;
+    color: #666;
+}
+
+.settings-form {
+    max-width: 800px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+/* Align the submit button */
+.settings-form button[type="submit"] {
+    align-self: flex-start;
+    padding: 10px 20px;
+    background-color: #1143a1;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.settings-form button[type="submit"]:hover {
+    background-color: #1143c8;
+}

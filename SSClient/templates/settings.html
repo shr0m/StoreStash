@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>Settings</title>
+</head>
+<body>
+
+    <!-- Navigation Bar -->
+    <div class="navbar">
+        <a href="/">Dashboard</a>
+        {% if session.get('privilege') == 'admin' %}
+            <a href="/admin">Admin</a>
+        {% endif %}
+
+        <a href="/settings">Settings</a>
+        <a href="/support">Support</a>
+
+        {% if 'user_id' in session %}
+            <a id="logout" href="/logout">Logout</a>
+        {% endif %}
+    </div>
+
+    <!-- Page Title -->
+    <h1>Settings</h1>
+<form method="POST" class="settings-form">
+
+    <section class="settings-category">
+        <h2>Theme</h2>
+        <div class="setting-option">
+            <input type="radio" id="theme-light" name="theme" value="light"
+                {% if settings and settings['theme'] == 'light' %}checked{% endif %}>
+            <label for="theme-light">
+                <span class="setting-label">Light Mode</span>
+                <span class="setting-description">Bright, default interface.</span>
+            </label>
+        </div>
+        <div class="setting-option">
+            <input type="radio" id="theme-dark" name="theme" value="dark"
+                {% if settings and settings['theme'] == 'dark' %}checked{% endif %}>
+            <label for="theme-dark">
+                <span class="setting-label">Dark Mode</span>
+                <span class="setting-description">Low-light dark theme.</span>
+            </label>
+        </div>
+    </section>
+
+    <button type="submit">Save Settings</button>
+</form>
+
+</body>
+</html>
