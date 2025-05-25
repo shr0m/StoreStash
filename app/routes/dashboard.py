@@ -18,7 +18,12 @@ def dashboard():
     stock_items = cursor.fetchall()
     conn.close()
 
-    return render_template('dashboard.html', stock_items=stock_items, session=session)
+    return render_template(
+        'dashboard.html',
+        stock_items=stock_items,
+        session=session,
+        theme=session.get('theme', 'light')  # Pass theme explicitly
+    )
 
 @dashboard_bp.route('/add_stock_type', methods=['POST'])
 def add_stock_type():

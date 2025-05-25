@@ -18,33 +18,35 @@ def login():
     cursor = conn.cursor()
     cursor.execute('SELECT COUNT(*) FROM users')
     user_count = cursor.fetchone()[0]
-    conn.close()
 
     if user_count == 0:
+        conn.close()
         return redirect(url_for('admin.admin'))
 
     if request.method == 'POST':
         email = request.form['email'].strip()
         otp_or_password = request.form['otp'].strip()
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute('SELECT id, username, password_hash, privilege, requires_password_change FROM users WHERE username = ?', (email,))
+        cursor.execute(
+            'SELECT id, username, password_hash, privilege, requires_password_change FROM users WHERE username = ?',
+            (email,)
+        )
         user = cursor.fetchone()
 
         if user and check_password_hash(user['password_hash'], otp_or_password):
             session['user_id'] = user['id']
             session['username'] = user['username']
             session['privilege'] = user['privilege']
+
             conn.close()
+
             if user['requires_password_change']:
                 return redirect(url_for('auth.change_password'))
             return redirect(url_for('dashboard.dashboard'))
 
         # Try OTP
         if verify_otp_and_update(cursor, email, otp_or_password):
-            cursor.execute('SELECT id, username, privilege FROM users WHERE username = ?', (email,))
+            cursor.execute('SELECT id, username, privilege, theme FROM users WHERE username = ?', (email,))
             user = cursor.fetchone()
             session['user_id'] = user['id']
             session['username'] = user['username']
@@ -54,6 +56,9 @@ def login():
             return redirect(url_for('auth.change_password'))
 
         flash('Invalid credentials', 'error')
+        conn.close()
+
+    else:
         conn.close()
 
     return render_template('login.html')

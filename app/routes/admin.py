@@ -9,6 +9,7 @@ def is_admin():
     return 'user_id' in session and session.get('privilege') == 'admin'
 
 @admin_bp.route('/admin')
+@admin_bp.route('/admin')
 def admin():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -32,7 +33,12 @@ def admin():
     privilege_order = {'admin': 0, 'store team': 1, 'view': 2}
     sorted_users = sorted(users, key=lambda u: privilege_order.get(u['privilege'], 99))
 
-    return render_template('admin.html', users=sorted_users)
+    # Pass theme directly in render_template
+    return render_template(
+        'admin.html',
+        users=sorted_users,
+        theme=session.get('theme', 'light')
+    )
 
 @admin_bp.route('/send_otp', methods=['POST'])
 def send_otp_route():
