@@ -22,7 +22,6 @@ def dashboard():
         'dashboard.html',
         stock_items=stock_items,
         session=session,
-        theme=session.get('theme', 'light')  # Pass theme explicitly
     )
 
 @dashboard_bp.route('/add_stock_type', methods=['POST'])

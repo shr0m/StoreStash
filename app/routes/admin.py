@@ -33,11 +33,9 @@ def admin():
     privilege_order = {'admin': 0, 'store team': 1, 'view': 2}
     sorted_users = sorted(users, key=lambda u: privilege_order.get(u['privilege'], 99))
 
-    # Pass theme directly in render_template
     return render_template(
         'admin.html',
         users=sorted_users,
-        theme=session.get('theme', 'light')
     )
 
 @admin_bp.route('/send_otp', methods=['POST'])
