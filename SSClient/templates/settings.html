@@ -2,52 +2,64 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <title>Settings</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
 
-    <!-- Navigation Bar -->
     <div class="navbar">
-        <a href="/">Dashboard</a>
+        <a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
         {% if session.get('privilege') == 'admin' %}
-            <a href="/admin">Admin</a>
+            <a href="/admin"><i class="fas fa-user-shield"></i> Admin</a>
         {% endif %}
-
-        <a href="/settings">Settings</a>
-        <a href="/support">Support</a>
-
+        <a href="/settings"><i class="fas fa-cog"></i> Settings</a>
+        <a href="/support"><i class="fa-solid fa-circle-question"></i> Support</a>
         {% if 'user_id' in session %}
-            <a id="logout" href="/logout">Logout</a>
+            <a id="logout" href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
         {% endif %}
     </div>
 
-    <!-- Page Title -->
     <h1>Settings</h1>
-<form method="POST" class="settings-form">
 
-    <section class="settings-category">
-        <h2>Theme</h2>
-        <div class="setting-option">
-            <input type="radio" id="theme-light" name="theme" value="light"
-                {% if settings and settings['theme'] == 'light' %}checked{% endif %}>
-            <label for="theme-light">
-                <span class="setting-label">Light Mode</span>
-                <span class="setting-description">Bright, default interface.</span>
-            </label>
-        </div>
-        <div class="setting-option">
-            <input type="radio" id="theme-dark" name="theme" value="dark"
-                {% if settings and settings['theme'] == 'dark' %}checked{% endif %}>
-            <label for="theme-dark">
-                <span class="setting-label">Dark Mode</span>
-                <span class="setting-description">Low-light dark theme.</span>
-            </label>
-        </div>
-    </section>
+    <!-- Updated form submits theme to server -->
+    <form class="settings-form" method="POST" action="{{ url_for('settings.settings') }}">
+        <!-- Theme Settings -->
+        <section class="settings-category section-highlight">
+            <h2><i class="fa-solid fa-paintbrush"></i> Theme</h2>
+            <div class="setting-option switch-container">
+                <label for="theme-toggle">Dark Mode</label>
+                <label class="switch">
+                    <input 
+                        type="checkbox" 
+                        id="theme-toggle" 
+                        name="theme" 
+                        value="dark" 
+                        {% if current_theme == 'dark' %}checked{% endif %}
+                    >
+                    <span class="slider"></span>
+                </label>
+                <span class="setting-description">Toggle between light and dark themes.</span>
+            </div>
+        </section>
 
-    <button type="submit">Save Settings</button>
-</form>
+        <!-- Security Settings -->
+        <section class="settings-category section-highlight">
+            <h2><i class="fas fa-shield-alt"></i> Security</h2>
+            <div class="setting-option">
+                <button type="button" class="btn" onclick="location.href='/change_password'">Change Password</button>
+            </div>
+            <div class="setting-option">
+                <button type="button" class="btn" onclick="location.href='/change_email'">Change Email</button>
+            </div>
+            <div class="setting-option">
+                <button type="button" class="btn" onclick="location.href='/request_escalation'">Request Privilege Escalation</button>
+            </div>
+        </section>
+    </form>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 
 </body>
 </html>

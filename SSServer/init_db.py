@@ -27,12 +27,10 @@ def init_db():
             username TEXT NOT NULL UNIQUE,
             password_hash TEXT,
             privilege TEXT NOT NULL CHECK(privilege IN ('admin', 'store team', 'view')),
-            requires_password_change INTEGER DEFAULT 1
+            requires_password_change INTEGER DEFAULT 1,
+            theme TEXT NOT NULL DEFAULT 'light'
         );
     ''')
 
     conn.commit()
     conn.close()
-
-if __name__ == '__main__':
-    init_db()

@@ -2,32 +2,32 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <title>Dashboard</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
 
-    <!-- Navigation Bar -->
     <div class="navbar">
-        <a href="/">Dashboard</a>
+        <a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+
         {% if session.get('privilege') == 'admin' %}
-            <a href="/admin">Admin</a>
+            <a href="/admin"><i class="fas fa-user-shield"></i> Admin</a>
         {% endif %}
-        <a href="/settings">Settings</a>
-        <a href="/support">Support</a>
+
+        <a href="/settings"><i class="fas fa-cog"></i> Settings</a>
+        <a href="/support"><i class="fa-solid fa-circle-question"></i> Support</a>
 
         {% if 'user_id' in session %}
-            <a id="logout" href="/logout">Logout</a>
+            <a id="logout" href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
         {% endif %}
     </div>
 
-    <!-- Page Title -->
     <h1>Dashboard</h1>
 
     <!-- Section: Display Stock -->
-    <section class="stock-display">
-        
-
+    <section>
         <div class="stock-toolbar">
             <div class="stock-search-bar">
                 <input
@@ -40,7 +40,7 @@
             {% if session.get('privilege') in ['admin', 'store team'] %}
                 <form method="POST" action="/update_stock_batch" onsubmit="prepareUpdateData(event)">
                     <input type="hidden" name="update_data" id="update-data-input">
-                    <button type="submit">Update Stock</button>
+                    <button class="btn" type="submit">Update Stock</button>
                 </form>
             {% endif %}
         </div>
@@ -86,12 +86,12 @@
 
     <!-- Section: Add New Stock Type -->
     {% if session.get('privilege') in ['admin', 'store team'] %}
-    <section class="add-stock">
+    <section>
         <h2>Add New Stock Type</h2>
-        <form id="add-stock-form" method="POST" action="/add_stock_type">
+        <form id="add-stock-form" method="POST" action="/add_stock_type" class="form-container">
             <input type="text" id="new-type-input" name="new_type" placeholder="Type of Item" required>
             <input type="number" id="initial-quantity-input" name="initial_quantity" placeholder="Initial Quantity" required min="1">
-            <button type="submit">Add Stock Type</button>
+            <button class="btn" type="submit">Add Stock Type</button>
         </form>
     </section>
     {% endif %}
