@@ -24,20 +24,39 @@ h1 {
     align-items: center;
 }
 
-.navbar a {
+.navbar > a {
     color: white;
     padding: 14px 20px;
     text-decoration: none;
     display: block;
 }
 
-.navbar a:hover {
+.navbar > a:hover {
     background-color: white;
     color: #1143a1;
 }
 
-#logout {
+.navbar .navsettings {
     margin-left:auto;
+}
+
+.navbar .navsettings {
+    margin-left: auto;
+    display: flex;
+    gap: 10px;   
+    align-items: center; 
+}
+
+.navbar .navsettings a {
+    color: white;
+    padding: 14px 20px;
+    text-decoration: none;
+    display: block;
+}
+
+.navbar .navsettings a:hover {
+    background-color: white;
+    color: #1143a1;
 }
 
 /* Section Styling */

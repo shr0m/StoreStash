@@ -1,9 +1,11 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import check_password_hash, generate_password_hash
 from app.db import get_db_connection
-from app.utils.otp_utils import verify_otp_and_update, send_otp_email
+from app.utils.otp_utils import verify_otp_and_update
+import re
 
 auth_bp = Blueprint('auth', __name__)
+EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]{3,}@[a-zA-Z0-9.-]{3,}\.[a-zA-Z]{2,}$')
 def is_logged():
     return 'user_id' in session
 
@@ -26,6 +28,10 @@ def login():
     if request.method == 'POST':
         email = request.form['email'].strip()
         otp_or_password = request.form['otp'].strip()
+
+        if not EMAIL_REGEX.match(email):
+            flash("Invalid email format. Please enter a valid email address.", "error")
+            return redirect(url_for('admin.admin'))
 
         cursor.execute(
             'SELECT id, username, password_hash, privilege, requires_password_change FROM users WHERE username = ?',

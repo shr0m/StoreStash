@@ -6,19 +6,24 @@
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
 </head>
 <body>
 
     <div class="navbar">
         <a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+
         {% if session.get('privilege') == 'admin' %}
             <a href="/admin"><i class="fas fa-user-shield"></i> Admin</a>
         {% endif %}
-        <a href="/settings"><i class="fas fa-cog"></i> Settings</a>
         <a href="/support"><i class="fa-solid fa-circle-question"></i> Support</a>
-        {% if 'user_id' in session %}
-            <a id="logout" href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
-        {% endif %}
+
+        <div class="navsettings">
+            <a href="/settings"><i class="fas fa-cog"></i> Settings</a>
+            {% if 'user_id' in session %}
+                <a href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            {% endif %}
+        </div>
     </div>
 
     <h1>Settings</h1>

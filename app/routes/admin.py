@@ -2,13 +2,14 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from werkzeug.security import generate_password_hash
 from app.db import get_db_connection
 from app.utils.otp_utils import generate_otp, send_otp_email
+import re
 
 admin_bp = Blueprint('admin', __name__)
+EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]{3,}@[a-zA-Z0-9.-]{3,}\.[a-zA-Z]{2,}$')
 
 def is_admin():
     return 'user_id' in session and session.get('privilege') == 'admin'
 
-@admin_bp.route('/admin')
 @admin_bp.route('/admin')
 def admin():
     conn = get_db_connection()
@@ -43,6 +44,10 @@ def send_otp_route():
     email = request.form['email']
     privilege = request.form['privilege']
     otp = generate_otp()
+
+    if not EMAIL_REGEX.match(email):
+        flash("Invalid email format. Please enter a valid email address.", "error")
+        return redirect(url_for('admin.admin'))
 
     conn = get_db_connection()
     cursor = conn.cursor()
