@@ -3,6 +3,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from app.db import get_db_connection
 from app.utils.otp_utils import verify_otp_and_update
 import re
+from app import limiter
 
 auth_bp = Blueprint('auth', __name__)
 EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]{3,}@[a-zA-Z0-9.-]{3,}\.[a-zA-Z]{2,}$')
@@ -11,6 +12,7 @@ def is_logged():
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit("100 per minute")
 def login():
     if 'user_id' in session:
         session.clear()
@@ -64,6 +66,7 @@ def login():
     
 
 @auth_bp.route('/otp_login', methods=['POST'])
+@limiter.limit("15 per minute")
 def otp_login():
     email = request.form.get('email', '').strip()
     provided_password = request.form.get('otp', '').strip()  # OTP or password
@@ -108,6 +111,7 @@ def logout():
     return redirect(url_for('auth.login'))
 
 @auth_bp.route('/change_password', methods=['GET', 'POST'])
+@limiter.limit("2 per week")
 def change_password():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))

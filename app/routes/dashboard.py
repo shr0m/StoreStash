@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from app.db import get_db_connection
 import json
+from app import limiter
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -8,6 +9,7 @@ def has_edit_privileges():
     return session.get('privilege') in ['admin', 'store team']
 
 @dashboard_bp.route('/')
+@limiter.limit("100 per minute")
 def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
@@ -24,6 +26,7 @@ def dashboard():
     )
 
 @dashboard_bp.route('/add_stock_type', methods=['POST'])
+@limiter.limit("20 per minute")
 def add_stock_type():
     if not has_edit_privileges():
         return "Unauthorized", 403
@@ -49,6 +52,7 @@ def add_stock_type():
     return redirect(url_for('dashboard.dashboard'))
 
 @dashboard_bp.route('/update_stock_batch', methods=['POST'])
+@limiter.limit("10 per minute")
 def update_stock_batch():
     if not has_edit_privileges():
         return "Unauthorized", 403

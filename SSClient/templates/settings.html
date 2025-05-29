@@ -68,6 +68,16 @@
             <div class="setting-option">
                 <button type="button" class="btn" onclick="location.href='/change_email'">Change Email</button>
             </div>
+            <div class="setting-option">
+                <button 
+                    type="button" 
+                    class="btn" 
+                    style="background-color: red;"
+                    onclick="if (confirm('Are you sure you want to perform a hard reset? This action cannot be undone.')) { location.href = '/hard_reset'; }"
+                >
+                    Hard Reset
+                </button>
+                </div>
         </section>
     </form>
 

@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash
 from app.db import get_db_connection
+from app import limiter
 from app.utils.otp_utils import generate_otp, send_otp_email
 import re
 
@@ -11,6 +12,7 @@ def is_admin():
     return 'user_id' in session and session.get('privilege') == 'admin'
 
 @admin_bp.route('/admin')
+@limiter.limit("100 per minute")
 def admin():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -25,7 +27,7 @@ def admin():
             return redirect(url_for('auth.login'))
 
     # Fetch all users for display
-    cursor.execute('SELECT id, username, privilege FROM users')
+    cursor.execute('SELECT id, username, privilege, name FROM users')
     users = cursor.fetchall()
 
     # Sort by privilege
@@ -38,7 +40,9 @@ def admin():
     )
 
 @admin_bp.route('/send_otp', methods=['POST'])
+@limiter.limit("10 per minute")
 def send_otp_route():
+    name = request.form['name']
     email = request.form['email']
     privilege = request.form['privilege']
     otp = generate_otp()
@@ -72,8 +76,8 @@ def send_otp_route():
         if not cursor.fetchone():
             hashed_otp = generate_password_hash(otp)
             cursor.execute(
-                'INSERT INTO users (username, password_hash, privilege) VALUES (?, ?, ?)',
-                (email, hashed_otp, privilege)
+                'INSERT INTO users (username, password_hash, privilege, name) VALUES (?, ?, ?, ?)',
+                (email, hashed_otp, privilege, name)
             )
 
         conn.commit()
@@ -89,22 +93,10 @@ def send_otp_route():
 
     return redirect(url_for('admin.admin'))
 
-@admin_bp.route('/reset_password/<int:user_id>', methods=['POST'])
-def reset_password(user_id):
-    if not is_admin():
-        flash("Unauthorized action", "error")
-        return redirect(url_for('auth.dashboard'))
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    default_hash = generate_password_hash('password')
-    cursor.execute('UPDATE users SET password_hash = ?, requires_password_change = 1 WHERE id = ?', (default_hash, user_id))
-    conn.commit()
-    flash("Password reset.", "success")
-    return redirect(url_for('admin.admin'))
-
-@admin_bp.route('/delete_user/<int:user_id>', methods=['POST'])
-def delete_user(user_id):
+@admin_bp.route('/update_users', methods=['POST'])
+@limiter.limit("3 per minute")
+def update_users():
     if not is_admin():
         flash("Unauthorized action", "error")
         return redirect(url_for('auth.dashboard'))
@@ -112,27 +104,47 @@ def delete_user(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Check the privilege of the user being deleted
-    cursor.execute('SELECT privilege FROM users WHERE id = ?', (user_id,))
-    user_to_delete = cursor.fetchone()
+    cursor.execute('SELECT id, privilege FROM users')
+    existing_users = cursor.fetchall()
+    existing_map = {user['id']: user['privilege'] for user in existing_users}
 
-    if not user_to_delete:
-        flash("User not found.", "error")
-        return redirect(url_for('admin.admin'))
+    for user_id, old_priv in existing_map.items():
+        new_priv = request.form.get(f"privilege_{user_id}")
+        reset = request.form.get(f"reset_{user_id}")
+        delete = request.form.get(f"delete_{user_id}")
 
-    # Prevent deletion if this is the only admin
-    
-    if user_to_delete['privilege'] == 'admin':
-        cursor.execute("SELECT COUNT(*) FROM users WHERE privilege = 'admin'")
-        admin_count = cursor.fetchone()[0]
+        # Prevent demoting the last admin
+        if new_priv and new_priv != old_priv and old_priv == 'admin':
+            cursor.execute("SELECT COUNT(*) FROM users WHERE privilege = 'admin'")
+            admin_count = cursor.fetchone()[0]
+            if admin_count <= 1:
+                flash("Cannot demote the last admin.", "error")
+                continue
 
-        if admin_count <= 1:
-            flash("One admin must exist.", "error")
-            return redirect(url_for('admin.admin'))
+        # Privilege change
+        if new_priv and new_priv != old_priv:
+            cursor.execute('UPDATE users SET privilege = ? WHERE id = ?', (new_priv, user_id))
+            flash(f"Privilege updated for user {user_id}", "success")
 
-    # Proceed with deletion
-    cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+        # Password reset
+        if reset:
+            default_hash = generate_password_hash('password')
+            cursor.execute(
+                'UPDATE users SET password_hash = ?, requires_password_change = 1 WHERE id = ?',
+                (default_hash, user_id)
+            )
+            flash(f"Password reset for user {user_id}", "success")
+
+        # Deletion
+        if delete:
+            if old_priv == 'admin':
+                cursor.execute("SELECT COUNT(*) FROM users WHERE privilege = 'admin'")
+                admin_count = cursor.fetchone()[0]
+                if admin_count <= 1:
+                    flash("Cannot delete the last admin.", "error")
+                    continue
+            cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+            flash(f"Deleted user {user_id}", "success")
+
     conn.commit()
-
-    flash("User deleted.", "success")
     return redirect(url_for('admin.admin'))

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Dashboard</title>
+    <title>Admin</title>
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/' + ('style-dark.css' if current_theme == 'dark' else 'style.css')) }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -29,8 +29,6 @@
     <!-- Page Title -->
     <h1>Admin Dashboard</h1>
 
-    <!-- Section: Add Users -->
-    <section>
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="flash-messages">
@@ -41,8 +39,14 @@
             {% endif %}
         {% endwith %}
 
+    <!-- Section: Add Users -->
+    <section>
+
         <h2><i class="fa-solid fa-user-plus"></i> Add Users</h2>
         <form action="/send_otp" method="POST" class="form-container add-user-form">
+            <label for="name">Name:</label>
+            <input type="text" id="name" name="name" required>
+
             <label for="email">Email:</label>
             <input type="email" id="email" name="email" required>
 
@@ -60,32 +64,85 @@
     <!-- Section: Display Users -->
     <section>
         <h2><i class="fa-solid fa-users"></i> Current Users</h2>
-        <table class="stock-table">
-            <thead>
-                <tr>
-                    <th>Email</th>
-                    <th>Privilege</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for user in users %}
-                <tr data-user-id="{{ user.id }}">
-                    <td>{{ user.username }}</td>
-                    <td>{{ user.privilege }}</td>
-                    <td>
-                        <form method="POST" action="{{ url_for('admin.reset_password', user_id=user.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to reset this password?')">
-                            <button class="btn" type="submit">Reset Pass</button>
-                        </form>
-                        <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this user?');">
-                            <button class="btn btn-danger" type="submit">Delete</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+
+        <div class="stock-toolbar">
+            <div class="stock-search-bar">
+                <input
+                    type="text"
+                    id="stock-search"
+                    placeholder="Search users..."
+                    oninput="filterUserTable()"
+                >
+            </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('admin.update_users') }}" id="update-settings-form">
+            <table class="stock-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Privilege</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.name }}</td>
+                        <td>{{ user.username }}</td>
+                        <td>
+                            <select name="privilege_{{ user.id }}" class="privilege-dropdown">
+                                <option value="admin" {% if user.privilege == 'admin' %}selected{% endif %}>Admin</option>
+                                <option value="store team" {% if user.privilege == 'store team' %}selected{% endif %}>Store Team</option>
+                                <option value="view" {% if user.privilege == 'view' %}selected{% endif %}>View</option>
+                            </select>
+                        </td>
+                        <td>
+                            <div class="checkbox-group">
+                                <label>
+                                    <input type="checkbox" name="reset_{{ user.id }}" class="action-checkbox">
+                                    Reset Password
+                                </label>
+                                <label>
+                                    <input type="checkbox" name="delete_{{ user.id }}" class="action-checkbox">
+                                    Delete User
+                                </label>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <button type="submit" class="btn">Update Settings</button>
+        </form>
     </section>
+
+
+<script>
+function filterUserTable() {
+    const input = document.getElementById("stock-search");
+    const filter = input.value.toLowerCase();
+    const table = document.querySelector(".stock-table tbody");
+    const rows = table.getElementsByTagName("tr");
+
+    for (let row of rows) {
+        const cells = row.getElementsByTagName("td");
+        let matchFound = false;
+
+        for (let cell of cells) {
+            const text = cell.textContent.toLowerCase();
+            if (text.includes(filter)) {
+                matchFound = true;
+                break;
+            }
+        }
+
+        row.style.display = matchFound ? "" : "none";
+    }
+}
+</script>
+
 
 </body>
 </html>
