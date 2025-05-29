@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, session
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from app.db import get_db_connection
 import json
 
@@ -16,7 +16,6 @@ def dashboard():
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM stock')
     stock_items = cursor.fetchall()
-    conn.close()
 
     return render_template(
         'dashboard.html',
@@ -42,12 +41,11 @@ def add_stock_type():
     cursor = conn.cursor()
     cursor.execute('SELECT COUNT(*) FROM stock WHERE LOWER(type) = LOWER(?)', (new_type,))
     if cursor.fetchone()[0] > 0:
-        conn.close()
         return "Stock type already exists", 400
 
     cursor.execute('INSERT INTO stock (type, quantity) VALUES (?, ?)', (new_type, initial_quantity))
     conn.commit()
-    conn.close()
+    flash("Stock type added.", "success")
     return redirect(url_for('dashboard.dashboard'))
 
 @dashboard_bp.route('/update_stock_batch', methods=['POST'])
@@ -76,5 +74,5 @@ def update_stock_batch():
             continue
 
     conn.commit()
-    conn.close()
+    flash("Stock file updated.", "success")
     return redirect(url_for('dashboard.dashboard'))

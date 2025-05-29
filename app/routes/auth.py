@@ -22,7 +22,6 @@ def login():
     user_count = cursor.fetchone()[0]
 
     if user_count == 0:
-        conn.close()
         return redirect(url_for('admin.admin'))
 
     if request.method == 'POST':
@@ -44,7 +43,6 @@ def login():
             session['username'] = user['username']
             session['privilege'] = user['privilege']
 
-            conn.close()
 
             if user['requires_password_change']:
                 return redirect(url_for('auth.change_password'))
@@ -58,14 +56,9 @@ def login():
             session['username'] = user['username']
             session['privilege'] = user['privilege']
             conn.commit()
-            conn.close()
             return redirect(url_for('auth.change_password'))
 
         flash('Invalid credentials', 'error')
-        conn.close()
-
-    else:
-        conn.close()
 
     return render_template('login.html')
     
@@ -83,7 +76,6 @@ def otp_login():
 
     if not user:
         flash('Invalid credentials', 'error')
-        conn.close()
         return redirect(url_for('auth.login'))
 
     # Check password first
@@ -91,7 +83,6 @@ def otp_login():
         session['user_id'] = user['id']
         session['username'] = user['username']
         session['privilege'] = user['privilege']
-        conn.close()
         if user['requires_password_change']:
             return redirect(url_for('auth.change_password'))
         return redirect(url_for('dashboard.dashboard'))
@@ -106,11 +97,9 @@ def otp_login():
         hashed_otp = generate_password_hash(provided_password)
         cursor.execute('UPDATE users SET password_hash = ?, requires_password_change = 1 WHERE id = ?', (hashed_otp, user['id']))
         conn.commit()
-        conn.close()
         return redirect(url_for('auth.change_password'))
 
     flash('Invalid credentials', 'error')
-    conn.close()
     return redirect(url_for('auth.login'))
 
 @auth_bp.route('/logout')
@@ -132,7 +121,6 @@ def change_password():
             (new_password, session['user_id'])
         )
         conn.commit()
-        conn.close()
         flash("Password updated successfully!", "success")
         return redirect(url_for('dashboard.dashboard'))
 

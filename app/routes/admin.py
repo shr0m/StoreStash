@@ -22,13 +22,11 @@ def admin():
     # If users exist, restrict access to logged-in admins only
     if user_count > 0:
         if 'user_id' not in session or session.get('privilege') != 'admin':
-            conn.close()
             return redirect(url_for('auth.login'))
 
     # Fetch all users for display
     cursor.execute('SELECT id, username, privilege FROM users')
     users = cursor.fetchall()
-    conn.close()
 
     # Sort by privilege
     privilege_order = {'admin': 0, 'store team': 1, 'view': 2}
@@ -79,7 +77,6 @@ def send_otp_route():
             )
 
         conn.commit()
-        conn.close()
 
         flash("OTP sent to user email.", "success")
 
@@ -89,8 +86,6 @@ def send_otp_route():
 
     else:
         flash("Failed to send OTP.", "error")
-
-    conn.close()
 
     return redirect(url_for('admin.admin'))
 
@@ -105,7 +100,6 @@ def reset_password(user_id):
     default_hash = generate_password_hash('password')
     cursor.execute('UPDATE users SET password_hash = ?, requires_password_change = 1 WHERE id = ?', (default_hash, user_id))
     conn.commit()
-    conn.close()
     flash("Password reset.", "success")
     return redirect(url_for('admin.admin'))
 
@@ -123,7 +117,6 @@ def delete_user(user_id):
     user_to_delete = cursor.fetchone()
 
     if not user_to_delete:
-        conn.close()
         flash("User not found.", "error")
         return redirect(url_for('admin.admin'))
 
@@ -134,14 +127,12 @@ def delete_user(user_id):
         admin_count = cursor.fetchone()[0]
 
         if admin_count <= 1:
-            conn.close()
             flash("One admin must exist.", "error")
             return redirect(url_for('admin.admin'))
 
     # Proceed with deletion
     cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
     conn.commit()
-    conn.close()
 
     flash("User deleted.", "success")
     return redirect(url_for('admin.admin'))

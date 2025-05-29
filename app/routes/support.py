@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, session
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from app.utils.email_utils import send_support_email
 
 support_bp = Blueprint('support', __name__)
@@ -16,4 +16,5 @@ def submit_support():
     message = request.form.get('message')
 
     send_support_email(email, issue, message)
-    return redirect(url_for('support.support'))
+    flash("Your ticket has been submitted. Please check your emails", "success")
+    return render_template('support.html')

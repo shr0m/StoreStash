@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Settings</title>
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/' + ('style-dark.css' if current_theme == 'dark' else 'style.css')) }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
 </head>
@@ -27,6 +27,16 @@
     </div>
 
     <h1>Settings</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
 
     <!-- Updated form submits theme to server -->
     <form class="settings-form" method="POST" action="{{ url_for('settings.settings') }}">
@@ -58,13 +68,21 @@
             <div class="setting-option">
                 <button type="button" class="btn" onclick="location.href='/change_email'">Change Email</button>
             </div>
-            <div class="setting-option">
-                <button type="button" class="btn" onclick="location.href='/request_escalation'">Request Privilege Escalation</button>
-            </div>
         </section>
     </form>
 
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+        const themeToggle = document.getElementById('theme-toggle');
+        const form = themeToggle.closest('form');
+
+        themeToggle.addEventListener('change', () => {
+            form.submit();
+        });
+        });
+</script>
+
 
 </body>
 </html>

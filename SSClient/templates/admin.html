@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Dashboard</title>
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/' + ('style-dark.css' if current_theme == 'dark' else 'style.css')) }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
 </head>
@@ -75,7 +75,7 @@
                     <td>{{ user.privilege }}</td>
                     <td>
                         <form method="POST" action="{{ url_for('admin.reset_password', user_id=user.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to reset this password?')">
-                            <button class="btn" type="submit">Reset PW</button>
+                            <button class="btn" type="submit">Reset Pass</button>
                         </form>
                         <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this user?');">
                             <button class="btn btn-danger" type="submit">Delete</button>
