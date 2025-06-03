@@ -117,14 +117,35 @@ def change_password():
         return redirect(url_for('auth.login'))
 
     if request.method == 'POST':
-        new_password = generate_password_hash(request.form['new_password'])
+        current_password = request.form['current_password']
+        new_password = request.form['new_password']
+        confirm_password = request.form['confirm_password']
+
+        if new_password != confirm_password:
+            flash("New password and confirmation do not match.", "error")
+            return redirect(url_for('auth.change_password'))
+
         conn = get_db_connection()
         cursor = conn.cursor()
+        cursor.execute('SELECT password_hash FROM users WHERE id = ?', (session['user_id'],))
+        user = cursor.fetchone()
+
+        if user is None:
+            flash("User not found.", "error")
+            return redirect(url_for('auth.change_password'))
+
+        if not check_password_hash(user['password_hash'], current_password):
+            flash("Current password is incorrect.", "error")
+            return redirect(url_for('auth.change_password'))
+
+        new_password_hashed = generate_password_hash(new_password)
         cursor.execute(
             'UPDATE users SET password_hash = ?, requires_password_change = 0 WHERE id = ?',
-            (new_password, session['user_id'])
+            (new_password_hashed, session['user_id'])
         )
         conn.commit()
+        conn.close()
+
         flash("Password updated successfully!", "success")
         return redirect(url_for('dashboard.dashboard'))
 
