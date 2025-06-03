@@ -381,17 +381,23 @@ input.invalid {
     gap: 4px;
 }
 
+.quantity-btn.normal {
+    background-color: #1143A1;
+}
+
+.quantity-btn.normal:hover {
+    background-color: #1143C8;
+}
+
 .quantity-btn.plus:hover {
     background-color: #218838;
 }
 
-.quantity-btn.minus,
-.quantity-btn.delete {
+.quantity-btn.minus {
     background-color: #dc3545; /* red */
 }
 
-.quantity-btn.minus:hover,
-.quantity-btn.delete:hover {
+.quantity-btn.minus:hover {
     background-color: #c82333;
 }
 

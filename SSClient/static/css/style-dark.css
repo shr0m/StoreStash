@@ -392,6 +392,14 @@ input.invalid {
     gap: 4px;
 }
 
+.quantity-btn.normal {
+    background-color: #0A2A66;
+}
+
+.quantity-btn.normal:hover {
+    background-color: #1143C8
+}
+
 .quantity-btn.plus:hover {
     background-color: #218838;
 }
