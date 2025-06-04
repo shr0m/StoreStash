@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash
-from app.db import get_db_connection
+from app.db import get_supabase_client
 from app import limiter
 from app.utils.otp_utils import generate_otp, send_otp_email
 import re
@@ -14,30 +14,27 @@ def is_admin():
 @admin_bp.route('/admin')
 @limiter.limit("100 per minute")
 def admin():
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
     # Check if users exist
-    cursor.execute('SELECT COUNT(*) FROM users')
-    user_count = cursor.fetchone()[0]
+    response = supabase.table('users').select('id').limit(1).execute()
+    user_count = len(response.data)
 
     # If users exist, restrict access to logged-in admins only
     if user_count > 0:
-        if 'user_id' not in session or session.get('privilege') != 'admin':
+        if not is_admin():
             return redirect(url_for('auth.login'))
 
     # Fetch all users for display
-    cursor.execute('SELECT id, username, privilege, name FROM users')
-    users = cursor.fetchall()
+    users_resp = supabase.table('users').select('id, username, privilege, name').execute()
+    users = users_resp.data or []
 
     # Sort by privilege
     privilege_order = {'admin': 0, 'store team': 1, 'view': 2}
-    sorted_users = sorted(users, key=lambda u: privilege_order.get(u['privilege'], 99))
+    sorted_users = sorted(users, key=lambda u: privilege_order.get(u.get('privilege'), 99))
 
-    return render_template(
-        'admin.html',
-        users=sorted_users,
-    )
+    return render_template('admin.html', users=sorted_users)
+
 
 @admin_bp.route('/send_otp', methods=['POST'])
 @limiter.limit("10 per minute")
@@ -51,43 +48,39 @@ def send_otp_route():
         flash("Invalid email format. Please enter a valid email address.", "error")
         return redirect(url_for('admin.admin'))
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM users')
-    user_count = cursor.fetchone()[0]
+    supabase = get_supabase_client()
+
+    # Check user count
+    user_count_resp = supabase.table('users').select('id').limit(1).execute()
+    user_count = len(user_count_resp.data)
 
     if user_count == 0:
         privilege = 'admin'
 
-    # Allow anyone to send OTP if it's the first user
     if user_count > 0 and not is_admin():
         flash("Unauthorized action", "error")
         return redirect(url_for('auth.login'))
 
     if send_otp_email(email, otp):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
         # Save OTP
-        cursor.execute('INSERT INTO otps (email, otp) VALUES (?, ?)', (email, otp))
+        supabase.table('otps').insert({'email': email, 'otp': otp}).execute()
 
-        # Create user if not exists
-        cursor.execute('SELECT id FROM users WHERE username = ?', (email,))
-        if not cursor.fetchone():
+        # Check if user exists
+        user_resp = supabase.table('users').select('id').eq('username', email).limit(1).execute()
+
+        if not user_resp.data:
             hashed_otp = generate_password_hash(otp)
-            cursor.execute(
-                'INSERT INTO users (username, password_hash, privilege, name) VALUES (?, ?, ?, ?)',
-                (email, hashed_otp, privilege, name)
-            )
-
-        conn.commit()
+            supabase.table('users').insert({
+                'username': email,
+                'password_hash': hashed_otp,
+                'privilege': privilege,
+                'name': name
+            }).execute()
 
         flash("OTP sent to user email.", "success")
 
-        # If first user, redirect to login so they can finish setup
         if user_count == 0:
             return redirect(url_for('auth.login'))
-
     else:
         flash("Failed to send OTP.", "error")
 
@@ -99,13 +92,12 @@ def send_otp_route():
 def update_users():
     if not is_admin():
         flash("Unauthorized action", "error")
-        return redirect(url_for('auth.dashboard'))
+        return redirect(url_for('dashboard.dashboard'))
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
-    cursor.execute('SELECT id, privilege FROM users')
-    existing_users = cursor.fetchall()
+    users_resp = supabase.table('users').select('id, privilege').execute()
+    existing_users = users_resp.data or []
     existing_map = {user['id']: user['privilege'] for user in existing_users}
 
     for user_id, old_priv in existing_map.items():
@@ -115,36 +107,35 @@ def update_users():
 
         # Prevent demoting the last admin
         if new_priv and new_priv != old_priv and old_priv == 'admin':
-            cursor.execute("SELECT COUNT(*) FROM users WHERE privilege = 'admin'")
-            admin_count = cursor.fetchone()[0]
+            admin_count_resp = supabase.table('users').select('id').eq('privilege', 'admin').execute()
+            admin_count = len(admin_count_resp.data)
             if admin_count <= 1:
                 flash("Cannot demote the last admin.", "error")
                 continue
 
         # Privilege change
         if new_priv and new_priv != old_priv:
-            cursor.execute('UPDATE users SET privilege = ? WHERE id = ?', (new_priv, user_id))
+            supabase.table('users').update({'privilege': new_priv}).eq('id', user_id).execute()
             flash(f"Privilege updated for user {user_id}", "success")
 
         # Password reset
         if reset:
             default_hash = generate_password_hash('password')
-            cursor.execute(
-                'UPDATE users SET password_hash = ?, requires_password_change = 1 WHERE id = ?',
-                (default_hash, user_id)
-            )
+            supabase.table('users').update({
+                'password_hash': default_hash,
+                'requires_password_change': True
+            }).eq('id', user_id).execute()
             flash(f"Password reset for user {user_id}", "success")
 
         # Deletion
         if delete:
             if old_priv == 'admin':
-                cursor.execute("SELECT COUNT(*) FROM users WHERE privilege = 'admin'")
-                admin_count = cursor.fetchone()[0]
+                admin_count_resp = supabase.table('users').select('id').eq('privilege', 'admin').execute()
+                admin_count = len(admin_count_resp.data)
                 if admin_count <= 1:
                     flash("Cannot delete the last admin.", "error")
                     continue
-            cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+            supabase.table('users').delete().eq('id', user_id).execute()
             flash(f"Deleted user {user_id}", "success")
 
-    conn.commit()
     return redirect(url_for('admin.admin'))

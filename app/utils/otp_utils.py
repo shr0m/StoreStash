@@ -5,6 +5,7 @@ import string
 import datetime
 from email.message import EmailMessage
 from werkzeug.security import generate_password_hash
+from app.db import get_supabase_client  # Assuming you want to get supabase client here if needed
 
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL")
 SUPPORT_EMAIL_PASSWORD = os.getenv("SUPPORT_EMAIL_PASSWORD")
@@ -28,17 +29,27 @@ def send_otp_email(to_email, otp):
         print(f"Failed to send OTP email: {e}")
         return False
 
-def verify_otp_and_update(cursor, email, otp):
-    cursor.execute('''
-        SELECT created_at FROM otps
-        WHERE email = ? AND otp = ?
-        ORDER BY created_at DESC LIMIT 1
-    ''', (email, otp))
-    row = cursor.fetchone()
-    if row:
-        created_at = datetime.datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
-        if datetime.datetime.now() - created_at <= datetime.timedelta(minutes=10):
-            hashed_otp = generate_password_hash(otp)
-            cursor.execute('UPDATE users SET password_hash = ?, requires_password_change = 1 WHERE username = ?', (hashed_otp, email))
-            return True
+def verify_otp_and_update_supabase(supabase, email, otp):
+    # Fetch latest OTP for email matching otp
+    response = supabase.table('otps') \
+        .select('created_at') \
+        .eq('email', email) \
+        .eq('otp', otp) \
+        .order('created_at', desc=True) \
+        .limit(1) \
+        .execute()
+    
+    if not response.data:
+        return False
+
+    created_at_str = response.data[0]['created_at']
+    created_at = datetime.datetime.fromisoformat(created_at_str.rstrip('Z'))
+
+    if datetime.datetime.utcnow() - created_at <= datetime.timedelta(minutes=10):
+        hashed_otp = generate_password_hash(otp)
+        supabase.table('users').update({
+            'password_hash': hashed_otp,
+            'requires_password_change': True
+        }).eq('username', email).execute()
+        return True
     return False

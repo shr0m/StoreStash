@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
-from app.db import get_db_connection
+from app.db import get_supabase_client
 from app import limiter
 
 settings_bp = Blueprint('settings', __name__)
@@ -11,20 +11,18 @@ def settings():
         return redirect(url_for('auth.login'))
 
     user_id = session['user_id']
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
     if request.method == 'POST':
         new_theme = 'dark' if request.form.get('theme') == 'dark' else 'light'
-        cursor.execute("UPDATE users SET theme = ? WHERE id = ?", (new_theme, user_id))
-        conn.commit()
+        supabase.table('users').update({'theme': new_theme}).eq('id', user_id).execute()
         flash("Theme updated successfully.", "success")
         return redirect(url_for('settings.settings'))
 
-    cursor.execute("SELECT theme FROM users WHERE id = ?", (user_id,))
-    current_theme = cursor.fetchone()
+    response = supabase.table('users').select('theme').eq('id', user_id).single().execute()
+    current_theme = response.data.get('theme') if response.data else 'light'
 
-    return render_template('settings.html', current_theme=current_theme['theme'] if current_theme else 'light')
+    return render_template('settings.html', current_theme=current_theme)
 
 @settings_bp.route('/hard_reset')
 @limiter.limit("1 per minute")

@@ -1,12 +1,16 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import check_password_hash, generate_password_hash
-from app.db import get_db_connection
-from app.utils.otp_utils import verify_otp_and_update
-import re
+from app.db import get_supabase_client
+from app.utils.otp_utils import verify_otp_and_update_supabase
 from app import limiter
+import re
+
+# Import Supabase API error for handling no row found
+from postgrest import APIError  
 
 auth_bp = Blueprint('auth', __name__)
 EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]{3,}@[a-zA-Z0-9.-]{3,}\.[a-zA-Z]{2,}$')
+
 def is_logged():
     return 'user_id' in session
 
@@ -14,16 +18,14 @@ def is_logged():
 @auth_bp.route('/login', methods=['GET', 'POST'])
 @limiter.limit("100 per minute")
 def login():
-    if 'user_id' in session:
+    if is_logged():
         session.clear()
 
-    # If there are no users, redirect to admin setup
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM users')
-    user_count = cursor.fetchone()[0]
+    supabase = get_supabase_client()
 
-    if user_count == 0:
+    # Check if there are no users (first-time setup)
+    response = supabase.table('users').select('id').limit(1).execute()
+    if not response.data:
         return redirect(url_for('admin.admin'))
 
     if request.method == 'POST':
@@ -31,58 +33,84 @@ def login():
         otp_or_password = request.form['otp'].strip()
 
         if not EMAIL_REGEX.match(email):
-            flash("Invalid email format. Please enter a valid email address.", "error")
-            return redirect(url_for('admin.admin'))
+            flash("Invalid email format.", "error")
+            return redirect(url_for('auth.login'))
 
-        cursor.execute(
-            'SELECT id, username, password_hash, privilege, requires_password_change FROM users WHERE username = ?',
-            (email,)
-        )
-        user = cursor.fetchone()
+        try:
+            # Try to sign in using Supabase Auth
+            auth_response = supabase.auth.sign_in_with_password({
+                "email": email,
+                "password": otp_or_password
+            })
+            user = auth_response.user
 
-        if user and check_password_hash(user['password_hash'], otp_or_password):
-            session['user_id'] = user['id']
-            session['username'] = user['username']
-            session['privilege'] = user['privilege']
+            if user:
+                try:
+                    # Load profile data from users table
+                    profile_response = supabase.table('users')\
+                        .select("id, username, privilege, requires_password_change")\
+                        .eq("email", email).single().execute()
+                    profile = profile_response.data
 
+                    if not profile:
+                        flash("No user profile found for this email.", "error")
+                        return redirect(url_for('auth.login'))
 
-            if user['requires_password_change']:
+                    session['user_id'] = user.id
+                    session['username'] = profile['username']
+                    session['privilege'] = profile['privilege']
+
+                    if profile['requires_password_change']:
+                        return redirect(url_for('auth.change_password'))
+                    return redirect(url_for('dashboard.dashboard'))
+
+                except APIError as e:
+                    if "Results contain 0 rows" in str(e):
+                        flash("No user profile found for this email.", "error")
+                        return redirect(url_for('auth.login'))
+                    else:
+                        raise
+
+        except Exception:
+            # If Supabase Auth fails, try OTP fallback
+            try:
+                otp_user_resp = supabase.table('users')\
+                    .select("id, username, privilege")\
+                    .eq("email", email).single().execute()
+                otp_user = otp_user_resp.data
+            except APIError as e:
+                otp_user = None
+
+            if verify_otp_and_update_supabase(supabase, email, otp_or_password) and otp_user:
+                session['user_id'] = otp_user['id']
+                session['username'] = otp_user['username']
+                session['privilege'] = otp_user['privilege']
                 return redirect(url_for('auth.change_password'))
-            return redirect(url_for('dashboard.dashboard'))
 
-        # Try OTP
-        if verify_otp_and_update(cursor, email, otp_or_password):
-            cursor.execute('SELECT id, username, privilege, theme FROM users WHERE username = ?', (email,))
-            user = cursor.fetchone()
-            session['user_id'] = user['id']
-            session['username'] = user['username']
-            session['privilege'] = user['privilege']
-            conn.commit()
-            return redirect(url_for('auth.change_password'))
-
-        flash('Invalid credentials', 'error')
+            flash('Invalid credentials', 'error')
 
     return render_template('login.html')
-    
+
 
 @auth_bp.route('/otp_login', methods=['POST'])
 @limiter.limit("15 per minute")
 def otp_login():
     email = request.form.get('email', '').strip()
-    provided_password = request.form.get('otp', '').strip()  # OTP or password
+    provided_password = request.form.get('otp', '').strip()
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
+    
+    response = supabase.table('users').select('*').eq('username', email).limit(1).execute()
+    users = response.data
 
-    cursor.execute('SELECT id, username, password_hash, privilege, requires_password_change FROM users WHERE username = ?', (email,))
-    user = cursor.fetchone()
-
-    if not user:
+    if not users:
         flash('Invalid credentials', 'error')
         return redirect(url_for('auth.login'))
 
-    # Check password first
-    if user['password_hash'] and check_password_hash(user['password_hash'], provided_password):
+    user = users[0]
+
+    # Local password fallback (not using Supabase Auth here)
+    if user.get('password_hash') and check_password_hash(user['password_hash'], provided_password):
         session['user_id'] = user['id']
         session['username'] = user['username']
         session['privilege'] = user['privilege']
@@ -90,25 +118,29 @@ def otp_login():
             return redirect(url_for('auth.change_password'))
         return redirect(url_for('dashboard.dashboard'))
 
-    # Check OTP
-    if verify_otp_and_update(cursor, email, provided_password):
+    # OTP fallback
+    if verify_otp_and_update_supabase(supabase, email, provided_password):
         session['user_id'] = user['id']
         session['username'] = user['username']
         session['privilege'] = user['privilege']
 
-        # Update password_hash with hashed OTP, force password change
         hashed_otp = generate_password_hash(provided_password)
-        cursor.execute('UPDATE users SET password_hash = ?, requires_password_change = 1 WHERE id = ?', (hashed_otp, user['id']))
-        conn.commit()
+        supabase.table('users').update({
+            'password_hash': hashed_otp,
+            'requires_password_change': True
+        }).eq('id', user['id']).execute()
+
         return redirect(url_for('auth.change_password'))
 
     flash('Invalid credentials', 'error')
     return redirect(url_for('auth.login'))
 
+
 @auth_bp.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('auth.login'))
+
 
 @auth_bp.route('/change_password', methods=['GET', 'POST'])
 @limiter.limit("2 per week")
@@ -116,35 +148,37 @@ def change_password():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
+    supabase = get_supabase_client()
+    user_id = session['user_id']
+
     if request.method == 'POST':
         current_password = request.form['current_password']
         new_password = request.form['new_password']
         confirm_password = request.form['confirm_password']
 
         if new_password != confirm_password:
-            flash("New password and confirmation do not match.", "error")
+            flash("Passwords do not match.", "error")
             return redirect(url_for('auth.change_password'))
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT password_hash FROM users WHERE id = ?', (session['user_id'],))
-        user = cursor.fetchone()
+        try:
+            # Check current password against stored hash
+            response = supabase.table('users').select('password_hash').eq('id', user_id).single().execute()
+            user = response.data
+            if not user or not check_password_hash(user['password_hash'], current_password):
+                flash("Current password is incorrect.", "error")
+                return redirect(url_for('auth.change_password'))
+        except APIError as e:
+            if "Results contain 0 rows" in str(e):
+                flash("User not found.", "error")
+                return redirect(url_for('auth.login'))
+            else:
+                raise
 
-        if user is None:
-            flash("User not found.", "error")
-            return redirect(url_for('auth.change_password'))
-
-        if not check_password_hash(user['password_hash'], current_password):
-            flash("Current password is incorrect.", "error")
-            return redirect(url_for('auth.change_password'))
-
-        new_password_hashed = generate_password_hash(new_password)
-        cursor.execute(
-            'UPDATE users SET password_hash = ?, requires_password_change = 0 WHERE id = ?',
-            (new_password_hashed, session['user_id'])
-        )
-        conn.commit()
-        conn.close()
+        new_hashed = generate_password_hash(new_password)
+        supabase.table('users').update({
+            'password_hash': new_hashed,
+            'requires_password_change': False
+        }).eq('id', user_id).execute()
 
         flash("Password updated successfully!", "success")
         return redirect(url_for('dashboard.dashboard'))

@@ -1,23 +1,28 @@
+import os
 from flask import Flask, session
 from dotenv import load_dotenv
 from config import Config
-from app.db import get_db_connection, close_db_connection
-from app.extensions import limiter 
-import os
+from app.extensions import limiter
+from app.db import get_supabase_client  # new function for Supabase client
 
 def create_app():
-    load_dotenv(dotenv_path="../SSServer/.env")
+    # Load environment variables
+    load_dotenv(dotenv_path="../.env")
 
+    # Template and static folder paths for Flask
     template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'SSClient', 'templates'))
     static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'SSClient', 'static'))
 
     app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
     app.secret_key = os.getenv("FLASK_SECRET_KEY")
     app.config.from_object(Config)
-    app.teardown_appcontext(close_db_connection)
 
-    limiter.init_app(app)  # <--- initialize shared limiter instance here
+    # Initialize shared limiter
+    limiter.init_app(app)
     limiter.default_limits = ["200 per day", "50 per hour"]
+
+    # Initialize Supabase client (just to ensure config is valid)
+    get_supabase_client()
 
     # Register blueprints
     from .routes.auth import auth_bp
@@ -32,19 +37,19 @@ def create_app():
     app.register_blueprint(support_bp)
     app.register_blueprint(settings_bp)
 
+    # Context processor to inject theme from Supabase
     @app.context_processor
     def inject_theme():
         theme = 'light'
         if 'user_id' in session:
             try:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute("SELECT theme FROM users WHERE id = ?", (session['user_id'],))
-                result = cursor.fetchone()
-                if result:
-                    theme = result['theme']
+                supabase = get_supabase_client()
+                response = supabase.table('users').select('theme').eq('id', session['user_id']).single().execute()
+                data = response.data
+                if data and 'theme' in data:
+                    theme = data['theme']
             except Exception as e:
-                print(f"Theme injection error: {e}")
+                print(f"Theme injection error (Supabase): {e}")
         return {'current_theme': theme}
 
     return app

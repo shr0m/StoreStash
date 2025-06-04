@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
-from app.db import get_db_connection
+from app.db import get_supabase_client
 import json
 from app import limiter
 
@@ -14,10 +14,9 @@ def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM stock')
-    stock_items = cursor.fetchall()
+    supabase = get_supabase_client()
+    response = supabase.table('stock').select('*').execute()
+    stock_items = response.data or []
 
     return render_template(
         'dashboard.html',
@@ -40,14 +39,21 @@ def add_stock_type():
     if not new_type or initial_quantity < 0:
         return "Invalid input", 400
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM stock WHERE LOWER(type) = LOWER(?)', (new_type,))
-    if cursor.fetchone()[0] > 0:
+    supabase = get_supabase_client()
+
+    # Check if stock type already exists (case-insensitive)
+    response = supabase.table('stock')\
+        .select('id')\
+        .ilike('type', new_type)\
+        .execute()
+    if response.data:
         return "Stock type already exists", 400
 
-    cursor.execute('INSERT INTO stock (type, quantity) VALUES (?, ?)', (new_type, initial_quantity))
-    conn.commit()
+    supabase.table('stock').insert({
+        'type': new_type,
+        'quantity': initial_quantity
+    }).execute()
+
     flash("Stock type added.", "success")
     return redirect(url_for('dashboard.dashboard'))
 
@@ -62,8 +68,7 @@ def update_stock_batch():
     except Exception:
         return "Invalid data format", 400
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    supabase = get_supabase_client()
 
     for item in data:
         try:
@@ -71,12 +76,11 @@ def update_stock_batch():
             quantity = int(item['quantity'])
 
             if quantity <= 0:
-                cursor.execute('DELETE FROM stock WHERE id = ?', (item_id,))
+                supabase.table('stock').delete().eq('id', item_id).execute()
             else:
-                cursor.execute('UPDATE stock SET quantity = ? WHERE id = ?', (quantity, item_id))
-        except:
+                supabase.table('stock').update({'quantity': quantity}).eq('id', item_id).execute()
+        except Exception:
             continue
 
-    conn.commit()
     flash("Stock file updated.", "success")
     return redirect(url_for('dashboard.dashboard'))
