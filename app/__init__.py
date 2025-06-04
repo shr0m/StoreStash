@@ -7,7 +7,7 @@ from app.db import get_supabase_client  # new function for Supabase client
 
 def create_app():
     # Load environment variables
-    load_dotenv(dotenv_path="../.env")
+    load_dotenv(dotenv_path=".env")
 
     # Template and static folder paths for Flask
     template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'SSClient', 'templates'))
