@@ -80,3 +80,23 @@ function filterStockTable() {
         row.style.display = text.includes(filter) ? "" : "none";
     });
 }
+
+function openModal(button) {
+    const row = button.closest("tr");
+    const itemType = row.querySelector("td").innerText;
+
+    document.getElementById("modal-item-type").innerText = itemType;
+    document.getElementById("stock-modal").style.display = "block";
+}
+
+function closeModal() {
+    document.getElementById("stock-modal").style.display = "none";
+}
+
+// Optional: Close modal if user clicks outside it
+window.onclick = function(event) {
+    const modal = document.getElementById("stock-modal");
+    if (event.target == modal) {
+        modal.style.display = "none";
+    }
+}

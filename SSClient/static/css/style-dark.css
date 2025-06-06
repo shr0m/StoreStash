@@ -646,3 +646,55 @@ input[type="checkbox"]:hover {
         opacity: 1;
     }
 }
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.7);
+}
+
+.modal-content {
+    background-color: #1e1e1e;
+    margin: 10% auto;
+    padding: 20px;
+    border: 1px solid #444;
+    width: 80%;
+    max-width: 400px;
+    border-radius: 10px;
+    color: #ddd;
+    box-shadow: 0 0 10px #000;
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover {
+    color: white;
+}
+
+/* Modal Apply Button (matches dark theme buttons) */
+.modal-apply-btn {
+    background-color: #0a2a66;
+    color: #eee;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.modal-apply-btn:hover {
+    background-color: #1143c8;
+}
