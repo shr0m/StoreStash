@@ -35,6 +35,11 @@ def add_stock_type():
         initial_quantity = int(request.form.get('initial_quantity', 0))
     except ValueError:
         return "Invalid quantity", 400
+    
+    try:
+        sizing = str(request.form.get('sizing', 0))
+    except ValueError:
+        return "Invalid quantity", 400
 
     if not new_type or initial_quantity < 0:
         return "Invalid input", 400
@@ -51,6 +56,7 @@ def add_stock_type():
 
     supabase.table('stock').insert({
         'type': new_type,
+        'sizing': sizing,
         'quantity': initial_quantity
     }).execute()
 
@@ -84,3 +90,8 @@ def update_stock_batch():
 
     flash("Stock file updated.", "success")
     return redirect(url_for('dashboard.dashboard'))
+
+@dashboard_bp.route('/people')
+@limiter.limit("100 per minute")
+def people():
+    return render_template('people.html')

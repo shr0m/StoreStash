@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Dashboard</title>
+    <title>Stock</title>
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/' + ('style-dark.css' if current_theme == 'dark' else 'style.css')) }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -11,7 +11,9 @@
 <body>
 
     <div class="navbar">
-        <a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+        <a href="/"><i class="fa-solid fa-box-open"></i> Stock</a>
+
+        <a href="/people"><i class="fa-solid fa-person"></i> People</a>
 
         {% if session.get('privilege') == 'admin' %}
             <a href="/admin"><i class="fas fa-user-shield"></i> Admin</a>
@@ -26,7 +28,7 @@
         </div>
     </div>
 
-    <h1>Dashboard</h1>
+    <h1>Stock File</h1>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -62,6 +64,7 @@
             <thead>
                 <tr>
                     <th>Item Type</th>
+                    <th>Sizing</th>
                     <th>Quantity</th>
                     {% if session.get('privilege') in ['admin', 'store team'] %}
                         <th>Edited Quantity</th>
@@ -73,6 +76,7 @@
                 {% for item in stock_items %}
                 <tr data-item-id="{{ item.id }}">
                     <td>{{ item.type }}</td>
+                    <td>{{ item.sizing }}</td>
                     <td class="saved-quantity">{{ item.quantity }}</td>
 
                     {% if session.get('privilege') in ['admin', 'store team'] %}
@@ -106,6 +110,7 @@
         <form id="add-stock-form" method="POST" action="/add_stock_type" class="form-container">
             <input type="text" id="new-type-input" name="new_type" placeholder="Type of Item" required>
             <input type="number" id="initial-quantity-input" name="initial_quantity" placeholder="Initial Quantity" required min="1">
+            <input type="text" id="initial-quantity-input" name="sizing" placeholder="Sizing">
             <button class="btn" type="submit">Add Stock Type</button>
         </form>
     </section>
@@ -114,8 +119,7 @@
     <div id="stock-modal" class="modal">
       <div class="modal-content">
         <span class="close" onclick="closeModal()">&times;</span>
-        <h2>Stock Item Settings</h2>
-        <p>Item Type: <span id="modal-item-type"></span></p>
+        <h2>Item Settings: <span id="modal-item-type"></span></h2>
     <!-- Add any extra settings or editable fields here -->
         <button onclick="closeModal()" class="btn modal-apply-btn">Apply</button>
     </div>

@@ -15,7 +15,9 @@
 
 
     <div class="navbar">
-        <a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+        <a href="/"><i class="fa-solid fa-box-open"></i> Stock</a>
+
+        <a href="/people"><i class="fa-solid fa-person"></i> People</a>
 
         {% if session.get('privilege') == 'admin' %}
             <a href="/admin"><i class="fas fa-user-shield"></i> Admin</a>

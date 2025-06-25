@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>People</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/' + ('style-dark.css' if current_theme == 'dark' else 'style.css')) }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
+</head>
+<body>
+
+    <div class="navbar">
+        <a href="/"><i class="fa-solid fa-box-open"></i> Stock</a>
+        <a href="/people"><i class="fa-solid fa-person"></i> People</a>
+
+        {% if session.get('privilege') == 'admin' %}
+            <a href="/admin"><i class="fas fa-user-shield"></i> Admin</a>
+        {% endif %}
+        <a href="/support"><i class="fa-solid fa-circle-question"></i> Support</a>
+
+        <div class="navsettings">
+            <a href="/settings"><i class="fas fa-cog"></i> Settings</a>
+            {% if 'user_id' in session %}
+                <a href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <h1>Issued Items</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Section: Display People and Issued Items -->
+    <section>
+        <div class="stock-toolbar">
+            <div class="stock-search-bar">
+                <input
+                    type="text"
+                    id="stock-search"
+                    placeholder="Search people..."
+                    oninput="filterStockTable()"
+                >
+            </div>
+        </div>
+
+        <h2>Current Issuance</h2>
+        <table class="stock-table">
+            <thead>
+                <tr>
+                    <th>Person</th>
+                    <th>Item Type</th>
+                    <th>Sizing</th>
+                    <th>Quantity</th>
+                    {% if session.get('privilege') in ['admin', 'store team'] %}
+                        <th>Adjust Quantity</th>
+                        <th>Actions</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for person in people %}
+                    {% for item in person.issued_items %}
+                    <tr data-item-id="{{ item.id }}">
+                        <td>{{ person.name }}</td>
+                        <td>{{ item.type }}</td>
+                        <td>{{ item.sizing }}</td>
+                        <td class="saved-quantity">{{ item.quantity }}</td>
+
+                        {% if session.get('privilege') in ['admin', 'store team'] %}
+                            <td>
+                                <input type="number"
+                                    value="{{ item.quantity }}"
+                                    min="0"
+                                    class="quantity-input"
+                                    data-original="{{ item.quantity }}">
+                            </td>
+                            <td>
+                                <div class="quantity-btn-group">
+                                    <button type="button" class="quantity-btn plus" onclick="changeQuantity(this, 1)">+</button>
+                                    <button type="button" class="quantity-btn minus" onclick="changeQuantity(this, -1)">−</button>
+                                    <button type="button" class="quantity-btn normal" onclick="openModal(this)">
+                                        <i class="fas fa-cog"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Section: Assign Item to Person -->
+    {% if session.get('privilege') in ['admin', 'store team'] %}
+    <section>
+        <h2>Assign Item to Person</h2>
+        <form id="add-stock-form" method="POST" action="/assign_item" class="form-container">
+            <input type="text" name="person_name" placeholder="Person's Name" required>
+            <input type="text" name="item_type" placeholder="Type of Item" required>
+            <input type="number" name="quantity" placeholder="Quantity" required min="1">
+            <input type="text" name="sizing" placeholder="Sizing (optional)">
+            <button class="btn" type="submit">Assign Item</button>
+        </form>
+    </section>
+    {% endif %}
+
+    <div id="stock-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2>Item Settings: <span id="modal-item-type"></span></h2>
+            <!-- Add any extra settings or editable fields here -->
+            <button onclick="closeModal()" class="btn modal-apply-btn">Apply</button>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
