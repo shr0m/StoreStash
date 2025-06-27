@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from app.utils.email_utils import send_support_email
-from app import limiter
+from app import limiter, get_supabase_client
 
 support_bp = Blueprint('support', __name__)
 
@@ -12,8 +12,16 @@ def support():
     return render_template('support.html')
 
 @support_bp.route('/submit_support', methods=['POST'])
-@limiter.limit("2 per hour")
+@limiter.limit("2 per minute")
 def submit_support():
+
+    supabase = get_supabase_client()
+    response = supabase.table('users').select('support_allowed').execute()
+
+    if response != True:
+        flash("You have been blacklisted from sending support requests by the developer. Please contact an administrator to resolve.", "error")
+        return render_template('support.html')
+
     email = session.get('username')
     issue = request.form.get('issue')
     message = request.form.get('message')

@@ -91,7 +91,12 @@ def update_stock_batch():
     flash("Stock file updated.", "success")
     return redirect(url_for('dashboard.dashboard'))
 
+
+# PEOPLE
+
 @dashboard_bp.route('/people')
 @limiter.limit("100 per minute")
 def people():
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
     return render_template('people.html')
