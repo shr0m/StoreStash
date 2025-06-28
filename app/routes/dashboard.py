@@ -43,6 +43,10 @@ def add_stock_type():
 
     if not new_type or initial_quantity < 0:
         return "Invalid input", 400
+    
+    if len(new_type) > 30:
+        flash("Character limit exceeded", "error")
+        return redirect(url_for('dashboard.dashboard'))
 
     supabase = get_supabase_client()
 
@@ -99,4 +103,15 @@ def update_stock_batch():
 def people():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
-    return render_template('people.html')
+
+    supabase = get_supabase_client()
+
+    # Query stock items with quantity > 0
+    response = supabase.table('stock').select("*").gt('quantity', 0).execute()
+
+    stock_items = response.data if response.data else []
+
+    if not response.data:
+        flash("Could not load stock data.", "error")
+
+    return render_template("people.html", stock_items=stock_items)

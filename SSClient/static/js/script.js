@@ -20,6 +20,22 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
     }
+
+    document.querySelectorAll(".quantity-input").forEach(input => {
+        const updateRowClass = () => {
+            const row = input.closest("tr");
+            const value = parseInt(input.value) || 0;
+            input.value = value; // auto-correct blank or invalid to 0
+            row.classList.toggle("zero-stock", value === 0);
+        };
+
+        // Handle typing
+        input.addEventListener("input", updateRowClass);
+
+        // Handle when user leaves the field
+        input.addEventListener("blur", updateRowClass);
+    });
+
 });
 
 // Change quantity

@@ -39,6 +39,36 @@
         {% endif %}
     {% endwith %}
 
+
+    <!-- Section: People settings -->
+    {% if session.get('privilege') in ['admin', 'store team'] %}
+    <section>
+        <h2>People Options</h2>
+        <form id="add-stock-form" method="POST" action="/assign_item" class="form-container">
+            <input type="text" name="person_name" placeholder="Person's Name" required>
+
+            <!--<select name="person_name" required>
+                <option id="originaloption" value="" disabled selected>Select Person</option>
+                {% for item in stock_items %}
+                    <option value="people.name"> people.name </option>
+                {% endfor %}
+            </select> -->
+
+            <select name="item_type" required>
+                <option id="originaloption" value="" disabled selected>Select Item Type</option>
+                {% for item in stock_items %}
+                    <option value="{{ item.type }}">{{ item.type }} ({{ item.quantity }})</option>
+                {% endfor %}
+            </select>
+
+            <input type="number" name="quantity" placeholder="Quantity" required min="1">
+            <input type="text" name="sizing" placeholder="Sizing (optional)">
+            <button class="btn" type="submit">Assign Item</button>
+        </form>
+    </section>
+    {% endif %}
+
+
     <!-- Section: Display People and Issued Items -->
     <section>
         <div class="stock-toolbar">
@@ -100,28 +130,7 @@
         </table>
     </section>
 
-    <!-- Section: Assign Item to Person -->
-    {% if session.get('privilege') in ['admin', 'store team'] %}
-    <section>
-        <h2>Assign Item to Person</h2>
-        <form id="add-stock-form" method="POST" action="/assign_item" class="form-container">
-            <input type="text" name="person_name" placeholder="Person's Name" required>
-            <input type="text" name="item_type" placeholder="Type of Item" required>
-            <input type="number" name="quantity" placeholder="Quantity" required min="1">
-            <input type="text" name="sizing" placeholder="Sizing (optional)">
-            <button class="btn" type="submit">Assign Item</button>
-        </form>
-    </section>
-    {% endif %}
 
-    <div id="stock-modal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal()">&times;</span>
-            <h2>Item Settings: <span id="modal-item-type"></span></h2>
-            <!-- Add any extra settings or editable fields here -->
-            <button onclick="closeModal()" class="btn modal-apply-btn">Apply</button>
-        </div>
-    </div>
 
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>

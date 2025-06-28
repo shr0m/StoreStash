@@ -75,7 +75,11 @@
             <tbody>
                 {% for item in stock_items %}
                 <tr data-item-id="{{ item.id }}">
-                    <td>{{ item.type }}</td>
+                    {% if item.type != "None" %}
+                        <td>{{ item.type }}</td>
+                    {% else %}
+                        <td>N/A</td>
+                    {% endif %}
                     <td>{{ item.sizing }}</td>
                     <td class="saved-quantity">{{ item.quantity }}</td>
 

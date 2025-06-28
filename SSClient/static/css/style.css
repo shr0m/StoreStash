@@ -670,3 +670,26 @@ input[type="checkbox"]:hover {
 .close:hover {
     color: #1143a1;
 }
+
+.form-container select,
+.form-container input[type="text"],
+.form-container input[type="number"] {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+    font-size: 14px;
+    font-family: inherit;
+    background-color: #fff;
+    color: #333;
+}
+
+.form-container select:focus,
+.form-container input[type="text"]:focus,
+.form-container input[type="number"]:focus {
+    outline: none;
+    border-color: #1143a1;
+    box-shadow: 0 0 6px rgba(17, 67, 161, 0.4); /* subtle blue glow */
+}

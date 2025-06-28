@@ -7,3 +7,4 @@ def get_supabase_client():
     key = os.getenv("SUPABASE_KEY")
 
     return create_client(url, key)
+
