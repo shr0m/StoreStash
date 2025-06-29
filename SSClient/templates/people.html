@@ -12,25 +12,25 @@
 </head>
 <body class="bg-body text-body">
 
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg bg-primary bg-opacity-75 navbar-dark px-4">
-        <a class="navbar-brand" href="/"><i class="fa-solid fa-box-open me-2"></i>Stock</a>
-        <div class="collapse navbar-collapse">
-            <ul class="navbar-nav me-auto">
-                <li class="nav-item"><a class="nav-link active" href="/people"><i class="fa-solid fa-person me-1"></i>People</a></li>
-                {% if session.get('privilege') == 'admin' %}
-                    <li class="nav-item"><a class="nav-link" href="/admin"><i class="fas fa-user-shield me-1"></i>Admin</a></li>
-                {% endif %}
-                <li class="nav-item"><a class="nav-link" href="/support"><i class="fa-solid fa-circle-question me-1"></i>Support</a></li>
-            </ul>
-            <ul class="navbar-nav">
-                <li class="nav-item"><a class="nav-link" href="/settings"><i class="fas fa-cog me-1"></i>Settings</a></li>
-                {% if 'user_id' in session %}
-                    <li class="nav-item"><a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>Logout</a></li>
-                {% endif %}
-            </ul>
-        </div>
-    </nav>
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg bg-primary bg-opacity-75 navbar-dark px-4">
+    <a class="navbar-brand" href="/"><i class="fa-solid fa-box-open me-2"></i>Stock</a>
+    <div class="collapse navbar-collapse">
+        <ul class="navbar-nav me-auto">
+            <li class="nav-item"><a class="nav-link active" href="/people"><i class="fa-solid fa-person me-1"></i>People</a></li>
+            {% if session.get('privilege') == 'admin' %}
+                <li class="nav-item"><a class="nav-link" href="/admin"><i class="fas fa-user-shield me-1"></i>Admin</a></li>
+            {% endif %}
+            <li class="nav-item"><a class="nav-link" href="/support"><i class="fa-solid fa-circle-question me-1"></i>Support</a></li>
+        </ul>
+        <ul class="navbar-nav">
+            <li class="nav-item"><a class="nav-link" href="/settings"><i class="fas fa-cog me-1"></i>Settings</a></li>
+            {% if 'user_id' in session %}
+                <li class="nav-item"><a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>Logout</a></li>
+            {% endif %}
+        </ul>
+    </div>
+</nav>
 
 <div class="container my-4">
     <h1 class="mb-4">Issued Items</h1>
@@ -47,94 +47,114 @@
         {% endif %}
     {% endwith %}
 
-    {% if session.get('privilege') in ['admin', 'store team'] %}
-    <!-- People Options -->
-    <section class="mb-5">
-        <h2 class="h4">Assign Item to Person</h2>
-        <form method="POST" action="/assign_item" class="row g-3">
-            <div class="col-md-4">
-                <input type="text" name="person_name" class="form-control" placeholder="Person's Name" required>
-            </div>
-
-            <div class="col-md-4">
-                <select name="item_type" class="form-select" required>
-                    <option disabled selected value="">Select Item Type</option>
-                    {% for item in stock_items %}
-                        <option value="{{ item.type }}">{{ item.type }} ({{ item.quantity }})</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div class="col-md-2">
-                <input type="number" name="quantity" class="form-control" placeholder="Quantity" required min="1">
-            </div>
-
-            <div class="col-md-2">
-                <input type="text" name="sizing" class="form-control" placeholder="Sizing (optional)">
-            </div>
-
-            <div class="col-12">
-                <button type="submit" class="btn btn-primary">Assign Item</button>
-            </div>
-        </form>
-    </section>
-    {% endif %}
-
-    <!-- Search and Table -->
-    <section>
-        <div class="mb-3">
-            <input type="text" id="stock-search" class="form-control" placeholder="Search people..." oninput="filterStockTable()">
+    <div class="row">
+        {% if session.get('privilege') in ['admin', 'store team'] %}
+        <!-- Mobile Collapse Toggle -->
+        <div class="d-block d-lg-none mb-3">
+            <button class="btn btn-outline-primary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#assignFormCollapse" aria-expanded="false" aria-controls="assignFormCollapse">
+                Assign Item to Person
+            </button>
         </div>
 
-        <h2 class="h4">Current Issuance</h2>
-        <div class="table-responsive">
-            <table class="table table-bordered align-middle text-center">
-                <thead class="table-light">
-                    <tr>
-                        <th>Person</th>
-                        <th>Item Type</th>
-                        <th>Sizing</th>
-                        <th>Quantity</th>
-                        {% if session.get('privilege') in ['admin', 'store team'] %}
-                            <th>Adjust Quantity</th>
-                            <th>Actions</th>
-                        {% endif %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for person in people %}
-                        {% for item in person.issued_items %}
-                        <tr data-item-id="{{ item.id }}">
-                            <td>{{ person.name }}</td>
-                            <td>{{ item.type }}</td>
-                            <td>{{ item.sizing }}</td>
-                            <td class="saved-quantity">{{ item.quantity }}</td>
+        <!-- Assign Form (left panel in card) -->
+        <div class="col-lg-4 collapse d-lg-block mb-5" id="assignFormCollapse">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h2 class="h5 mb-3 d-none d-lg-block">Assign Item to Person</h2>
+                    <form method="POST" action="/assign_item" class="row g-3">
+                        <div class="col-12">
+                            <input type="text" name="person_name" class="form-control" placeholder="Person's Name" required>
+                        </div>
 
-                            {% if session.get('privilege') in ['admin', 'store team'] %}
-                                <td>
-                                    <input type="number"
-                                           value="{{ item.quantity }}"
-                                           min="0"
-                                           class="form-control quantity-input"
-                                           data-original="{{ item.quantity }}">
-                                </td>
-                                <td>
-                                    <div class="btn-group">
-                                        <button type="button" class="btn btn-sm btn-success" onclick="changeQuantity(this, 1)">+</button>
-                                        <button type="button" class="btn btn-sm btn-warning" onclick="changeQuantity(this, -1)">−</button>
-                                        <button type="button" class="btn btn-sm btn-secondary" onclick="openModal(this)">
-                                            <i class="fas fa-cog"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            {% endif %}
-                        </tr>
-                        {% endfor %}
-                    {% endfor %}
-                </tbody>
-            </table>
+                        <div class="col-12">
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" id="itemDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                    Select Item Type
+                                </button>
+                                <ul class="dropdown-menu w-100" aria-labelledby="itemDropdown">
+                                    {% for item in stock_items %}
+                                    <li>
+                                        <a class="dropdown-item d-flex justify-content-between align-items-center" href="#" data-type="{{ item.type }}">
+                                            <span>{{ item.type }} ({{ item.sizing }})</span>
+                                            <span class="badge bg-secondary">{{ item.quantity }}</span>
+                                        </a>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            <input type="hidden" name="item_type" id="selectedItemType" required>
+                        </div>
+
+                        <div class="col-12">
+                            <input type="number" name="quantity" class="form-control" placeholder="Quantity" required min="1">
+                        </div>
+
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary w-100">Assign Item</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
-    </section>
+        {% endif %}
+
+        <!-- Issuance Table (right panel) -->
+        <div class="col-lg-8">
+            <section>
+                <div class="mb-3">
+                    <input type="text" id="stock-search" class="form-control" placeholder="Search people..." oninput="filterStockTable()">
+                </div>
+
+                <h2 class="h5">Current Issuance</h2>
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle text-center">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Person</th>
+                                <th>Item Type</th>
+                                <th>Sizing</th>
+                                <th>Quantity</th>
+                                {% if session.get('privilege') in ['admin', 'store team'] %}
+                                    <th>Adjust Quantity</th>
+                                    <th>Actions</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for person in people %}
+                                {% for item in person.issued_items %}
+                                <tr data-item-id="{{ item.id }}">
+                                    <td>{{ person.name }}</td>
+                                    <td>{{ item.type }}</td>
+                                    <td>{{ item.sizing }}</td>
+                                    <td class="saved-quantity">{{ item.quantity }}</td>
+                                    {% if session.get('privilege') in ['admin', 'store team'] %}
+                                        <td>
+                                            <input type="number"
+                                                   value="{{ item.quantity }}"
+                                                   min="0"
+                                                   class="form-control quantity-input"
+                                                   data-original="{{ item.quantity }}">
+                                        </td>
+                                        <td>
+                                            <div class="btn-group">
+                                                <button type="button" class="btn btn-sm btn-success" onclick="changeQuantity(this, 1)">+</button>
+                                                <button type="button" class="btn btn-sm btn-warning" onclick="changeQuantity(this, -1)">−</button>
+                                                <button type="button" class="btn btn-sm btn-secondary" onclick="openModal(this)">
+                                                    <i class="fas fa-cog"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    {% endif %}
+                                </tr>
+                                {% endfor %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -161,6 +181,23 @@ function filterStockTable() {
         row.style.display = matchFound ? "" : "none";
     }
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    const dropdownItems = document.querySelectorAll('.dropdown-item');
+    const dropdownToggle = document.getElementById('itemDropdown');
+    const hiddenInput = document.getElementById('selectedItemType');
+
+    dropdownItems.forEach(item => {
+        item.addEventListener('click', function (e) {
+            e.preventDefault();
+            const itemType = this.getAttribute('data-type');
+            const displayText = this.querySelector('span').innerText;
+
+            dropdownToggle.textContent = displayText;
+            hiddenInput.value = itemType;
+        });
+    });
+});
 </script>
 </body>
 </html>
