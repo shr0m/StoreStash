@@ -1,41 +1,36 @@
 // Theme Toggle + Stock Form + Other Logic
 document.addEventListener("DOMContentLoaded", function () {
-
-    // Stock form validation
     const addForm = document.getElementById("add-stock-form");
     const typeInput = document.getElementById("new-type-input");
 
     if (addForm && typeInput) {
         addForm.addEventListener("submit", function (e) {
             const newType = typeInput.value.trim().toLowerCase();
-            typeInput.classList.remove("invalid");
+            typeInput.classList.remove("is-invalid");
 
-            const existingTypes = Array.from(document.querySelectorAll("tbody tr td:first-child"))
+            const existingTypes = Array.from(document.querySelectorAll("tbody tr td:nth-child(1)"))
                 .map(td => td.textContent.trim().toLowerCase());
 
             if (existingTypes.includes(newType)) {
                 alert("This stock type already exists.");
-                typeInput.classList.add("invalid");
+                typeInput.classList.add("is-invalid");  // Bootstrap's invalid class
                 e.preventDefault();
             }
         });
     }
 
+    // Handle highlighting rows with zero quantity
     document.querySelectorAll(".quantity-input").forEach(input => {
         const updateRowClass = () => {
             const row = input.closest("tr");
             const value = parseInt(input.value) || 0;
-            input.value = value; // auto-correct blank or invalid to 0
-            row.classList.toggle("zero-stock", value === 0);
+            input.value = value;
+            row.classList.toggle("table-danger", value === 0);  // Bootstrap class for red row
         };
 
-        // Handle typing
         input.addEventListener("input", updateRowClass);
-
-        // Handle when user leaves the field
         input.addEventListener("blur", updateRowClass);
     });
-
 });
 
 // Change quantity
@@ -46,18 +41,18 @@ function changeQuantity(button, delta) {
     let newVal = currentVal + delta;
     if (newVal < 0) newVal = 0;
     input.value = newVal;
-    row.classList.toggle("zero-stock", newVal === 0);
+    row.classList.toggle("table-danger", newVal === 0);
 }
 
-// Remove quantity
+// Set quantity to 0
 function removeQuantity(button) {
     const row = button.closest("tr");
     const input = row.querySelector(".quantity-input");
     input.value = 0;
-    row.classList.add("zero-stock");
+    row.classList.add("table-danger");
 }
 
-// Prepare data for update
+// Collect and prepare stock data for batch update
 function prepareUpdateData(event) {
     const rows = document.querySelectorAll("tbody tr");
     const data = [];
@@ -88,31 +83,26 @@ function prepareUpdateData(event) {
 function filterStockTable() {
     const input = document.getElementById("stock-search");
     const filter = input.value.toLowerCase();
-    const rows = document.querySelectorAll(".stock-table tbody tr");
+
+    // Match any table with tbody tr
+    const rows = document.querySelectorAll("table tbody tr");
 
     rows.forEach(row => {
-        const typeCell = row.querySelector("td:first-child");
+        const typeCell = row.querySelector("td:nth-child(1)");
+        if (!typeCell) return;
+
         const text = typeCell.textContent.toLowerCase();
         row.style.display = text.includes(filter) ? "" : "none";
     });
 }
 
+// Open Bootstrap modal
 function openModal(button) {
     const row = button.closest("tr");
-    const itemType = row.querySelector("td").innerText;
+    const itemType = row.querySelector("td:nth-child(1)").innerText;
+    const modalLabel = document.getElementById("modal-item-type");
+    modalLabel.innerText = itemType;
 
-    document.getElementById("modal-item-type").innerText = itemType;
-    document.getElementById("stock-modal").style.display = "block";
-}
-
-function closeModal() {
-    document.getElementById("stock-modal").style.display = "none";
-}
-
-// Optional: Close modal if user clicks outside it
-window.onclick = function(event) {
-    const modal = document.getElementById("stock-modal");
-    if (event.target == modal) {
-        modal.style.display = "none";
-    }
+    const modal = new bootstrap.Modal(document.getElementById("stock-modal"));
+    modal.show();
 }
