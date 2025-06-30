@@ -33,7 +33,7 @@ def login():
         otp_or_password = request.form['otp'].strip()
 
         if not EMAIL_REGEX.match(email):
-            flash("Invalid email format.", "error")
+            flash("Invalid email format.", "danger")
             return redirect(url_for('auth.login'))
 
         try:
@@ -53,7 +53,7 @@ def login():
                     profile = profile_response.data
 
                     if not profile:
-                        flash("No user profile found for this email.", "error")
+                        flash("No user profile found for this email.", "danger")
                         return redirect(url_for('auth.login'))
 
                     session['user_id'] = user.id
@@ -66,7 +66,7 @@ def login():
 
                 except APIError as e:
                     if "Results contain 0 rows" in str(e):
-                        flash("No user profile found for this email.", "error")
+                        flash("No user profile found for this email.", "danger")
                         return redirect(url_for('auth.login'))
                     else:
                         raise
@@ -87,7 +87,7 @@ def login():
                 session['privilege'] = otp_user['privilege']
                 return redirect(url_for('auth.change_password'))
 
-            flash('Invalid credentials', 'error')
+            flash('Invalid credentials', 'danger')
 
     return render_template('login.html')
 
@@ -104,7 +104,7 @@ def otp_login():
     users = response.data
 
     if not users:
-        flash('Invalid credentials', 'error')
+        flash('Invalid credentials', 'danger')
         return redirect(url_for('auth.login'))
 
     user = users[0]
@@ -132,7 +132,7 @@ def otp_login():
 
         return redirect(url_for('auth.change_password'))
 
-    flash('Invalid credentials', 'error')
+    flash('Invalid credentials', 'danger')
     return redirect(url_for('auth.login'))
 
 
@@ -157,7 +157,7 @@ def change_password():
         confirm_password = request.form['confirm_password']
 
         if new_password != confirm_password:
-            flash("Passwords do not match.", "error")
+            flash("Passwords do not match.", "danger")
             return redirect(url_for('auth.change_password'))
 
         try:
@@ -165,11 +165,11 @@ def change_password():
             response = supabase.table('users').select('password_hash').eq('id', user_id).single().execute()
             user = response.data
             if not user or not check_password_hash(user['password_hash'], current_password):
-                flash("Current password is incorrect.", "error")
+                flash("Current password is incorrect.", "danger")
                 return redirect(url_for('auth.change_password'))
         except APIError as e:
             if "Results contain 0 rows" in str(e):
-                flash("User not found.", "error")
+                flash("User not found.", "danger")
                 return redirect(url_for('auth.login'))
             else:
                 raise

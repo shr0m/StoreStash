@@ -3,6 +3,7 @@ from werkzeug.security import generate_password_hash
 from app.db import get_supabase_client
 from app import limiter
 from app.utils.otp_utils import generate_otp, send_otp_email
+from app.utils.email_utils import send_reset_email 
 import re
 
 admin_bp = Blueprint('admin', __name__)
@@ -45,7 +46,7 @@ def send_otp_route():
     otp = generate_otp()
 
     if not EMAIL_REGEX.match(email):
-        flash("Invalid email format. Please enter a valid email address.", "error")
+        flash("Invalid email format. Please enter a valid email address.", "danger")
         return redirect(url_for('admin.admin'))
 
     supabase = get_supabase_client()
@@ -58,7 +59,7 @@ def send_otp_route():
         privilege = 'admin'
 
     if user_count > 0 and not is_admin():
-        flash("Unauthorized action", "error")
+        flash("Unauthorized action", "danger")
         return redirect(url_for('auth.login'))
 
     if send_otp_email(email, otp):
@@ -82,7 +83,7 @@ def send_otp_route():
         if user_count == 0:
             return redirect(url_for('auth.login'))
     else:
-        flash("Failed to send OTP.", "error")
+        flash("Failed to send OTP.", "danger")
 
     return redirect(url_for('admin.admin'))
 
@@ -91,7 +92,7 @@ def send_otp_route():
 @limiter.limit("3 per minute")
 def update_users():
     if not is_admin():
-        flash("Unauthorized action", "error")
+        flash("Unauthorized action", "danger")
         return redirect(url_for('dashboard.dashboard'))
 
     supabase = get_supabase_client()
@@ -110,7 +111,7 @@ def update_users():
             admin_count_resp = supabase.table('users').select('id').eq('privilege', 'admin').execute()
             admin_count = len(admin_count_resp.data)
             if admin_count <= 1:
-                flash("Cannot demote the last admin.", "error")
+                flash("Cannot demote the last admin.", "danger")
                 continue
 
         # Privilege change
@@ -125,6 +126,10 @@ def update_users():
                 'password_hash': default_hash,
                 'requires_password_change': True
             }).eq('id', user_id).execute()
+
+            response = supabase.table('users').select('username').eq('id', user_id).execute()
+            email = response.data[0]['username']
+            send_reset_email(email)
             flash(f"Password reset for user {user_id}", "success")
 
         # Deletion
@@ -133,7 +138,7 @@ def update_users():
                 admin_count_resp = supabase.table('users').select('id').eq('privilege', 'admin').execute()
                 admin_count = len(admin_count_resp.data)
                 if admin_count <= 1:
-                    flash("Cannot delete the last admin.", "error")
+                    flash("Cannot delete the last admin.", "danger")
                     continue
             supabase.table('users').delete().eq('id', user_id).execute()
             flash(f"Deleted user {user_id}", "success")

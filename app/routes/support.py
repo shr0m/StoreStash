@@ -19,7 +19,7 @@ def submit_support():
     response = supabase.table('users').select('support_allowed').execute()
 
     if response != True:
-        flash("You have been blacklisted from sending support requests by the developer. Please contact an administrator to resolve.", "error")
+        flash("You have been blacklisted from sending support requests by the developer. Please contact an administrator to resolve.", "danger")
         return render_template('support.html')
 
     email = session.get('username')

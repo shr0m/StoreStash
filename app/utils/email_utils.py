@@ -29,3 +29,19 @@ def send_support_email(email, issue, message):
     except Exception as e:
         print(f"Support email error: {e}")
         return False
+
+def send_reset_email(email):
+    try:
+        msg = EmailMessage()
+        msg["Subject"] = f"Password Reset - StoreStash"
+        msg["From"] = SUPPORT_EMAIL
+        msg["To"] = email
+        msg.set_content(f"Greetings valued user,\n\nAn administrator has reset your StoreStash password.\nPlease contact an administrator to receive the default password.")
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(SUPPORT_EMAIL, SUPPORT_EMAIL_PASSWORD)
+            smtp.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"Support email error: {e}")
+        return False

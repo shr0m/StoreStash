@@ -38,12 +38,14 @@
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            {% endfor %}
+            <div class="mb-4">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
         {% endif %}
     {% endwith %}
 
@@ -75,7 +77,12 @@
                                     {% for item in stock_items %}
                                     <li>
                                         <a class="dropdown-item d-flex justify-content-between align-items-center" href="#" data-type="{{ item.type }}">
-                                            <span>{{ item.type }} ({{ item.sizing }})</span>
+                                            <span>
+                                                {{ item.type }}
+                                                {% if item.sizing %}
+                                                    ({{ item.sizing }})
+                                                {% endif %}
+                                            </span>
                                             <span class="badge bg-secondary">{{ item.quantity }}</span>
                                         </a>
                                     </li>
@@ -108,7 +115,7 @@
                 <h2 class="h5">Current Issuance</h2>
                 <div class="table-responsive">
                     <table class="table table-bordered align-middle text-center">
-                        <thead class="table-light">
+                        <thead class="bg-primary text-white bg-opacity-75">
                             <tr>
                                 <th>Person</th>
                                 <th>Item Type</th>

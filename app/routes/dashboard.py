@@ -45,7 +45,7 @@ def add_stock_type():
         return "Invalid input", 400
     
     if len(new_type) > 30:
-        flash("Character limit exceeded", "error")
+        flash("Character limit exceeded", "danger")
         return redirect(url_for('dashboard.dashboard'))
 
     supabase = get_supabase_client()
@@ -112,6 +112,6 @@ def people():
     stock_items = response.data if response.data else []
 
     if not response.data:
-        flash("Could not load stock data.", "error")
+        flash("Could not load stock data.", "danger")
 
     return render_template("people.html", stock_items=stock_items)

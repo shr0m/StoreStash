@@ -9,87 +9,92 @@
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-
     <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
 </head>
 <body class="bg-body text-body">
 
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg bg-primary bg-opacity-75 navbar-dark px-4">
-        <a class="navbar-brand" href="/"><i class="fa-solid fa-box-open me-2"></i>Stock</a>
-        <div class="collapse navbar-collapse">
-            <ul class="navbar-nav me-auto">
-                <li class="nav-item"><a class="nav-link" href="/people"><i class="fa-solid fa-person me-1"></i>People</a></li>
-                {% if session.get('privilege') == 'admin' %}
-                    <li class="nav-item"><a class="nav-link active" href="/admin"><i class="fas fa-user-shield me-1"></i>Admin</a></li>
-                {% endif %}
-                <li class="nav-item"><a class="nav-link" href="/support"><i class="fa-solid fa-circle-question me-1"></i>Support</a></li>
-            </ul>
-            <ul class="navbar-nav">
-                <li class="nav-item"><a class="nav-link" href="/settings"><i class="fas fa-cog me-1"></i>Settings</a></li>
-                {% if 'user_id' in session %}
-                    <li class="nav-item"><a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>Logout</a></li>
-                {% endif %}
-            </ul>
-        </div>
-    </nav>
-
-    <!-- Main Container -->
-    <div class="container my-5">
-        <h1 class="mb-4">Admin Dashboard</h1>
-
-        <!-- Flash Messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="mb-4">
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                    {% endfor %}
-                </div>
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg bg-primary bg-opacity-75 navbar-dark px-4">
+    <a class="navbar-brand" href="/"><i class="fa-solid fa-box-open me-2"></i>Stock</a>
+    <div class="collapse navbar-collapse">
+        <ul class="navbar-nav me-auto">
+            <li class="nav-item"><a class="nav-link" href="/people"><i class="fa-solid fa-person me-1"></i>People</a></li>
+            {% if session.get('privilege') == 'admin' %}
+                <li class="nav-item"><a class="nav-link active" href="/admin"><i class="fas fa-user-shield me-1"></i>Admin</a></li>
             {% endif %}
-        {% endwith %}
+            <li class="nav-item"><a class="nav-link" href="/support"><i class="fa-solid fa-circle-question me-1"></i>Support</a></li>
+        </ul>
+        <ul class="navbar-nav">
+            <li class="nav-item"><a class="nav-link" href="/settings"><i class="fas fa-cog me-1"></i>Settings</a></li>
+            {% if 'user_id' in session %}
+                <li class="nav-item"><a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>Logout</a></li>
+            {% endif %}
+        </ul>
+    </div>
+</nav>
 
+<!-- Main Container -->
+<div class="container my-5">
+    <h1 class="mb-4">Admin Dashboard</h1>
+    
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mb-4">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="row">
         <!-- Add User Section -->
-        <section class="mb-5">
-            <h2 class="mb-3"><i class="fa-solid fa-user-plus me-2"></i>Add Users</h2>
-            <form action="/send_otp" method="POST" class="row g-3">
-                <div class="col-md-4">
-                    <label for="name" class="form-label">Name</label>
-                    <input type="text" id="name" name="name" class="form-control" required>
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3"><i class="fa-solid fa-user-plus me-2"></i>Add Users</h5>
+                    <form action="/send_otp" method="POST" class="row g-2">
+                        <div class="col-12">
+                            <label for="name" class="form-label">Name</label>
+                            <input type="text" id="name" name="name" class="form-control" required>
+                        </div>
+                        <div class="col-12">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" id="email" name="email" class="form-control" required>
+                        </div>
+                        <div class="col-12">
+                            <label for="privilege" class="form-label">Privilege</label>
+                            <select id="privilege" name="privilege" class="form-select" required>
+                                <option value="admin">Admin</option>
+                                <option value="store team">Store Team</option>
+                                <option value="view">View</option>
+                            </select>
+                        </div>
+                        <div class="col-12 d-grid">
+                            <button class="btn btn-primary mt-2" type="submit">Add</button>
+                        </div>
+                    </form>
                 </div>
-                <div class="col-md-4">
-                    <label for="email" class="form-label">Email</label>
-                    <input type="email" id="email" name="email" class="form-control" required>
-                </div>
-                <div class="col-md-3">
-                    <label for="privilege" class="form-label">Privilege</label>
-                    <select id="privilege" name="privilege" class="form-select" required>
-                        <option value="admin">Admin</option>
-                        <option value="store team">Store Team</option>
-                        <option value="view">View</option>
-                    </select>
-                </div>
-                <div class="col-md-1 d-flex align-items-end">
-                    <button class="btn btn-primary w-100" type="submit">Add</button>
-                </div>
-            </form>
-        </section>
+            </div>
+        </div>
 
         <!-- User Table Section -->
-        <section>
-            <h2 class="mb-3"><i class="fa-solid fa-users me-2"></i>Current Users</h2>
-
-            <div class="mb-3 w-50">
-                <input type="text" id="stock-search" class="form-control" placeholder="Search users..." oninput="filterUserTable()">
+        <div class="col-md-8">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="fa-solid fa-users me-2"></i>Current Users</h5>
+                <div class="w-50">
+                    <input type="text" id="stock-search" class="form-control" placeholder="Search users..." oninput="filterUserTable()">
+                </div>
             </div>
 
             <form method="POST" action="{{ url_for('admin.update_users') }}" id="update-settings-form">
                 <div class="table-responsive">
                     <table class="table table-bordered align-middle table-hover">
-                        <thead class="table-secondary">
+                        <thead class="bg-primary text-white bg-opacity-75">
                             <tr>
                                 <th>Name</th>
                                 <th>Email</th>
@@ -110,13 +115,13 @@
                                     </select>
                                 </td>
                                 <td>
-                                    <div class="form-check mb-2">
+                                    <div class="form-check mb-1">
                                         <input class="form-check-input" type="checkbox" name="reset_{{ user.id }}" id="reset_{{ user.id }}">
-                                        <label class="form-check-label" for="reset_{{ user.id }}">Reset Password</label>
+                                        <label class="form-check-label" for="reset_{{ user.id }}">Reset Pass</label>
                                     </div>
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" name="delete_{{ user.id }}" id="delete_{{ user.id }}">
-                                        <label class="form-check-label text-danger" for="delete_{{ user.id }}">Delete User</label>
+                                        <label class="form-check-label text-danger" for="delete_{{ user.id }}">Delete</label>
                                     </div>
                                 </td>
                             </tr>
@@ -126,33 +131,34 @@
                 </div>
                 <button type="submit" class="btn btn-success mt-3">Update Settings</button>
             </form>
-        </section>
+        </div>
     </div>
+</div>
 
-    <!-- JavaScript -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        function filterUserTable() {
-            const input = document.getElementById("stock-search");
-            const filter = input.value.toLowerCase();
-            const table = document.querySelector("table tbody");
-            const rows = table.getElementsByTagName("tr");
+<!-- JavaScript -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    function filterUserTable() {
+        const input = document.getElementById("stock-search");
+        const filter = input.value.toLowerCase();
+        const table = document.querySelector("table tbody");
+        const rows = table.getElementsByTagName("tr");
 
-            for (let row of rows) {
-                const cells = row.getElementsByTagName("td");
-                let matchFound = false;
+        for (let row of rows) {
+            const cells = row.getElementsByTagName("td");
+            let matchFound = false;
 
-                for (let cell of cells) {
-                    const text = cell.textContent.toLowerCase();
-                    if (text.includes(filter)) {
-                        matchFound = true;
-                        break;
-                    }
+            for (let cell of cells) {
+                const text = cell.textContent.toLowerCase();
+                if (text.includes(filter)) {
+                    matchFound = true;
+                    break;
                 }
-
-                row.style.display = matchFound ? "" : "none";
             }
+
+            row.style.display = matchFound ? "" : "none";
         }
-    </script>
+    }
+</script>
 </body>
 </html>
