@@ -6,7 +6,7 @@ from app import limiter
 dashboard_bp = Blueprint('dashboard', __name__)
 
 def has_edit_privileges():
-    return session.get('privilege') in ['admin', 'store team']
+    return session.get('privilege') in ['admin', 'edit']
 
 @dashboard_bp.route('/')
 @limiter.limit("100 per minute")
@@ -111,7 +111,42 @@ def people():
 
     stock_items = response.data if response.data else []
 
-    if not response.data:
-        flash("Could not load stock data.", "danger")
+    people_response = supabase.table('people').select("*").order('name').execute()
+    people = people_response.data if people_response.data else []
 
-    return render_template("people.html", stock_items=stock_items)
+    if not response.data or not people_response.data:
+        flash("Could not load data.", "danger")
+
+    return render_template("people.html", stock_items=stock_items, people=people)
+
+
+@dashboard_bp.route('/add_person', methods=['POST'])
+@limiter.limit("2 per second")
+def add_person():
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+
+    name = request.form.get('name')
+    rank = request.form.get('rank')
+
+    if not name or not rank:
+        flash("Both name and rank are required.", "danger")
+        return redirect(url_for('dashboard.people'))
+
+    supabase = get_supabase_client()
+
+    try:
+        response = supabase.table('people').insert({
+            'name': name.strip().upper(),
+            'rank': rank.strip()
+        }).execute()
+
+        if not response.data:
+            flash("Failed to add person. Please try again.", "danger")
+        else:
+            flash("Person added successfully.", "success")
+
+    except Exception as e:
+        flash(f"An error occurred: {str(e)}", "danger")
+
+    return redirect(url_for('dashboard.people'))

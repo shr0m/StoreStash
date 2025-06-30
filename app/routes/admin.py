@@ -31,7 +31,7 @@ def admin():
     users = users_resp.data or []
 
     # Sort by privilege
-    privilege_order = {'admin': 0, 'store team': 1, 'view': 2}
+    privilege_order = {'admin': 0, 'edit': 1, 'view': 2}
     sorted_users = sorted(users, key=lambda u: privilege_order.get(u.get('privilege'), 99))
 
     return render_template('admin.html', users=sorted_users)

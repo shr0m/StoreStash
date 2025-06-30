@@ -10,6 +10,15 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
+
+    <!-- Optional blur background CSS -->
+    <style>
+        body.modal-open .container,
+        body.modal-open nav {
+            filter: blur(4px);
+            transition: filter 0.3s ease;
+        }
+    </style>
 </head>
 <body class="bg-body text-body">
 
@@ -36,7 +45,7 @@
 <!-- Main Container -->
 <div class="container my-5">
     <h1 class="mb-4">Admin Dashboard</h1>
-    
+
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -70,7 +79,7 @@
                             <label for="privilege" class="form-label">Privilege</label>
                             <select id="privilege" name="privilege" class="form-select" required>
                                 <option value="admin">Admin</option>
-                                <option value="store team">Store Team</option>
+                                <option value="edit">Edit</option>
                                 <option value="view">View</option>
                             </select>
                         </div>
@@ -110,7 +119,7 @@
                                 <td>
                                     <select name="privilege_{{ user.id }}" class="form-select">
                                         <option value="admin" {% if user.privilege == 'admin' %}selected{% endif %}>Admin</option>
-                                        <option value="store team" {% if user.privilege == 'store team' %}selected{% endif %}>Store Team</option>
+                                        <option value="edit" {% if user.privilege == 'edit' %}selected{% endif %}>Edit</option>
                                         <option value="view" {% if user.privilege == 'view' %}selected{% endif %}>View</option>
                                     </select>
                                 </td>
@@ -133,6 +142,26 @@
             </form>
         </div>
     </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-body text-body shadow-lg">
+      <div class="modal-header">
+        <h5 class="modal-title" id="confirmModalLabel">Confirm Changes</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        You have selected to <strong>reset passwords</strong> or <strong>delete users</strong>.<br>
+        Are you sure you want to proceed? This action cannot be undone...
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmSubmit">Yes, Proceed</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- JavaScript -->
@@ -159,6 +188,28 @@
             row.style.display = matchFound ? "" : "none";
         }
     }
+
+    const updateForm = document.getElementById('update-settings-form');
+    const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    let shouldSubmit = false;
+
+    updateForm.addEventListener('submit', function (e) {
+        if (shouldSubmit) return;
+
+        const resetChecked = document.querySelectorAll('input[type="checkbox"][name^="reset_"]:checked').length > 0;
+        const deleteChecked = document.querySelectorAll('input[type="checkbox"][name^="delete_"]:checked').length > 0;
+
+        if (resetChecked || deleteChecked) {
+            e.preventDefault();
+            confirmModal.show();
+        }
+    });
+
+    document.getElementById('confirmSubmit').addEventListener('click', function () {
+        shouldSubmit = true;
+        confirmModal.hide();
+        updateForm.submit();
+    });
 </script>
 </body>
 </html>

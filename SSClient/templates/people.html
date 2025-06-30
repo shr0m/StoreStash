@@ -50,24 +50,37 @@
     {% endwith %}
 
     <div class="row">
-        {% if session.get('privilege') in ['admin', 'store team'] %}
-        <!-- Mobile Collapse Toggle -->
+        {% if session.get('privilege') in ['admin', 'edit'] %}
         <div class="d-block d-lg-none mb-3">
-            <button class="btn btn-outline-primary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#assignFormCollapse" aria-expanded="false" aria-controls="assignFormCollapse">
+            <button class="btn btn-outline-primary w-100" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#assignFormCollapse"
+                    aria-expanded="false" aria-controls="assignFormCollapse">
                 Assign Item to Person
             </button>
         </div>
 
-        <!-- Assign Form (left panel in card) -->
+        <!-- LEFT COLUMN -->
         <div class="col-lg-4 collapse d-lg-block mb-5" id="assignFormCollapse">
-            <div class="card shadow-sm h-100">
+            <!-- Card 1 -->
+            <div class="card shadow-sm mb-4">
                 <div class="card-body">
-                    <h2 class="h5 mb-3 d-none d-lg-block">Assign Item to Person</h2>
+                    <h2 class="h5 mb-3">Assign Item to Person</h2>
                     <form method="POST" action="/assign_item" class="row g-3">
+                        
+                        <!-- Person Name Dropdown -->
                         <div class="col-12">
-                            <input type="text" name="person_name" class="form-control" placeholder="Person's Name" required>
+                            <div class="dropdown">
+                                <input type="text" id="personSearch" class="form-control" placeholder="Search for person..." autocomplete="off" required>
+                                <input type="hidden" name="person_name" id="selectedPerson">
+                                <ul id="personDropdown" class="dropdown-menu w-100" style="max-height: 200px; overflow-y: auto;">
+                                    {% for person in people %}
+                                        <li><a class="dropdown-item" href="#" data-name="{{ person.name }}">{{ person.name }}</a></li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
                         </div>
 
+                        <!-- Item Type Dropdown -->
                         <div class="col-12">
                             <div class="dropdown">
                                 <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" id="itemDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -77,12 +90,7 @@
                                     {% for item in stock_items %}
                                     <li>
                                         <a class="dropdown-item d-flex justify-content-between align-items-center" href="#" data-type="{{ item.type }}">
-                                            <span>
-                                                {{ item.type }}
-                                                {% if item.sizing %}
-                                                    ({{ item.sizing }})
-                                                {% endif %}
-                                            </span>
+                                            <span>{{ item.type }}{% if item.sizing %} ({{ item.sizing }}){% endif %}</span>
                                             <span class="badge bg-secondary">{{ item.quantity }}</span>
                                         </a>
                                     </li>
@@ -96,8 +104,35 @@
                             <input type="number" name="quantity" class="form-control" placeholder="Quantity" required min="1">
                         </div>
 
+                        <div class="col-12 d-grid">
+                            <button type="submit" class="btn btn-primary">Assign Item</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Card 2 -->
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h5 mb-3"><i class="fa-solid fa-user-plus me-2"></i>Add Person</h2>
+                    <form method="POST" action="/add_person" class="row g-3">
                         <div class="col-12">
-                            <button type="submit" class="btn btn-primary w-100">Assign Item</button>
+                            <label class="form-label">Rank</label>
+                            <select name="rank" class="form-select" required>
+                                <option value="" disabled selected>Select Rank</option>
+                                <option value="Cadet">Cadet</option>
+                                <option value="Corporal">Corporal</option>
+                                <option value="Sergeant">Sergeant</option>
+                                <option value="Flight Sergeant">Flight Sergeant</option>
+                                <option value="Cadet Warrant Officer">Cadet Warrant Officer</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Name</label>
+                            <input type="text" name="name" class="form-control" placeholder="Surname" required>
+                        </div>
+                        <div class="col-12 d-grid">
+                            <button type="submit" class="btn btn-success">Add Person</button>
                         </div>
                     </form>
                 </div>
@@ -105,7 +140,7 @@
         </div>
         {% endif %}
 
-        <!-- Issuance Table (right panel) -->
+        <!-- RIGHT COLUMN -->
         <div class="col-lg-8">
             <section>
                 <div class="mb-3">
@@ -121,7 +156,7 @@
                                 <th>Item Type</th>
                                 <th>Sizing</th>
                                 <th>Quantity</th>
-                                {% if session.get('privilege') in ['admin', 'store team'] %}
+                                {% if session.get('privilege') in ['admin', 'edit'] %}
                                     <th>Adjust Quantity</th>
                                     <th>Actions</th>
                                 {% endif %}
@@ -135,13 +170,9 @@
                                     <td>{{ item.type }}</td>
                                     <td>{{ item.sizing }}</td>
                                     <td class="saved-quantity">{{ item.quantity }}</td>
-                                    {% if session.get('privilege') in ['admin', 'store team'] %}
+                                    {% if session.get('privilege') in ['admin', 'edit'] %}
                                         <td>
-                                            <input type="number"
-                                                   value="{{ item.quantity }}"
-                                                   min="0"
-                                                   class="form-control quantity-input"
-                                                   data-original="{{ item.quantity }}">
+                                            <input type="number" value="{{ item.quantity }}" min="0" class="form-control quantity-input" data-original="{{ item.quantity }}">
                                         </td>
                                         <td>
                                             <div class="btn-group">
@@ -166,6 +197,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+<!-- Person Name Filter/Dropdown Script -->
 <script>
 function filterStockTable() {
     const input = document.getElementById("stock-search");
@@ -190,7 +223,8 @@ function filterStockTable() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    const dropdownItems = document.querySelectorAll('.dropdown-item');
+    // Handle Item Type Selection
+    const dropdownItems = document.querySelectorAll('.dropdown-item[data-type]');
     const dropdownToggle = document.getElementById('itemDropdown');
     const hiddenInput = document.getElementById('selectedItemType');
 
@@ -203,6 +237,46 @@ document.addEventListener('DOMContentLoaded', function () {
             dropdownToggle.textContent = displayText;
             hiddenInput.value = itemType;
         });
+    });
+
+    // Handle Person Dropdown Filtering
+    const personSearch = document.getElementById('personSearch');
+    const personDropdown = document.getElementById('personDropdown');
+    const selectedPerson = document.getElementById('selectedPerson');
+
+    personSearch.addEventListener('focus', () => {
+        personDropdown.classList.add('show');
+    });
+
+    personSearch.addEventListener('input', function () {
+        const filter = this.value.toLowerCase();
+        const items = personDropdown.querySelectorAll('.dropdown-item');
+
+        let matchFound = false;
+        items.forEach(item => {
+            const name = item.getAttribute('data-name').toLowerCase();
+            const visible = name.includes(filter);
+            item.style.display = visible ? 'block' : 'none';
+            if (visible) matchFound = true;
+        });
+
+        personDropdown.classList.toggle('show', matchFound);
+    });
+
+    personDropdown.addEventListener('click', function (e) {
+        if (e.target && e.target.matches('.dropdown-item')) {
+            e.preventDefault();
+            const name = e.target.getAttribute('data-name');
+            personSearch.value = name;
+            selectedPerson.value = name;
+            personDropdown.classList.remove('show');
+        }
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!personSearch.contains(e.target) && !personDropdown.contains(e.target)) {
+            personDropdown.classList.remove('show');
+        }
     });
 });
 </script>

@@ -53,7 +53,7 @@
 
     <div class="row">
         <!-- Add New Stock Section -->
-        {% if session.get('privilege') in ['admin', 'store team'] %}
+        {% if session.get('privilege') in ['admin', 'edit'] %}
         <div class="col-md-4 mb-4">
             <div class="card shadow-sm">
                 <div class="card-body">
@@ -89,7 +89,7 @@
                 </div>
             </div>
 
-            {% if session.get('privilege') in ['admin', 'store team'] %}
+            {% if session.get('privilege') in ['admin', 'edit'] %}
             <form class="mb-3" method="POST" action="/update_stock_batch" onsubmit="prepareUpdateData(event)">
                 <input type="hidden" name="update_data" id="update-data-input">
                 <button class="btn btn-success" type="submit">Update Stock</button>
@@ -103,7 +103,7 @@
                             <th>Item Type</th>
                             <th>Sizing</th>
                             <th>Quantity</th>
-                            {% if session.get('privilege') in ['admin', 'store team'] %}
+                            {% if session.get('privilege') in ['admin', 'edit'] %}
                             <th>Edited Quantity</th>
                             <th>Actions</th>
                             {% endif %}
@@ -115,7 +115,7 @@
                             <td>{{ item.type if item.type != "None" else "N/A" }}</td>
                             <td>{{ item.sizing }}</td>
                             <td class="saved-quantity">{{ item.quantity }}</td>
-                            {% if session.get('privilege') in ['admin', 'store team'] %}
+                            {% if session.get('privilege') in ['admin', 'edit'] %}
                             <td>
                                 <input type="number" class="form-control quantity-input" value="{{ item.quantity }}" min="0" data-original="{{ item.quantity }}">
                             </td>

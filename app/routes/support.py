@@ -12,7 +12,7 @@ def support():
     return render_template('support.html')
 
 @support_bp.route('/submit_support', methods=['POST'])
-@limiter.limit("2 per minute")
+@limiter.limit("10 per minute")
 def submit_support():
 
     supabase = get_supabase_client()
