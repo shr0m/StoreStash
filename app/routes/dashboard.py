@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from app.db import get_supabase_client
-import json
+import json, re
 from app import limiter
 
 dashboard_bp = Blueprint('dashboard', __name__)
@@ -106,16 +106,41 @@ def people():
 
     supabase = get_supabase_client()
 
-    # Query stock items with quantity > 0
+    # Get stock items with quantity > 0
     response = supabase.table('stock').select("*").gt('quantity', 0).execute()
-
     stock_items = response.data if response.data else []
 
-    people_response = supabase.table('people').select("*").order('name').execute()
+    # Get people
+    people_response = supabase.table('people').select("*").execute()
     people = people_response.data if people_response.data else []
 
     if not response.data or not people_response.data:
         flash("Could not load data.", "danger")
+
+    # Define rank priority (ensure lowercase keys for normalization)
+    rank_order = {
+        'cadet': 4,
+        'corporal': 3,
+        'sergeant': 2,
+        'flight sergeant': 1,
+        'cadet warrant officer': 0
+    }
+
+    def get_surname(full_name):
+        if not full_name:
+            return ''
+        return full_name.strip().split()[-1].lower()
+
+    def get_rank_priority(rank):
+        if not rank:
+            return -1  # Unknown ranks go to the bottom
+        return rank_order.get(rank.strip().lower(), -1)
+
+    # Sort by rank priority, then surname (case-insensitive)
+    people.sort(key=lambda p: (
+        get_rank_priority(p.get('rank')),
+        get_surname(p.get('name'))
+    ))
 
     return render_template("people.html", stock_items=stock_items, people=people)
 
@@ -126,19 +151,34 @@ def add_person():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
-    name = request.form.get('name')
-    rank = request.form.get('rank')
+    name = request.form.get('name', '').strip()
+    rank = request.form.get('rank', '').strip()
 
-    if not name or not rank:
-        flash("Both name and rank are required.", "danger")
+    # Valid ranks
+    valid_ranks = {
+        'Cadet',
+        'Corporal',
+        'Sergeant',
+        'Flight Sergeant',
+        'Cadet Warrant Officer'
+    }
+
+    # Validate name: only letters, spaces, and hyphens
+    if not name or not re.fullmatch(r"[A-Za-z\- ]+", name):
+        flash("Name must contain only letters, spaces, or hyphens.", "danger")
+        return redirect(url_for('dashboard.people'))
+
+    # Validate rank
+    if rank not in valid_ranks:
+        flash("Invalid rank selected.", "danger")
         return redirect(url_for('dashboard.people'))
 
     supabase = get_supabase_client()
 
     try:
         response = supabase.table('people').insert({
-            'name': name.strip().upper(),
-            'rank': rank.strip()
+            'name': name.upper(),
+            'rank': rank
         }).execute()
 
         if not response.data:
@@ -148,5 +188,27 @@ def add_person():
 
     except Exception as e:
         flash(f"An error occurred: {str(e)}", "danger")
+
+    return redirect(url_for('dashboard.people'))
+
+
+@dashboard_bp.route('/delete_person', methods=['POST'])
+@limiter.limit("2 per second")
+def delete_person():
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+
+    name = request.form.get('name')
+    if not name:
+        flash("Invalid request.", "danger")
+        return redirect(url_for('dashboard.people'))
+
+    supabase = get_supabase_client()
+
+    try:
+        supabase.table('people').delete().eq('name', name).execute()
+        flash(f"{name} was deleted.", "success")
+    except Exception as e:
+        flash(f"Error deleting {name}: {str(e)}", "danger")
 
     return redirect(url_for('dashboard.people'))
