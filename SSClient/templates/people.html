@@ -201,7 +201,10 @@
                                     {% else %}
                                     <p>No items assigned.</p>
                                     {% endif %}
-                                    <div class="mt-4 text-end">
+                                    <div class="mt-4 text-end d-flex justify-content-end gap-2">
+                                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editPersonModal-{{ loop.index }}">
+                                            <i class="fas fa-edit me-1"></i>Edit Person
+                                        </button>
                                         <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal-{{ loop.index }}">
                                             <i class="fas fa-trash-alt me-1"></i>Delete Person
                                         </button>
@@ -231,6 +234,41 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Edit Person Modal -->
+                    <div class="modal fade" id="editPersonModal-{{ loop.index }}" tabindex="-1" aria-labelledby="editPersonLabel-{{ loop.index }}" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                        <form method="POST" action="/edit_person">
+                            <div class="modal-header">
+                            <h5 class="modal-title" id="editPersonLabel-{{ loop.index }}">Edit Person</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                            <input type="hidden" name="original_name" value="{{ person.name }}">
+                            <div class="mb-3">
+                                <label for="editRank-{{ loop.index }}" class="form-label">Rank</label>
+                                <select class="form-select" id="editRank-{{ loop.index }}" name="rank" required>
+                                <option value="Cadet" {% if person.rank == 'Cadet' %}selected{% endif %}>Cadet</option>
+                                <option value="Corporal" {% if person.rank == 'Corporal' %}selected{% endif %}>Corporal</option>
+                                <option value="Sergeant" {% if person.rank == 'Sergeant' %}selected{% endif %}>Sergeant</option>
+                                <option value="Flight Sergeant" {% if person.rank == 'Flight Sergeant' %}selected{% endif %}>Flight Sergeant</option>
+                                <option value="Cadet Warrant Officer" {% if person.rank == 'Cadet Warrant Officer' %}selected{% endif %}>Cadet Warrant Officer</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="editName-{{ loop.index }}" class="form-label">Name</label>
+                                <input type="text" class="form-control" id="editName-{{ loop.index }}" name="name" value="{{ person.name }}" required>
+                            </div>
+                            </div>
+                            <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                            </div>
+                        </form>
+                        </div>
+                    </div>
                     </div>
                     {% endfor %}
                 </div>

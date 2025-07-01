@@ -204,7 +204,6 @@ def add_person():
     name = request.form.get('name', '').strip()
     rank = request.form.get('rank', '').strip()
 
-    # Valid ranks
     valid_ranks = {
         'Cadet',
         'Corporal',
@@ -213,21 +212,29 @@ def add_person():
         'Cadet Warrant Officer'
     }
 
-    # Validate name: only letters, spaces, and hyphens
     if not name or not re.fullmatch(r"[A-Za-z\- ]+", name):
         flash("Name must contain only letters, spaces, or hyphens.", "danger")
         return redirect(url_for('dashboard.people'))
 
-    # Validate rank
     if rank not in valid_ranks:
         flash("Invalid rank selected.", "danger")
         return redirect(url_for('dashboard.people'))
 
     supabase = get_supabase_client()
 
+    # Convert name to uppercase as you store it that way
+    name_upper = name.upper()
+
     try:
+        # Check for existing person with same name
+        existing = supabase.table('people').select('name').eq('name', name_upper).execute()
+        if existing.data and len(existing.data) > 0:
+            flash("A person with this name already exists.", "danger")
+            return redirect(url_for('dashboard.people'))
+
+        # Insert new person
         response = supabase.table('people').insert({
-            'name': name.upper(),
+            'name': name_upper,
             'rank': rank
         }).execute()
 
@@ -329,3 +336,66 @@ def assign_item():
         flash(f"Unexpected error: {str(e)}", "danger")
 
     return redirect('/people')
+
+@dashboard_bp.route('/edit_person', methods=['POST'])
+@limiter.limit("2 per second")
+def edit_person():
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+
+    original_name = request.form.get('original_name', '').strip()
+    new_name = request.form.get('name', '').strip()
+    new_rank = request.form.get('rank', '').strip()
+
+    valid_ranks = {
+        'Cadet',
+        'Corporal',
+        'Sergeant',
+        'Flight Sergeant',
+        'Cadet Warrant Officer'
+    }
+
+    # Validate names
+    if not new_name or not re.fullmatch(r"[A-Za-z\- ]+", new_name):
+        flash("Name must contain only letters, spaces, or hyphens.", "danger")
+        return redirect(url_for('dashboard.people'))
+
+    # Validate rank
+    if new_rank not in valid_ranks:
+        flash("Invalid rank selected.", "danger")
+        return redirect(url_for('dashboard.people'))
+
+    supabase = get_supabase_client()
+
+    original_name_upper = original_name.upper()
+    new_name_upper = new_name.upper()
+
+    try:
+        # Check if the original person exists
+        existing_person = supabase.table('people').select('name').eq('name', original_name_upper).execute()
+        if not existing_person.data or len(existing_person.data) == 0:
+            flash("Original person not found.", "danger")
+            return redirect(url_for('dashboard.people'))
+
+        # If name changed, check if new name already exists (to avoid duplicates)
+        if new_name_upper != original_name_upper:
+            duplicate_check = supabase.table('people').select('name').eq('name', new_name_upper).execute()
+            if duplicate_check.data and len(duplicate_check.data) > 0:
+                flash("A person with the new name already exists.", "danger")
+                return redirect(url_for('dashboard.people'))
+
+        # Update the person record
+        response = supabase.table('people')\
+            .update({'name': new_name_upper, 'rank': new_rank})\
+            .eq('name', original_name_upper)\
+            .execute()
+
+        if not response.data:
+            flash("Failed to update person. Please try again.", "danger")
+        else:
+            flash("Person updated successfully.", "success")
+
+    except Exception as e:
+        flash(f"An error occurred: {str(e)}", "danger")
+
+    return redirect(url_for('dashboard.people'))
