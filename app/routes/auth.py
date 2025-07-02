@@ -14,7 +14,6 @@ EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]{3,}@[a-zA-Z0-9.-]{3,}\.[a-zA-Z]{2,}
 def is_logged():
     return 'user_id' in session
 
-
 @auth_bp.route('/login', methods=['GET', 'POST'])
 @limiter.limit("100 per minute")
 def login():

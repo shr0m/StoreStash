@@ -163,8 +163,8 @@
                     <div class="card person-card shadow-sm" data-name="{{ person.name | lower }}">
                         <div class="card-body d-flex justify-content-between align-items-center" data-bs-toggle="modal" data-bs-target="#modal-{{ loop.index }}">
                             <div>
-                                <h5 class="card-title mb-0">{{ person.rank }}</h5>
-                                <p class="mb-0">{{ person.name }}</p>
+                                <p class="mb-0">{{ person.rank }}</p>
+                                <h5 class="card-title mb-0">{{ person.name }}</h5>
                             </div>
                             <i class="fas fa-chevron-right"></i>
                         </div>
@@ -340,7 +340,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 itemType = match[1].trim();
             }
 
-            itemDropdown.textContent = this.innerText.trim(); // keep full visible text
+            itemDropdown.textContent = this.getAttribute("data-type");
             selectedItemTypeInput.value = itemType; // set cleaned value for backend
         }); 
     });

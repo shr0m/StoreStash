@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from app.db import get_supabase_client
 from app import limiter
+from app.utils.otp_utils import redirect_if_password_change_required
 
 settings_bp = Blueprint('settings', __name__)
 
@@ -9,6 +10,10 @@ settings_bp = Blueprint('settings', __name__)
 def settings():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
+    
+    redirect_resp = redirect_if_password_change_required()
+    if redirect_resp:
+        return redirect_resp
 
     user_id = session['user_id']
     supabase = get_supabase_client()

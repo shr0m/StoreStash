@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from werkzeug.security import generate_password_hash
 from app.db import get_supabase_client
 from app import limiter
-from app.utils.otp_utils import generate_otp, send_otp_email
+from app.utils.otp_utils import generate_otp, send_otp_email, redirect_if_password_change_required
 from app.utils.email_utils import send_reset_email 
 import re
 
@@ -25,6 +25,10 @@ def admin():
     if user_count > 0:
         if not is_admin():
             return redirect(url_for('auth.login'))
+    
+    redirect_resp = redirect_if_password_change_required()
+    if redirect_resp:
+        return redirect_resp
 
     # Fetch all users for display
     users_resp = supabase.table('users').select('id, username, privilege, name').execute()
@@ -61,6 +65,10 @@ def send_otp_route():
     if user_count > 0 and not is_admin():
         flash("Unauthorized action", "danger")
         return redirect(url_for('auth.login'))
+    
+    redirect_resp = redirect_if_password_change_required()
+    if user_count > 0 and redirect_resp:
+        return redirect_resp
 
     if send_otp_email(email, otp):
         # Save OTP
@@ -94,6 +102,10 @@ def update_users():
     if not is_admin():
         flash("Unauthorized action", "danger")
         return redirect(url_for('dashboard.dashboard'))
+
+    redirect_resp = redirect_if_password_change_required()
+    if redirect_resp:
+        return redirect_resp
 
     supabase = get_supabase_client()
 

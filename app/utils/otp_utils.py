@@ -5,7 +5,9 @@ import string
 import datetime
 from email.message import EmailMessage
 from werkzeug.security import generate_password_hash
-from app.db import get_supabase_client  # Assuming you want to get supabase client here if needed
+from app.db import get_supabase_client
+from flask import session, url_for, redirect
+
 
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL")
 SUPPORT_EMAIL_PASSWORD = os.getenv("SUPPORT_EMAIL_PASSWORD")
@@ -53,3 +55,22 @@ def verify_otp_and_update_supabase(supabase, email, otp):
         }).eq('username', email).execute()
         return True
     return False
+
+def redirect_if_password_change_required():
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+
+    supabase = get_supabase_client()
+    user_id = session['user_id']
+
+    response = supabase.table('users')\
+        .select('requires_password_change')\
+        .eq('id', user_id)\
+        .single()\
+        .execute()
+
+    user_data = response.data
+    if user_data and user_data.get('requires_password_change'):
+        return redirect(url_for('auth.change_password'))
+
+    return None
