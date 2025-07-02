@@ -18,17 +18,14 @@ def people():
 
     supabase = get_supabase_client()
 
-    # Get all stock items (since we can't filter by quantity anymore)
     response = supabase.table('stock').select("*").execute()
     stock_data = response.data if response.data else []
 
-    # Group by (type, sizing) to get dropdown-ready stock_items
     grouped_stock = {}
     for item in stock_data:
         key = (item.get('type'), item.get('sizing'))
         grouped_stock[key] = grouped_stock.get(key, 0) + 1
 
-    # Reformat for dropdown: list of dicts like {'type': ..., 'sizing': ..., 'count': ...}
     stock_items = [
         {'type': k[0], 'sizing': k[1], 'count': v}
         for k, v in grouped_stock.items()
@@ -42,7 +39,33 @@ def people():
     if not stock_data or not people_response.data:
         flash("Could not load data.", "danger")
 
-    # Define rank priority (ensure lowercase keys for normalization)
+    # Fetch kit issues with note included in issued_stock
+    kit_issues_resp = supabase.table('kit_issue')\
+        .select('person_id, issued_stock(type, sizing, note)')\
+        .execute()
+    kit_issues = kit_issues_resp.data if kit_issues_resp.data else []
+
+    # Group issued items by person_id and by (type, sizing, note) with counts
+    issued_by_person = {}
+    for record in kit_issues:
+        pid = record['person_id']
+        stock = record.get('issued_stock', {})
+        key = (stock.get('type'), stock.get('sizing'), stock.get('note'))
+
+        if pid not in issued_by_person:
+            issued_by_person[pid] = {}
+
+        issued_by_person[pid][key] = issued_by_person[pid].get(key, 0) + 1
+
+    # Attach issued_items list to each person with note included
+    for person in people:
+        pid = person.get('id')
+        grouped = issued_by_person.get(pid, {})
+        person['issued_items'] = [
+            {'type': t, 'sizing': s or 'N/A', 'note': n or '', 'quantity': q}
+            for (t, s, n), q in grouped.items()
+        ]
+
     rank_order = {
         'cadet': 4,
         'corporal': 3,
@@ -61,7 +84,6 @@ def people():
             return -1  # Unknown ranks go to the bottom
         return rank_order.get(rank.strip().lower(), -1)
 
-    # Sort by rank priority, then surname (case-insensitive)
     people.sort(key=lambda p: (
         get_rank_priority(p.get('rank')),
         get_surname(p.get('name'))
@@ -221,3 +243,149 @@ def edit_person():
         flash(f"An error occurred: {str(e)}", "danger")
 
     return redirect(url_for('people.people'))
+
+
+@people_bp.route('/assign_item', methods=['POST'])
+@limiter.limit("2 per second")
+def assign_item():
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+
+    redirect_resp = redirect_if_password_change_required()
+    if redirect_resp:
+        return redirect_resp
+
+    name = request.form.get('person_name', '').strip().upper()
+    item_type = request.form.get('item_type', '').strip()
+    sizing = request.form.get('sizing', '').strip()
+    note = request.form.get('note', '').strip()
+    quantity_str = request.form.get('quantity', '1').strip()
+
+    if not sizing or sizing.lower() in ['none', 'n/a']:
+        sizing = None
+
+    try:
+        quantity = int(quantity_str)
+        if quantity < 1:
+            quantity = 1
+    except ValueError:
+        quantity = 1
+
+    if not name or not item_type:
+        flash("Missing required fields for assignment.", "danger")
+        return redirect(url_for('people.people'))
+
+    supabase = get_supabase_client()
+
+    try:
+        person_resp = supabase.table('people').select('id').eq('name', name).limit(1).execute()
+        if not person_resp.data:
+            flash(f"Person '{name}' not found.", "danger")
+            return redirect(url_for('people.people'))
+
+        person_id = person_resp.data[0]['id']
+        assigned_count = 0
+
+        for _ in range(quantity):
+            stock_query = supabase.table('stock').select('id').eq('type', item_type)
+            stock_query = stock_query.is_('sizing', None) if sizing is None else stock_query.eq('sizing', sizing)
+            stock_match = stock_query.limit(1).execute()
+
+            if not stock_match.data:
+                break
+
+            stock_item_id = stock_match.data[0]['id']
+
+            issued_data = {'type': item_type, 'sizing': sizing}
+            if note:
+                issued_data['note'] = note
+
+            issued = supabase.table('issued_stock').insert(issued_data).execute()
+            if not issued.data:
+                flash("Failed to assign item during batch.", "danger")
+                return redirect(url_for('people.people'))
+
+            issued_stock_id = issued.data[0]['id']
+
+            kit_issue_data = {
+                'person_id': person_id,
+                'issued_stock_id': issued_stock_id
+            }
+            kit_issue_resp = supabase.table('kit_issue').insert(kit_issue_data).execute()
+
+            if not kit_issue_resp.data or len(kit_issue_resp.data) == 0:
+                flash("Failed to create kit issue record during batch.", "danger")
+                return redirect(url_for('people.people'))
+
+            supabase.table('stock').delete().eq('id', stock_item_id).execute()
+            assigned_count += 1
+
+        if note:
+            kit_issues_resp = supabase.table('kit_issue')\
+                .select('id, issued_stock(id, type, sizing)')\
+                .eq('person_id', person_id)\
+                .execute()
+
+            if kit_issues_resp.data:
+                issued_stock_ids_to_update = []
+                for record in kit_issues_resp.data:
+                    issued_stock = record.get('issued_stock')
+                    if issued_stock and issued_stock.get('type') == item_type:
+                        # Check sizing match (both None or equal)
+                        stock_sizing = issued_stock.get('sizing')
+                        if (sizing is None and stock_sizing is None) or (sizing == stock_sizing):
+                            issued_stock_ids_to_update.append(issued_stock['id'])
+
+                for issued_stock_id in issued_stock_ids_to_update:
+                    supabase.table('issued_stock')\
+                        .update({'note': note})\
+                        .eq('id', issued_stock_id)\
+                        .execute()
+
+        if assigned_count == 0:
+            flash(f"No stock available for {item_type}{f' ({sizing})' if sizing else ''}.", "danger")
+        else:
+            flash(f"Assigned {assigned_count} x {item_type}{f' ({sizing})' if sizing else ''} to {name}.", "success")
+
+    except Exception as e:
+        flash(f"Error assigning item: {str(e)}", "danger")
+
+    return redirect(url_for('people.people'))
+
+def get_people_with_issued_items():
+    supabase = get_supabase_client()
+
+    # Step 1: Get all people
+    people_resp = supabase.table('people').select('*').execute()
+    people = people_resp.data
+
+    # Step 2: For all people, get their issued items in one query (for efficiency)
+    # Join kit_issue with issued_stock to get all issued items with type & sizing
+    issued_resp = supabase.table('kit_issue')\
+        .select('person_id, issued_stock(type, sizing)')\
+        .execute()
+
+    issued_items = issued_resp.data or []
+
+    # Step 3: Group issued items by person
+    issued_by_person = {}
+    for record in issued_items:
+        pid = record['person_id']
+        stock = record.get('issued_stock', {})
+        key = (stock.get('type'), stock.get('sizing'))
+
+        if pid not in issued_by_person:
+            issued_by_person[pid] = {}
+
+        issued_by_person[pid][key] = issued_by_person[pid].get(key, 0) + 1
+
+    # Step 4: Attach grouped issued_items to each person
+    for person in people:
+        pid = person['id']
+        grouped = issued_by_person.get(pid, {})
+        person['issued_items'] = [
+            {'type': t, 'sizing': s or 'N/A', 'quantity': q}
+            for (t, s), q in grouped.items()
+        ]
+
+    return people
