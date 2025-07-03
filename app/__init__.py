@@ -10,8 +10,8 @@ def create_app():
     load_dotenv(dotenv_path=".env")
 
     # Template and static folder paths for Flask
-    template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'SSClient', 'templates'))
-    static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'SSClient', 'static'))
+    template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates'))
+    static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static'))
 
     app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
     app.secret_key = os.getenv("FLASK_SECRET_KEY")

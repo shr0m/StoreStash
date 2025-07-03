@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 
 # Load .env from SSServer
-load_dotenv(dotenv_path=os.path.join('SSServer', '.env'))
+load_dotenv(dotenv_path=os.path.join('.env'))
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
