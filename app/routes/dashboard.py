@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from app.db import get_supabase_client
-import json, re, datetime
+import json
 from app.utils.otp_utils import redirect_if_password_change_required
 from app import limiter
 
@@ -8,6 +8,13 @@ dashboard_bp = Blueprint('dashboard', __name__)
 
 def has_edit_privileges():
     return session.get('privilege') in ['admin', 'edit']
+
+def normalize_sizing(sizing_str):
+    """Normalize sizing input: return None if blank or equivalent to 'none'."""
+    if not sizing_str:
+        return None
+    sizing_cleaned = sizing_str.strip().lower()
+    return None if sizing_cleaned in ['', 'none', 'n/a'] else sizing_str.strip()
 
 @dashboard_bp.route('/')
 @limiter.limit("100 per minute")
@@ -27,10 +34,10 @@ def dashboard():
         .execute()
     stock_items = response.data or []
 
-    # Aggregate counts by type and sizing (since Supabase might not support group by directly in this method)
+    # Aggregate counts by type and sizing
     aggregated = {}
     for item in stock_items:
-        key = (item['type'], item['sizing'])
+        key = (item['type'], item['sizing'])  # None is valid for NULL sizing
         aggregated[key] = aggregated.get(key, 0) + 1
 
     # Convert to list of dicts for template
@@ -62,23 +69,25 @@ def add_stock_type():
         initial_quantity = int(request.form.get('initial_quantity', 0))
     except ValueError:
         return "Invalid quantity", 400
-    
-    sizing = request.form.get('sizing', '').strip()
+
+    sizing_raw = request.form.get('sizing', '')
+    sizing = normalize_sizing(sizing_raw)
 
     if not new_type or initial_quantity < 0:
         return "Invalid input", 400
-    
+
     if len(new_type) > 30:
         flash("Character limit exceeded", "danger")
         return redirect(url_for('dashboard.dashboard'))
 
-
     # Check if stock type already exists (case-insensitive)
-    response = supabase.table('stock')\
-        .select('id')\
-        .ilike('type', new_type)\
-        .eq('sizing', sizing)\
-        .execute()
+    query = supabase.table('stock').select('id').ilike('type', new_type)
+    if sizing is None:
+        query = query.is_('sizing', None)
+    else:
+        query = query.eq('sizing', sizing)
+    response = query.execute()
+
     if response.data:
         return "Stock type already exists", 400
 
@@ -91,7 +100,7 @@ def add_stock_type():
     return redirect(url_for('dashboard.dashboard'))
 
 @dashboard_bp.route('/update_stock_batch', methods=['POST'])
-@limiter.limit("10 per minute")
+@limiter.limit("1 per second")
 def update_stock_batch():
     if not has_edit_privileges():
         return "Unauthorized", 403
@@ -107,40 +116,43 @@ def update_stock_batch():
 
     supabase = get_supabase_client()
 
-    # Expected data format:
-    # [{ 'type': 'widget', 'sizing': 'small', 'quantity': 5 }, ...]
-
     for item in data:
         item_type = item.get('type')
-        sizing = item.get('sizing')
+        sizing_raw = item.get('sizing', '')
+        sizing = normalize_sizing(sizing_raw)
+
         try:
             quantity = int(item.get('quantity', 0))
         except Exception:
-            continue
+            continue  # skip invalid quantity
 
-        if not item_type or sizing is None:
-            continue
+        if not item_type:
+            continue  # skip invalid item
 
-        # Get current items of this type and sizing
-        current_resp = supabase.table('stock')\
-            .select('id')\
-            .eq('type', item_type)\
-            .eq('sizing', sizing)\
-            .execute()
+        # Fetch current available stock for this type & sizing
+        query = supabase.table('stock').select('id').eq('type', item_type)
+        if sizing is None:
+            query = query.is_('sizing', None)
+        else:
+            query = query.eq('sizing', sizing)
 
+        current_resp = query.execute()
         current_items = current_resp.data or []
         current_count = len(current_items)
 
         if quantity < current_count:
-            # Delete excess items (oldest or arbitrary)
-            ids_to_delete = [item['id'] for item in current_items[:current_count - quantity]]
-            for item_id in ids_to_delete:
-                supabase.table('stock').delete().eq('id', item_id).execute()
+            # Delete excess items
+            ids_to_delete = [itm['id'] for itm in current_items[:current_count - quantity]]
+            del_resp = supabase.table('stock').delete().in_('id', ids_to_delete).execute()
+            if del_resp.data is None:
+                print(f"Error deleting items {ids_to_delete} for {item_type} ({sizing})")
+
         elif quantity > current_count:
             # Insert new items
             rows_to_insert = [{'type': item_type, 'sizing': sizing} for _ in range(quantity - current_count)]
-            if rows_to_insert:
-                supabase.table('stock').insert(rows_to_insert).execute()
+            ins_resp = supabase.table('stock').insert(rows_to_insert).execute()
+            if ins_resp.data is None:
+                print(f"Error inserting items for {item_type} ({sizing})")
 
     flash("Stock file updated.", "success")
     return redirect(url_for('dashboard.dashboard'))

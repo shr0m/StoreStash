@@ -6,6 +6,13 @@ import re
 
 people_bp = Blueprint('people', __name__)
 
+def normalize_sizing(sizing_str):
+    """Normalize sizing input: return None if blank or equivalent to 'none'."""
+    if not sizing_str:
+        return None
+    sizing_cleaned = sizing_str.strip().lower()
+    return None if sizing_cleaned in ['', 'none', 'n/a'] else sizing_str.strip()
+
 @people_bp.route('/people')
 @limiter.limit("100 per minute")
 def people():
@@ -35,9 +42,6 @@ def people():
     # Get people
     people_response = supabase.table('people').select("*").execute()
     people = people_response.data if people_response.data else []
-
-    if not stock_data or not people_response.data:
-        flash("Could not load data.", "danger")
 
     # Fetch kit issues with note included in issued_stock
     kit_issues_resp = supabase.table('kit_issue')\
@@ -257,12 +261,9 @@ def assign_item():
 
     name = request.form.get('person_name', '').strip().upper()
     item_type = request.form.get('item_type', '').strip()
-    sizing = request.form.get('sizing', '').strip()
+    sizing = normalize_sizing(request.form.get('sizing', ''))
     note = request.form.get('note', '').strip()
     quantity_str = request.form.get('quantity', '1').strip()
-
-    if not sizing or sizing.lower() in ['none', 'n/a']:
-        sizing = None
 
     try:
         quantity = int(quantity_str)
@@ -278,74 +279,53 @@ def assign_item():
     supabase = get_supabase_client()
 
     try:
+        # Get person ID
         person_resp = supabase.table('people').select('id').eq('name', name).limit(1).execute()
         if not person_resp.data:
             flash(f"Person '{name}' not found.", "danger")
             return redirect(url_for('people.people'))
 
         person_id = person_resp.data[0]['id']
-        assigned_count = 0
 
-        for _ in range(quantity):
-            stock_query = supabase.table('stock').select('id').eq('type', item_type)
-            stock_query = stock_query.is_('sizing', None) if sizing is None else stock_query.eq('sizing', sizing)
-            stock_match = stock_query.limit(1).execute()
-
-            if not stock_match.data:
-                break
-
-            stock_item_id = stock_match.data[0]['id']
-
-            issued_data = {'type': item_type, 'sizing': sizing}
-            if note:
-                issued_data['note'] = note
-
-            issued = supabase.table('issued_stock').insert(issued_data).execute()
-            if not issued.data:
-                flash("Failed to assign item during batch.", "danger")
-                return redirect(url_for('people.people'))
-
-            issued_stock_id = issued.data[0]['id']
-
-            kit_issue_data = {
-                'person_id': person_id,
-                'issued_stock_id': issued_stock_id
-            }
-            kit_issue_resp = supabase.table('kit_issue').insert(kit_issue_data).execute()
-
-            if not kit_issue_resp.data or len(kit_issue_resp.data) == 0:
-                flash("Failed to create kit issue record during batch.", "danger")
-                return redirect(url_for('people.people'))
-
-            supabase.table('stock').delete().eq('id', stock_item_id).execute()
-            assigned_count += 1
-
-        if note:
-            kit_issues_resp = supabase.table('kit_issue')\
-                .select('id, issued_stock(id, type, sizing)')\
-                .eq('person_id', person_id)\
-                .execute()
-
-            if kit_issues_resp.data:
-                issued_stock_ids_to_update = []
-                for record in kit_issues_resp.data:
-                    issued_stock = record.get('issued_stock')
-                    if issued_stock and issued_stock.get('type') == item_type:
-                        # Check sizing match (both None or equal)
-                        stock_sizing = issued_stock.get('sizing')
-                        if (sizing is None and stock_sizing is None) or (sizing == stock_sizing):
-                            issued_stock_ids_to_update.append(issued_stock['id'])
-
-                for issued_stock_id in issued_stock_ids_to_update:
-                    supabase.table('issued_stock')\
-                        .update({'note': note})\
-                        .eq('id', issued_stock_id)\
-                        .execute()
-
-        if assigned_count == 0:
-            flash(f"No stock available for {item_type}{f' ({sizing})' if sizing else ''}.", "danger")
+        # Fetch enough matching stock items
+        stock_query = supabase.table('stock').select('id').eq('type', item_type)
+        if sizing is None:
+            stock_query = stock_query.is_('sizing', None)
         else:
-            flash(f"Assigned {assigned_count} x {item_type}{f' ({sizing})' if sizing else ''} to {name}.", "success")
+            stock_query = stock_query.eq('sizing', sizing)
+
+        stock_resp = stock_query.limit(quantity).execute()
+
+        stock_items = stock_resp.data or []
+        if not stock_items:
+            flash(f"No stock available for {item_type}{f' ({sizing})' if sizing else ''}.", "danger")
+            return redirect(url_for('people.people'))
+
+        assigned_count = len(stock_items)
+        stock_ids = [item['id'] for item in stock_items]
+
+        # Prepare issued_stock insert
+        issued_records = [
+            {'type': item_type, 'sizing': sizing, 'note': note if note else None}
+            for _ in range(assigned_count)
+        ]
+        issued_resp = supabase.table('issued_stock').insert(issued_records).execute()
+        issued_data = issued_resp.data
+        if not issued_data:
+            flash("Failed to insert issued_stock records.", "danger")
+            return redirect(url_for('people.people'))
+
+        # Prepare kit_issue insert
+        kit_issue_records = [
+            {'person_id': person_id, 'issued_stock_id': issued['id']}
+            for issued in issued_data
+        ]
+        supabase.table('kit_issue').insert(kit_issue_records).execute()
+
+        # Delete used stock items
+        supabase.table('stock').delete().in_('id', stock_ids).execute()
+
+        flash(f"Assigned {assigned_count} x {item_type}{f' ({sizing})' if sizing else ''} to {name}.", "success")
 
     except Exception as e:
         flash(f"Error assigning item: {str(e)}", "danger")
@@ -404,7 +384,9 @@ def return_item():
 
     person_name = request.form.get('person_name')
     item_type = request.form.get('item_type')
-    sizing = request.form.get('sizing')
+    sizing_input = request.form.get('sizing')
+    sizing = normalize_sizing(sizing_input)
+
     quantity = int(request.form.get('quantity', 0))
 
     if session.get('privilege') not in ['admin', 'edit']:
@@ -416,51 +398,41 @@ def return_item():
         return redirect(request.referrer)
 
     try:
-        # Step 1: Get person ID from people table
+        # Step 1: Get person ID
         person_resp = supabase.table('people').select('id').eq('name', person_name).limit(1).execute()
         if not person_resp.data:
             flash("Person not found.", "danger")
             return redirect(request.referrer)
-
         person_id = person_resp.data[0]['id']
 
-        # Step 2: Get all kit_issue records for that person
-        kit_issues_resp = supabase.table('kit_issue') \
-            .select('id, issued_stock_id') \
-            .eq('person_id', person_id) \
+        # Step 2: Get issued_stock records joined with kit_issue for this person
+        kit_resp = (
+            supabase.table('kit_issue')
+            .select('id, issued_stock_id, issued_stock(type, sizing)')
+            .eq('person_id', person_id)
             .execute()
+        )
+        kit_issues = kit_resp.data or []
 
-        kit_issues = kit_issues_resp.data
-        if not kit_issues:
-            flash("No issued items found for this person.", "warning")
-            return redirect(request.referrer)
-
-        issued_stock_ids = [issue['issued_stock_id'] for issue in kit_issues]
-
-        # Step 3: Filter issued_stock records matching type & sizing
-        stock_resp = supabase.table('issued_stock') \
-            .select('id, type, sizing') \
-            .in_('id', issued_stock_ids) \
-            .execute()
-
-        matching = [s for s in stock_resp.data if s['type'] == item_type and s['sizing'] == sizing]
+        # Filter matching items with normalized sizing
+        matching = [
+            issue for issue in kit_issues
+            if issue['issued_stock']['type'] == item_type and normalize_sizing(issue['issued_stock']['sizing']) == sizing
+        ]
 
         if len(matching) < quantity:
             flash("Not enough matching items to return.", "warning")
             return redirect(request.referrer)
 
-        # Step 4: Get IDs to return
-        return_ids = [s['id'] for s in matching[:quantity]]
+        # Extract relevant IDs
+        return_kit_ids = [issue['id'] for issue in matching[:quantity]]
+        return_stock_ids = [issue['issued_stock_id'] for issue in matching[:quantity]]
 
-        # Step 5: Delete kit_issue entries linked to these issued_stock IDs
-        for issued_id in return_ids:
-            supabase.table('kit_issue').delete().eq('issued_stock_id', issued_id).eq('person_id', person_id).execute()
+        # Step 3: Batch delete kit_issue and issued_stock records
+        supabase.table('kit_issue').delete().in_('id', return_kit_ids).execute()
+        supabase.table('issued_stock').delete().in_('id', return_stock_ids).execute()
 
-        # Step 6: Delete from issued_stock
-        for issued_id in return_ids:
-            supabase.table('issued_stock').delete().eq('id', issued_id).execute()
-
-        # Step 7: Insert returned items into stock
+        # Step 4: Insert returned items back to stock (None instead of 'N/A')
         returned_items = [{'type': item_type, 'sizing': sizing} for _ in range(quantity)]
         supabase.table('stock').insert(returned_items).execute()
 
@@ -468,5 +440,64 @@ def return_item():
 
     except Exception as e:
         flash(f"Error processing return: {str(e)}", "danger")
+
+    return redirect('/people')
+
+@people_bp.route('/mark_lost', methods=['POST'])
+@limiter.limit('30 per minute')
+def mark_lost():
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+
+    redirect_resp = redirect_if_password_change_required()
+    if redirect_resp:
+        return redirect_resp
+
+    supabase = get_supabase_client()
+
+    item_type = request.form.get('item_type')
+    sizing_input = request.form.get('sizing')
+    sizing = normalize_sizing(sizing_input)
+
+    try:
+        quantity = int(request.form.get('quantity', 0))
+    except ValueError:
+        flash("Invalid quantity.", "danger")
+        return redirect(request.referrer)
+
+    if session.get('privilege') not in ['admin', 'edit']:
+        flash("Unauthorized action.", "danger")
+        return redirect(request.referrer)
+
+    if quantity <= 0:
+        flash("Invalid quantity.", "danger")
+        return redirect(request.referrer)
+
+    try:
+        # Build the query depending on whether sizing is None or not
+        issued_query = supabase.table('issued_stock').select('id').eq('type', item_type)
+        if sizing is None:
+            issued_query = issued_query.is_('sizing', None)
+        else:
+            issued_query = issued_query.eq('sizing', sizing)
+        
+        issued_resp = issued_query.limit(quantity).execute()
+        issued_items = issued_resp.data or []
+
+        if len(issued_items) < quantity:
+            flash("Not enough issued items to mark as lost.", "warning")
+            return redirect(request.referrer)
+
+        issued_ids = [item['id'] for item in issued_items]
+
+        # Delete from kit_issue where issued_stock_id in issued_ids
+        supabase.table('kit_issue').delete().in_('issued_stock_id', issued_ids).execute()
+
+        # Delete from issued_stock
+        supabase.table('issued_stock').delete().in_('id', issued_ids).execute()
+
+        flash(f"Marked {quantity} {item_type}(s) as lost.", "success")
+    except Exception as e:
+        flash(f"Error processing loss: {str(e)}", "danger")
 
     return redirect('/people')
