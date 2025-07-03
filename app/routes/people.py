@@ -389,3 +389,84 @@ def get_people_with_issued_items():
         ]
 
     return people
+
+@people_bp.route('/return_item', methods=['POST'])
+@limiter.limit('30 per minute')
+def return_item():
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+
+    redirect_resp = redirect_if_password_change_required()
+    if redirect_resp:
+        return redirect_resp
+
+    supabase = get_supabase_client()
+
+    person_name = request.form.get('person_name')
+    item_type = request.form.get('item_type')
+    sizing = request.form.get('sizing')
+    quantity = int(request.form.get('quantity', 0))
+
+    if session.get('privilege') not in ['admin', 'edit']:
+        flash("Unauthorized action.", "danger")
+        return redirect(request.referrer)
+
+    if quantity <= 0:
+        flash("Invalid quantity.", "danger")
+        return redirect(request.referrer)
+
+    try:
+        # Step 1: Get person ID from people table
+        person_resp = supabase.table('people').select('id').eq('name', person_name).limit(1).execute()
+        if not person_resp.data:
+            flash("Person not found.", "danger")
+            return redirect(request.referrer)
+
+        person_id = person_resp.data[0]['id']
+
+        # Step 2: Get all kit_issue records for that person
+        kit_issues_resp = supabase.table('kit_issue') \
+            .select('id, issued_stock_id') \
+            .eq('person_id', person_id) \
+            .execute()
+
+        kit_issues = kit_issues_resp.data
+        if not kit_issues:
+            flash("No issued items found for this person.", "warning")
+            return redirect(request.referrer)
+
+        issued_stock_ids = [issue['issued_stock_id'] for issue in kit_issues]
+
+        # Step 3: Filter issued_stock records matching type & sizing
+        stock_resp = supabase.table('issued_stock') \
+            .select('id, type, sizing') \
+            .in_('id', issued_stock_ids) \
+            .execute()
+
+        matching = [s for s in stock_resp.data if s['type'] == item_type and s['sizing'] == sizing]
+
+        if len(matching) < quantity:
+            flash("Not enough matching items to return.", "warning")
+            return redirect(request.referrer)
+
+        # Step 4: Get IDs to return
+        return_ids = [s['id'] for s in matching[:quantity]]
+
+        # Step 5: Delete kit_issue entries linked to these issued_stock IDs
+        for issued_id in return_ids:
+            supabase.table('kit_issue').delete().eq('issued_stock_id', issued_id).eq('person_id', person_id).execute()
+
+        # Step 6: Delete from issued_stock
+        for issued_id in return_ids:
+            supabase.table('issued_stock').delete().eq('id', issued_id).execute()
+
+        # Step 7: Insert returned items into stock
+        returned_items = [{'type': item_type, 'sizing': sizing} for _ in range(quantity)]
+        supabase.table('stock').insert(returned_items).execute()
+
+        flash(f"Returned {quantity} {item_type}(s) to stock.", "success")
+
+    except Exception as e:
+        flash(f"Error processing return: {str(e)}", "danger")
+
+    return redirect('/people')

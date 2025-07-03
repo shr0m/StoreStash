@@ -189,8 +189,12 @@
                                             <tr>
                                                 <th>Item</th>
                                                 <th>Sizing</th>
-                                                <th>Quantity</th>
+                                                <th>Issued Quantity</th>
                                                 <th>Notes</th>
+                                                {% if session.get('privilege') in ['admin', 'edit'] %}
+                                                <th>Select Quantity</th>
+                                                <th>Actions</th>
+                                                {% endif %}
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -200,6 +204,45 @@
                                                 <td>{{ item.sizing }}</td>
                                                 <td>{{ item.quantity }}</td>
                                                 <td>{{ item.note }}</td>
+
+                                                {% if session.get('privilege') in ['admin', 'edit'] %}
+                                                <!-- Quantity input field -->
+                                                <td>
+                                                    <input type="number" class="form-control"
+                                                        name="quantity"
+                                                        id="qty-{{ loop.index }}-{{ loop.parent.index if loop.parent else 0 }}"
+                                                        min="1"
+                                                        max="{{ item.quantity }}"
+                                                        required>
+                                                </td>
+
+                                                <!-- Action buttons and forms -->
+                                                <td class="text-nowrap">
+                                                    <!-- Return Form -->
+                                                    <form method="POST" action="/return_item" class="d-inline">
+                                                        <input type="hidden" name="person_name" value="{{ person.name }}">
+                                                        <input type="hidden" name="item_type" value="{{ item.type }}">
+                                                        <input type="hidden" name="sizing" value="{{ item.sizing }}">
+                                                        <input type="hidden" name="quantity" id="return-hidden-{{ loop.index }}-{{ loop.parent.index if loop.parent else 0 }}">
+                                                        <button type="submit" class="btn btn-sm btn-outline-success"
+                                                                onclick="setQuantity(event, '{{ loop.index }}', '{{ loop.parent.index if loop.parent else 0 }}', 'return')">
+                                                            Return to Stock
+                                                        </button>
+                                                    </form>
+
+                                                    <!-- Lost Form -->
+                                                    <form method="POST" action="/mark_lost" class="d-inline">
+                                                        <input type="hidden" name="person_name" value="{{ person.name }}">
+                                                        <input type="hidden" name="item_type" value="{{ item.type }}">
+                                                        <input type="hidden" name="sizing" value="{{ item.sizing }}">
+                                                        <input type="hidden" name="quantity" id="lost-hidden-{{ loop.index }}-{{ loop.parent.index if loop.parent else 0 }}">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                                onclick="setQuantity(event, '{{ loop.index }}', '{{ loop.parent.index if loop.parent else 0 }}', 'lost')">
+                                                            Mark as Lost
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                                {% endif %}
                                             </tr>
                                             {% endfor %}
                                         </tbody>
@@ -353,6 +396,25 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 });
+
+
+function setQuantity(event, index, parentIndex, type) {
+    event.preventDefault();
+
+    const qtyInput = document.getElementById(`qty-${index}-${parentIndex}`);
+    const qty = qtyInput.value;
+
+    if (!qty || parseInt(qty) <= 0) {
+        alert("Please enter a valid quantity.");
+        return;
+    }
+
+    const hiddenInputId = `${type}-hidden-${index}-${parentIndex}`;
+    document.getElementById(hiddenInputId).value = qty;
+
+    // Submit the form manually
+    event.target.closest("form").submit();
+}
 </script>
 
 </body>
