@@ -81,7 +81,7 @@
                         </button>
                     </div>
                     <div class="col-md-4 d-grid">
-                        <button type="button" class="btn btn-outline-secondary" onclick="location.href='/change_email'">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#changeEmailModal">
                             Change Email
                         </button>
                     </div>
@@ -95,6 +95,29 @@
             </div>
         </div>
     </section>
+
+        <!-- Change Email Modal -->
+    <div class="modal fade" id="changeEmailModal" tabindex="-1" aria-labelledby="changeEmailModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form class="modal-content" method="POST" action="/change_email_request">
+        <div class="modal-header">
+            <h5 class="modal-title" id="changeEmailModalLabel">Change Email</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+            <div class="mb-3">
+            <label for="new-email" class="form-label">New Email Address</label>
+            <input type="email" class="form-control" id="new-email" name="new_email" required>
+            <div class="form-text">A confirmation email will be sent to this address.</div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Send Confirmation</button>
+        </div>
+        </form>
+    </div>
+    </div>
+
 </div>
 
 <!-- Bootstrap JS -->

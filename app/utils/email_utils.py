@@ -1,6 +1,9 @@
 import os
 import smtplib
 from email.message import EmailMessage
+from itsdangerous import URLSafeTimedSerializer
+from flask import current_app
+from email.mime.text import MIMEText
 
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL")
 SUPPORT_EMAIL_PASSWORD = os.getenv("SUPPORT_EMAIL_PASSWORD")
@@ -45,3 +48,26 @@ def send_reset_email(email):
     except Exception as e:
         print(f"Support email error: {e}")
         return False
+
+def send_cemail_email(subject, recipient, html_body):
+
+    msg = MIMEText(html_body, 'html')
+    msg['Subject'] = subject
+    msg['From'] = SUPPORT_EMAIL
+    msg['To'] = recipient
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(SUPPORT_EMAIL, SUPPORT_EMAIL_PASSWORD)
+        server.sendmail(SUPPORT_EMAIL, recipient, msg.as_string())
+    
+
+def generate_email_token(email):
+    s = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+    return s.dumps(email, salt='email-confirm')
+
+def confirm_email_token(token, max_age=3600):
+    s = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+    try:
+        return s.loads(token, salt='email-confirm', max_age=max_age)
+    except Exception:
+        return None
