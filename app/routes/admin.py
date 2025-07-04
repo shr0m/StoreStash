@@ -15,21 +15,14 @@ def is_admin():
 @admin_bp.route('/admin')
 @limiter.limit("100 per minute")
 def admin():
-    supabase = get_supabase_client()
+    if not is_admin():
+        return redirect(url_for('auth.login'))
 
-    # Check if users exist
-    response = supabase.table('users').select('id').limit(1).execute()
-    user_count = len(response.data)
-
-    # If users exist, restrict access to logged-in admins only
-    if user_count > 0:
-        if not is_admin():
-            return redirect(url_for('auth.login'))
-    
     redirect_resp = redirect_if_password_change_required()
     if redirect_resp:
         return redirect_resp
 
+    supabase = get_supabase_client()
     # Fetch all users for display
     users_resp = supabase.table('users').select('id, username, privilege, name').execute()
     users = users_resp.data or []

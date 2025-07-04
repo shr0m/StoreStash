@@ -118,8 +118,8 @@ def add_person():
         'Cadet Warrant Officer'
     }
 
-    if not name or not re.fullmatch(r"[A-Za-z\- ]+", name):
-        flash("Name must contain only letters, spaces, or hyphens.", "danger")
+    if not name or not re.fullmatch(r"[A-Za-z\- ()]+", name):
+        flash("Name must contain only letters, spaces, hyphens, or brackets.", "danger")
         return redirect(url_for('people.people'))
 
     if rank not in valid_ranks:
@@ -287,16 +287,16 @@ def assign_item():
 
         person_id = person_resp.data[0]['id']
 
-        # Fetch enough matching stock items
-        stock_query = supabase.table('stock').select('id').eq('type', item_type)
+        # Fetch enough matching stock items WITH category_id
+        stock_query = supabase.table('stock').select('id, category_id').eq('type', item_type)
         if sizing is None:
             stock_query = stock_query.is_('sizing', None)
         else:
             stock_query = stock_query.eq('sizing', sizing)
 
         stock_resp = stock_query.limit(quantity).execute()
-
         stock_items = stock_resp.data or []
+
         if not stock_items:
             flash(f"No stock available for {item_type}{f' ({sizing})' if sizing else ''}.", "danger")
             return redirect(url_for('people.people'))
@@ -304,10 +304,15 @@ def assign_item():
         assigned_count = len(stock_items)
         stock_ids = [item['id'] for item in stock_items]
 
-        # Prepare issued_stock insert
+        # Prepare issued_stock insert with category_id copied
         issued_records = [
-            {'type': item_type, 'sizing': sizing, 'note': note if note else None}
-            for _ in range(assigned_count)
+            {
+                'type': item_type,
+                'sizing': sizing,
+                'note': note if note else None,
+                'category_id': item['category_id']
+            }
+            for item in stock_items
         ]
         issued_resp = supabase.table('issued_stock').insert(issued_records).execute()
         issued_data = issued_resp.data
@@ -387,7 +392,11 @@ def return_item():
     sizing_input = request.form.get('sizing')
     sizing = normalize_sizing(sizing_input)
 
-    quantity = int(request.form.get('quantity', 0))
+    try:
+        quantity = int(request.form.get('quantity', 0))
+    except ValueError:
+        flash("Invalid quantity.", "danger")
+        return redirect(request.referrer)
 
     if session.get('privilege') not in ['admin', 'edit']:
         flash("Unauthorized action.", "danger")
@@ -405,10 +414,10 @@ def return_item():
             return redirect(request.referrer)
         person_id = person_resp.data[0]['id']
 
-        # Step 2: Get issued_stock records joined with kit_issue for this person
+        # Step 2: Get issued_stock records joined with kit_issue for this person, including category_id
         kit_resp = (
             supabase.table('kit_issue')
-            .select('id, issued_stock_id, issued_stock(type, sizing)')
+            .select('id, issued_stock_id, issued_stock(type, sizing, category_id)')
             .eq('person_id', person_id)
             .execute()
         )
@@ -424,7 +433,7 @@ def return_item():
             flash("Not enough matching items to return.", "warning")
             return redirect(request.referrer)
 
-        # Extract relevant IDs
+        # Extract relevant IDs and category_ids
         return_kit_ids = [issue['id'] for issue in matching[:quantity]]
         return_stock_ids = [issue['issued_stock_id'] for issue in matching[:quantity]]
 
@@ -432,8 +441,15 @@ def return_item():
         supabase.table('kit_issue').delete().in_('id', return_kit_ids).execute()
         supabase.table('issued_stock').delete().in_('id', return_stock_ids).execute()
 
-        # Step 4: Insert returned items back to stock (None instead of 'N/A')
-        returned_items = [{'type': item_type, 'sizing': sizing} for _ in range(quantity)]
+        # Step 4: Insert returned items back to stock with category_id copied
+        returned_items = [
+            {
+                'type': item_type,
+                'sizing': sizing,
+                'category_id': issue['issued_stock']['category_id']
+            }
+            for issue in matching[:quantity]
+        ]
         supabase.table('stock').insert(returned_items).execute()
 
         flash(f"Returned {quantity} {item_type}(s) to stock.", "success")

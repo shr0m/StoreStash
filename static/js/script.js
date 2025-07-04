@@ -59,17 +59,24 @@ function prepareUpdateData(event) {
     let hasChanges = false;
 
     rows.forEach(row => {
-        const type = row.querySelector("td:nth-child(1)").innerText.trim();
-        const sizing = row.querySelector("td:nth-child(2)").innerText.trim();
+        const type = row.querySelector("td:nth-child(2)").innerText.trim();     // Name/Type
+        const sizing = row.querySelector("td:nth-child(3)").innerText.trim();   // Sizing
         const input = row.querySelector(".quantity-input");
-        if (!input) return;
+        const categoryId = row.getAttribute("data-category-id");
+
+        if (!input || !categoryId) return;
 
         const quantity = parseInt(input.value, 10);
         const original = parseInt(input.getAttribute("data-original"), 10);
 
         if (quantity !== original) {
             hasChanges = true;
-            data.push({ type, sizing, quantity });
+            data.push({
+                type,        
+                sizing,       
+                quantity,
+                category_id: categoryId
+            });
         }
     });
 
@@ -80,7 +87,7 @@ function prepareUpdateData(event) {
     }
 
     document.getElementById("update-data-input").value = JSON.stringify(data);
-    // allow the form to submit normally after this
+    // form submits normally
 }
 
 // Filter stock table

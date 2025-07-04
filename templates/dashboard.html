@@ -55,12 +55,13 @@
         <!-- Add New Stock Section -->
         {% if session.get('privilege') in ['admin', 'edit'] %}
         <div class="col-md-4 mb-4">
-            <div class="card shadow-sm">
+            <!-- Add New Stock Type Card -->
+            <div class="card shadow-sm mb-4">
                 <div class="card-body">
                     <h5 class="card-title mb-3"><i class="fa-solid fa-plus me-2"></i>Add New Stock Type</h5>
                     <form id="add-stock-form" method="POST" action="/add_stock_type" class="row g-2">
                         <div class="col-12">
-                            <label class="form-label">Type of Item</label>
+                            <label class="form-label">Item Name</label>
                             <input type="text" name="new_type" class="form-control" required>
                         </div>
                         <div class="col-12">
@@ -68,17 +69,44 @@
                             <input type="number" name="initial_quantity" class="form-control" required min="1">
                         </div>
                         <div class="col-12">
+                            <label class="form-label">Category</label>
+                            <select name="category_id" class="form-select" required>
+                                <option value="">Select a category</option>
+                                    {% for category in categories %}
+                                        <option value="{{ category.id }}">{{ category.category }}</option>
+                                    {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12">
                             <label class="form-label">Sizing</label>
                             <input type="text" name="sizing" class="form-control">
                         </div>
                         <div class="col-12 d-grid">
-                            <button class="btn btn-primary mt-2" type="submit">Add</button>
+                            <button class="btn btn-primary mt-2" type="submit">Add Type</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Add Category Card (Smaller) -->
+            <div class="card shadow-sm">
+                <div class="card-body py-3">
+                    <h6 class="card-title mb-3"><i class="fa-solid fa-tags me-2"></i>Create Category</h6>
+                    <form id="add-category-form" method="POST" action="/add_category" class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label small">Category Name</label>
+                            <input type="text" name="category_name" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-12 d-grid">
+                            <button class="btn btn-secondary mt-2" type="submit">Add Category</button>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
         {% endif %}
+
+        
 
         <!-- Stock Table Section -->
         <div class="col-md-8">
@@ -107,6 +135,30 @@
                             <h6 class="fw-bold">{{ total_all }}</h6>
                         </div>
                     </div>
+
+                    <!-- Category Summary Table -->
+                    <div class="mt-4">
+                        <table class="table table-sm">
+                            <thead style="background-color: inherit; border-bottom: none;">
+                                <tr>
+                                    <th>Category</th>
+                                    <th>In Stock</th>
+                                    <th>Assigned</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cat in category_summaries %}
+                                <tr>
+                                    <td>{{ cat.category }}</td>
+                                    <td>{{ cat.in_stock }}</td>
+                                    <td>{{ cat.assigned }}</td>
+                                    <td>{{ cat.total }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -121,7 +173,8 @@
                 <table class="table table-bordered align-middle table-hover">
                     <thead class="bg-primary text-white bg-opacity-75">
                         <tr>
-                            <th>Item Type</th>
+                            <th>Category</th>
+                            <th>Name</th>
                             <th>Sizing</th>
                             <th>Quantity</th>
                             {% if session.get('privilege') in ['admin', 'edit'] %}
@@ -131,27 +184,28 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for item in stock_items %}
-                        <tr>
-                            <td>{{ item.type if item.type != "None" else "N/A" }}</td>
-                            <td>{{ item.sizing }}</td>
-                            <td class="saved-quantity">{{ item.quantity }}</td>
-                            {% if session.get('privilege') in ['admin', 'edit'] %}
-                            <td>
-                                <input type="number" class="form-control quantity-input" value="{{ item.quantity }}" min="0" data-original="{{ item.quantity }}">
-                            </td>
-                            <td>
-                                <div class="d-flex gap-2">
-                                    <button type="button" class="btn btn-outline-success btn-sm" onclick="changeQuantity(this, 1)">+</button>
-                                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="changeQuantity(this, -1)">−</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="openModal(this)">
-                                        <i class="fas fa-cog"></i>
-                                    </button>
-                                </div>
-                            </td>
-                            {% endif %}
-                        </tr>
-                        {% endfor %}
+                    {% for item in stock_items %}
+                    <tr data-category-id="{{ item.category_id }}">
+                        <td>{{ item.category }}</td>
+                        <td>{{ item.type if item.type != "None" else "N/A" }}</td>
+                        <td>{{ item.sizing }}</td>
+                        <td class="saved-quantity">{{ item.quantity }}</td>
+                        {% if session.get('privilege') in ['admin', 'edit'] %}
+                        <td>
+                            <input type="number" class="form-control quantity-input" value="{{ item.quantity }}" min="0" data-original="{{ item.quantity }}">
+                        </td>
+                        <td>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-success btn-sm" onclick="changeQuantity(this, 1)">+</button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="changeQuantity(this, -1)">−</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="openModal(this)">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                            </div>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
                     </tbody>
                 </table>
             </div>

@@ -22,11 +22,6 @@ def login():
 
     supabase = get_supabase_client()
 
-    # Check if there are no users (first-time setup)
-    response = supabase.table('users').select('id').limit(1).execute()
-    if not response.data:
-        return redirect(url_for('admin.admin'))
-
     if request.method == 'POST':
         email = request.form['email'].strip()
         otp_or_password = request.form['otp'].strip()

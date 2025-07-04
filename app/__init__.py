@@ -3,11 +3,12 @@ from flask import Flask, session
 from dotenv import load_dotenv
 from config import Config
 from app.extensions import limiter
-from app.db import get_supabase_client  # new function for Supabase client
+from app.db import get_supabase_client
+from app.bootstrap import ensure_root_user
 
 def create_app():
     # Load environment variables
-    load_dotenv(dotenv_path=".env")
+    load_dotenv(dotenv_path="../.env")
 
     # Template and static folder paths for Flask
     template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates'))
@@ -23,6 +24,8 @@ def create_app():
 
     # Initialize Supabase client (just to ensure config is valid)
     get_supabase_client()
+
+    ensure_root_user()
 
     # Register blueprints
     from .routes.auth import auth_bp

@@ -3,6 +3,7 @@ from app.db import get_supabase_client
 import json
 from app.utils.otp_utils import redirect_if_password_change_required
 from app import limiter
+from collections import defaultdict
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -18,6 +19,17 @@ def normalize_sizing(sizing_str):
 
 @dashboard_bp.route('/')
 @limiter.limit("100 per minute")
+def root():
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+    redirect_resp = redirect_if_password_change_required()
+    if redirect_resp:
+        return redirect_resp
+    return redirect(url_for('dashboard.dashboard'))
+    
+
+@dashboard_bp.route('/dashboard')
+@limiter.limit("100 per minute")
 def dashboard():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
@@ -28,42 +40,36 @@ def dashboard():
 
     supabase = get_supabase_client()
 
-    # Stock table - group by type/sizing
+    # Fetch stock and categories
     response = supabase.table('stock')\
-        .select('type, sizing, id', count='exact')\
+        .select('type, sizing, id, category_id, categories(category)')\
         .execute()
     stock_items = response.data or []
 
-    # Aggregate counts by type and sizing
-    aggregated = {}
+    aggregated = defaultdict(lambda: {'quantity': 0, 'category': None, 'category_id': None})
     for item in stock_items:
-        key = (item['type'], item['sizing'])  # None is valid for NULL sizing
-        aggregated[key] = aggregated.get(key, 0) + 1
+        key = (item['type'], item['sizing'])
+        aggregated[key]['quantity'] += 1
+        category_obj = item.get('categories') or {}
+        aggregated[key]['category'] = category_obj.get('category', 'Uncategorized')
+        aggregated[key]['category_id'] = item.get('category_id')
 
     stock_summary = [
-        {'type': t, 'sizing': s, 'quantity': qty}
-        for (t, s), qty in aggregated.items()
+        {'type': t, 'sizing': s, 'quantity': data['quantity'], 'category': data['category'], 'category_id': data['category_id']}
+        for (t, s), data in aggregated.items()
     ]
 
-    # Total stock in stores
-    total_in_store = len(stock_items)
+    categories_response = supabase.table('categories').select('*').order('category').execute()
+    categories = categories_response.data if categories_response else []
 
-    # Total stock assigned
-    assigned_resp = supabase.table('issued_stock')\
-        .select('id', count='exact')\
-        .execute()
-    total_assigned = len(assigned_resp.data or [])
-
-    # Total overall
-    total_all = total_in_store + total_assigned
+    overview_data = get_stock_overview()
 
     return render_template(
         'dashboard.html',
+        categories=categories,
         stock_items=stock_summary,
-        total_in_store=total_in_store,
-        total_assigned=total_assigned,
-        total_all=total_all,
         session=session,
+        **overview_data
     )
 
 @dashboard_bp.route('/add_stock_type', methods=['POST'])
@@ -82,16 +88,30 @@ def add_stock_type():
     try:
         initial_quantity = int(request.form.get('initial_quantity', 0))
     except ValueError:
-        return "Invalid quantity", 400
+        flash("Initial quantity must be a number.", "danger")
+        return redirect(url_for('dashboard.dashboard'))
 
     sizing_raw = request.form.get('sizing', '')
     sizing = normalize_sizing(sizing_raw)
 
     if not new_type or initial_quantity < 0:
-        return "Invalid input", 400
+        flash("Invalid item name or quantity.", "danger")
+        return redirect(url_for('dashboard.dashboard'))
 
     if len(new_type) > 30:
-        flash("Character limit exceeded", "danger")
+        flash("Item name exceeds character limit.", "danger")
+        return redirect(url_for('dashboard.dashboard'))
+
+    # Validate category_id is present and valid
+    category_id = request.form.get('category_id')
+    if not category_id:
+        flash("Please select a category.", "danger")
+        return redirect(url_for('dashboard.dashboard'))
+
+    # Validate category_id exists
+    exists_resp = supabase.table('categories').select('id').eq('id', category_id).execute()
+    if not exists_resp.data or len(exists_resp.data) == 0:
+        flash("Invalid category selected.", "danger")
         return redirect(url_for('dashboard.dashboard'))
 
     # Check if stock type already exists (case-insensitive)
@@ -102,15 +122,20 @@ def add_stock_type():
         query = query.eq('sizing', sizing)
     response = query.execute()
 
-    if response.data:
-        return "Stock type already exists", 400
+    if response.data and len(response.data) > 0:
+        flash("Stock type with this name and sizing already exists.", "danger")
+        return redirect(url_for('dashboard.dashboard'))
 
-    # Insert one record per item
-    rows_to_insert = [{'type': new_type, 'sizing': sizing} for _ in range(initial_quantity)]
+    # Insert stock rows for the new type
+    rows_to_insert = [{'type': new_type, 'sizing': sizing, 'category_id': category_id} for _ in range(initial_quantity)]
+
     if rows_to_insert:
-        supabase.table('stock').insert(rows_to_insert).execute()
+        insert_resp = supabase.table('stock').insert(rows_to_insert).execute()
+        if not insert_resp.data:
+            flash("Error inserting stock items.", "danger")
+            return redirect(url_for('dashboard.dashboard'))
 
-    flash("Stock type added.", "success")
+    flash(f"Added {initial_quantity} items of type '{new_type}'.", "success")
     return redirect(url_for('dashboard.dashboard'))
 
 @dashboard_bp.route('/update_stock_batch', methods=['POST'])
@@ -126,7 +151,8 @@ def update_stock_batch():
     try:
         data = json.loads(request.form['update_data'])
     except Exception:
-        return "Invalid data format", 400
+        flash("Invalid data format.", "danger")
+        return redirect(url_for('dashboard.dashboard'))
 
     supabase = get_supabase_client()
 
@@ -134,39 +160,132 @@ def update_stock_batch():
         item_type = item.get('type')
         sizing_raw = item.get('sizing', '')
         sizing = normalize_sizing(sizing_raw)
-
         try:
-            quantity = int(item.get('quantity', 0))
+            new_quantity = int(item.get('quantity', 0))
         except Exception:
             continue  # skip invalid quantity
 
-        if not item_type:
-            continue  # skip invalid item
+        category_id = item.get('category_id')
+        if not item_type or new_quantity < 0 or not category_id:
+            continue  # skip invalid items
 
-        # Fetch current available stock for this type & sizing
-        query = supabase.table('stock').select('id').eq('type', item_type)
+        # Fetch current stock entries matching type, sizing, and category_id
+        query = supabase.table('stock').select('id').eq('type', item_type).eq('category_id', category_id)
         if sizing is None:
             query = query.is_('sizing', None)
         else:
             query = query.eq('sizing', sizing)
-
         current_resp = query.execute()
+
         current_items = current_resp.data or []
         current_count = len(current_items)
 
-        if quantity < current_count:
-            # Delete excess items
-            ids_to_delete = [itm['id'] for itm in current_items[:current_count - quantity]]
+        if new_quantity < current_count:
+            # Delete excess items — delete oldest first (lowest id)
+            ids_to_delete = [itm['id'] for itm in sorted(current_items, key=lambda x: x['id'])[:current_count - new_quantity]]
             del_resp = supabase.table('stock').delete().in_('id', ids_to_delete).execute()
-            if del_resp.data is None:
-                print(f"Error deleting items {ids_to_delete} for {item_type} ({sizing})")
+            if not del_resp.data:
+                flash(f"Error deleting stock for {item_type} ({sizing})", "danger")
 
-        elif quantity > current_count:
-            # Insert new items
-            rows_to_insert = [{'type': item_type, 'sizing': sizing} for _ in range(quantity - current_count)]
+        elif new_quantity > current_count:
+            # Insert missing items — create new identical records
+            rows_to_insert = [{'type': item_type, 'sizing': sizing, 'category_id': category_id} for _ in range(new_quantity - current_count)]
+            print(f"Adding stock: type={item_type}, sizing={sizing}, category_id={category_id}, quantity={new_quantity - current_count}")
             ins_resp = supabase.table('stock').insert(rows_to_insert).execute()
-            if ins_resp.data is None:
-                print(f"Error inserting items for {item_type} ({sizing})")
+            if not ins_resp.data:
+                flash(f"Error adding stock for {item_type} ({sizing})", "danger")
 
-    flash("Stock file updated.", "success")
+        # If new_quantity == current_count, nothing to do
+
+    flash("Stock updated successfully.", "success")
     return redirect(url_for('dashboard.dashboard'))
+
+
+@dashboard_bp.route('/add_category', methods=['POST'])
+def add_category():
+    if session.get('privilege') not in ['admin', 'edit']:
+        flash("You don't have permission to add categories.", "danger")
+        return redirect('/')
+
+    category_name = request.form.get('category_name', '').strip()
+
+    if not category_name:
+        flash("Category name cannot be empty.", "warning")
+        return redirect('/')
+
+    supabase = get_supabase_client()
+
+    # Check if category already exists
+    existing = supabase.table('categories').select('id').eq('category', category_name).execute()
+    if existing.data and len(existing.data) > 0:
+        flash("Category already exists.", "info")
+        return redirect('/')
+
+    # Insert new category
+    ins_resp = supabase.table('categories').insert({'category': category_name}).execute()
+    if ins_resp.data:
+        flash(f"Category '{category_name}' added successfully.", "success")
+    else:
+        flash("Error adding category. Please try again.", "danger")
+
+    return redirect('/')
+
+def get_stock_overview():
+    supabase = get_supabase_client()
+
+    # Query total stock grouped by category_id and join category name
+    stock_resp = supabase.table('stock')\
+        .select('category_id, categories(category)')\
+        .execute()
+    stock_data = stock_resp.data or []
+
+    # Query total assigned (issued_stock joined with kit_issue) grouped by category
+    assigned_resp = supabase.table('issued_stock')\
+        .select('category_id')\
+        .execute()
+    assigned_data = assigned_resp.data or []
+
+    # We need counts grouped by category_id for stock and assigned separately
+    # Then combine these into summary dict by category
+
+    from collections import defaultdict
+    summary = defaultdict(lambda: {'category': '', 'in_stock': 0, 'assigned': 0, 'total': 0})
+
+    for item in stock_data:
+        cat_id = item['category_id']
+        cat_name = item.get('categories', {}).get('category', 'Unknown')
+        summary[cat_id]['category'] = cat_name
+        summary[cat_id]['in_stock'] += 1
+
+    # Count assigned per category_id
+    for item in assigned_data:
+        cat_id = item['category_id']
+        # If category not present in stock, we still want to record it
+        if cat_id not in summary:
+            summary[cat_id]['category'] = 'Unknown'
+        summary[cat_id]['assigned'] += 1
+
+    # Calculate total per category
+    for cat_id in summary:
+        summary[cat_id]['total'] = summary[cat_id]['in_stock'] + summary[cat_id]['assigned']
+
+    # Convert to list sorted by category name
+    category_summaries = sorted(summary.values(), key=lambda x: x['category'])
+
+    # Also total overall (can compute or from previous vars)
+    total_in_store = sum(x['in_stock'] for x in category_summaries)
+    total_assigned = sum(x['assigned'] for x in category_summaries)
+    total_all = total_in_store + total_assigned
+
+    return {
+        'category_summaries': category_summaries,
+        'total_in_store': total_in_store,
+        'total_assigned': total_assigned,
+        'total_all': total_all,
+    }
+
+@dashboard_bp.route('/stock')
+def stock_view():
+    overview_data = get_stock_overview()
+    # plus other data like stock_items, categories, etc.
+    return render_template('stock.html', **overview_data)
