@@ -28,7 +28,7 @@ def dashboard():
 
     supabase = get_supabase_client()
 
-    # Group by type and sizing, count the number of items per group
+    # Stock table - group by type/sizing
     response = supabase.table('stock')\
         .select('type, sizing, id', count='exact')\
         .execute()
@@ -40,15 +40,29 @@ def dashboard():
         key = (item['type'], item['sizing'])  # None is valid for NULL sizing
         aggregated[key] = aggregated.get(key, 0) + 1
 
-    # Convert to list of dicts for template
     stock_summary = [
         {'type': t, 'sizing': s, 'quantity': qty}
         for (t, s), qty in aggregated.items()
     ]
 
+    # Total stock in stores
+    total_in_store = len(stock_items)
+
+    # Total stock assigned
+    assigned_resp = supabase.table('issued_stock')\
+        .select('id', count='exact')\
+        .execute()
+    total_assigned = len(assigned_resp.data or [])
+
+    # Total overall
+    total_all = total_in_store + total_assigned
+
     return render_template(
         'dashboard.html',
         stock_items=stock_summary,
+        total_in_store=total_in_store,
+        total_assigned=total_assigned,
+        total_all=total_all,
         session=session,
     )
 
