@@ -90,6 +90,15 @@ function prepareUpdateData(event) {
     // form submits normally
 }
 
+function filterPersonCards() {
+    const filter = document.getElementById("stock-search").value.toLowerCase();
+    const cards = document.querySelectorAll(".person-card");
+    cards.forEach(card => {
+        const name = card.getAttribute("data-name");
+        card.style.display = name.includes(filter) ? "" : "none";
+    });
+}
+
 // Filter stock table
 function filterStockTable() {
     const input = document.getElementById("stock-search");
@@ -115,3 +124,32 @@ function filterStockTable() {
     const modal = new bootstrap.Modal(document.getElementById('stock-modal'));
     modal.show();
   }
+
+function setQuantity(event, index, parentIndex, type) {
+    event.preventDefault();
+
+    const qtyInput = document.getElementById(`qty-${index}-${parentIndex}`);
+    if (!qtyInput) {
+        alert("Quantity input field not found.");
+        return;
+    }
+
+    const qty = parseInt(qtyInput.value);
+
+    if (isNaN(qty) || qty <= 0) {
+        alert("Please enter a valid quantity.");
+        return;
+    }
+
+    const hiddenInputId = `${type}-hidden-${index}-${parentIndex}`;
+    const hiddenInput = document.getElementById(hiddenInputId);
+    if (hiddenInput) {
+        hiddenInput.value = qty;
+    } else {
+        alert("Hidden input not found.");
+        return;
+    }
+
+    // Submit the form manually
+    event.target.closest("form").submit();
+}

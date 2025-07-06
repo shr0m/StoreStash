@@ -25,6 +25,7 @@ def people():
 
     supabase = get_supabase_client()
 
+    # Load stock
     response = supabase.table('stock').select("*").execute()
     stock_data = response.data if response.data else []
 
@@ -36,20 +37,19 @@ def people():
     stock_items = [
         {'type': k[0], 'sizing': k[1], 'count': v}
         for k, v in grouped_stock.items()
-        if v > 0  # Only include if there's at least one item
+        if v > 0
     ]
 
-    # Get people
+    # Load people
     people_response = supabase.table('people').select("*").execute()
     people = people_response.data if people_response.data else []
 
-    # Fetch kit issues with note included in issued_stock
+    # Load kit issues
     kit_issues_resp = supabase.table('kit_issue')\
         .select('person_id, issued_stock(type, sizing, note)')\
         .execute()
     kit_issues = kit_issues_resp.data if kit_issues_resp.data else []
 
-    # Group issued items by person_id and by (type, sizing, note) with counts
     issued_by_person = {}
     for record in kit_issues:
         pid = record['person_id']
@@ -61,15 +61,34 @@ def people():
 
         issued_by_person[pid][key] = issued_by_person[pid].get(key, 0) + 1
 
-    # Attach issued_items list to each person with note included
+    # Load label_issue and attach label_ids to people
+    label_issues_resp = supabase.table('label_issue').select('person_id, label_id').execute()
+    label_issues = label_issues_resp.data if label_issues_resp.data else []
+
+    # Group labels by person_id
+    labels_by_person = {}
+    for record in label_issues:
+        pid = record['person_id']
+        lid = record['label_id']
+        if pid not in labels_by_person:
+            labels_by_person[pid] = []
+        labels_by_person[pid].append(lid)
+
+    # Attach data to each person
     for person in people:
         pid = person.get('id')
+
+        # Issued stock
         grouped = issued_by_person.get(pid, {})
         person['issued_items'] = [
             {'type': t, 'sizing': s or 'N/A', 'note': n or '', 'quantity': q}
             for (t, s, n), q in grouped.items()
         ]
 
+        # Labels
+        person['label_ids'] = labels_by_person.get(pid, [])
+
+    # Sorting
     rank_order = {
         'cadet': 4,
         'corporal': 3,
@@ -79,21 +98,24 @@ def people():
     }
 
     def get_surname(full_name):
-        if not full_name:
-            return ''
-        return full_name.strip().split()[-1].lower()
+        return full_name.strip().split()[-1].lower() if full_name else ''
 
     def get_rank_priority(rank):
-        if not rank:
-            return -1  # Unknown ranks go to the bottom
-        return rank_order.get(rank.strip().lower(), -1)
+        return rank_order.get(rank.strip().lower(), -1) if rank else -1
 
     people.sort(key=lambda p: (
         get_rank_priority(p.get('rank')),
         get_surname(p.get('name'))
     ))
 
-    return render_template("people.html", stock_items=stock_items, people=people)
+    labels = supabase.table('labels').select('*').order('name').execute().data
+
+    return render_template(
+        "people.html",
+        stock_items=stock_items,
+        people=people,
+        labels=labels
+    )
 
 
 
@@ -517,3 +539,80 @@ def mark_lost():
         flash(f"Error processing loss: {str(e)}", "danger")
 
     return redirect('/people')
+
+@people_bp.route('/create_label', methods=['POST'])
+@limiter.limit("10 per minute")
+def add_label():
+    if session.get('privilege') not in ['admin', 'edit']:
+        return "Unauthorized", 403
+
+    label_name = request.form.get('label_name', '').strip()
+    label_colour = request.form.get('label_color', '').strip()
+
+    # Allowed Bootstrap-like colours
+    allowed_colours = {'primary', 'secondary', 'success', 'danger', 'warning', 'info', 'dark'}
+
+    # Validate colour
+    if label_colour not in allowed_colours:
+        flash("Invalid label colour selected.", "danger")
+        return redirect(url_for('people.people'))
+
+    # Validate name format
+    if not re.match(r'^[A-Za-z0-9\-\(\)\s]+$', label_name):
+        flash("Label name can only contain letters, numbers, spaces, parentheses, and hyphens.", "danger")
+        return redirect(url_for('people.people'))
+
+    supabase = get_supabase_client()
+
+    try:
+        existing = supabase.table('labels').select("id", count='exact')\
+            .ilike('name', label_name).execute()
+
+        if existing.count and existing.count > 0:
+            flash("A label with that name already exists.", "warning")
+            return redirect(url_for('people.people'))
+
+        insert_result = supabase.table('labels').insert({
+            'name': label_name,
+            'colour': label_colour
+        }).execute()
+
+        if insert_result.data:
+            flash("Label created successfully.", "success")
+        else:
+            flash("Failed to create label.", "danger")
+
+    except Exception as e:
+        print(f"Error adding label: {e}")
+        flash("An error occurred while creating the label.", "danger")
+
+    return redirect(url_for('people.people'))
+
+@people_bp.route('/delete_label/<label_id>', methods=['POST'])
+@limiter.limit("10 per minute")
+def delete_label(label_id):
+    if session.get('privilege') not in ['admin', 'edit']:
+        return "Unauthorized", 403
+
+    supabase = get_supabase_client()
+
+    try:
+        # Check if label exists
+        existing = supabase.table('labels').select('id').eq('id', label_id).execute()
+
+        if existing.data and len(existing.data) > 0:
+            # Delete related entries in label_issue first
+            supabase.table('label_issue').delete().eq('label_id', label_id).execute()
+
+            # Now delete from labels
+            supabase.table('labels').delete().eq('id', label_id).execute()
+
+            flash("Label and related assignments deleted successfully.", "success")
+        else:
+            flash("Label not found or already deleted.", "warning")
+
+    except Exception as e:
+        print(f"Error deleting label: {e}")
+        flash("An error occurred while deleting the label.", "danger")
+
+    return redirect(url_for('people.people'))

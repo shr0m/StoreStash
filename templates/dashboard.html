@@ -55,13 +55,6 @@
 
         <!-- Stock Table Section -->
         <div class="col-md-8">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0"><i class="fa-solid fa-boxes-stacked me-2"></i>Current Stock</h5>
-                <div class="w-50">
-                    <input type="text" id="stock-search" class="form-control" placeholder="Search stock types..." oninput="filterStockTable()">
-                </div>
-            </div>
-
             <!-- Stock Summary Card -->
             <div class="card mb-4 shadow-sm">
                 <div class="card-body">
@@ -107,12 +100,33 @@
                 </div>
             </div>
 
-            {% if session.get('privilege') in ['admin', 'edit'] %}
-            <form class="mb-3" method="POST" action="/update_stock_batch" onsubmit="prepareUpdateData(event)">
-                <input type="hidden" name="update_data" id="update-data-input">
-                <button class="btn btn-success" type="submit">Update Stock</button>
-            </form>
-            {% endif %}
+            
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+                <!-- Heading -->
+                <h5 class="mb-0 d-flex align-items-center">
+                    <i class="fa-solid fa-boxes-stacked me-2"></i> Current Stock
+                </h5>
+
+                <!-- Search Bar -->
+                <div class="flex-grow-1" style="max-width: 300px;">
+                    <input type="text" id="stock-search" class="form-control" placeholder="Search stock types..." oninput="filterStockTable()">
+                </div>
+                {% if session.get('privilege') in ['admin', 'edit'] %}
+                <!-- Buttons -->
+                <div class="d-flex gap-2">
+                    <form method="POST" action="/update_stock_batch" onsubmit="prepareUpdateData(event)" class="mb-0">
+                        <input type="hidden" name="update_data" id="update-data-input">
+                        <button class="btn btn-success" type="submit">
+                            <i class="fa-solid fa-arrow-up-right-dots me-1"></i> Update Stock
+                        </button>
+                    </form>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStockModal">
+                        <i class="fa-solid fa-plus me-1"></i> Add Stock Type
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+
 
             <div class="table-responsive">
                 <table class="table table-bordered align-middle table-hover">
@@ -154,6 +168,47 @@
                     </tbody>
                 </table>
             </div>
+
+            <div class="modal fade" id="addStockModal" tabindex="-1" aria-labelledby="addStockModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content shadow">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="addStockModalLabel">
+                        <i class="fa-solid fa-plus me-2"></i>Add New Stock Type
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form id="add-stock-form" method="POST" action="/add_stock_type">
+                        <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Item Name</label>
+                            <input type="text" name="new_type" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Initial Quantity</label>
+                            <input type="number" name="initial_quantity" class="form-control" required min="1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Category</label>
+                            <select name="category_id" class="form-select" required>
+                            <option value="">Select a category</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.category }}</option>
+                            {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Sizing</label>
+                            <input type="text" name="sizing" class="form-control" placeholder="Optional">
+                        </div>
+                        </div>
+                        <div class="modal-footer">
+                        <button type="submit" class="btn btn-success">Add Type</button>
+                        </div>
+                    </form>
+                    </div>
+                </div>
+                </div>
         </div>
 
         <!-- Right Column -->
@@ -168,38 +223,6 @@
                 </div>
             </div>
             {% if session.get('privilege') in ['admin', 'edit'] %}
-            <!-- Add New Stock Type Card -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <h5 class="card-title mb-3"><i class="fa-solid fa-plus me-2"></i>Add New Stock Type</h5>
-                    <form id="add-stock-form" method="POST" action="/add_stock_type" class="row g-2">
-                        <div class="col-12">
-                            <label class="form-label">Item Name</label>
-                            <input type="text" name="new_type" class="form-control" required>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Initial Quantity</label>
-                            <input type="number" name="initial_quantity" class="form-control" required min="1">
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Category</label>
-                            <select name="category_id" class="form-select" required>
-                                <option value="">Select a category</option>
-                                {% for category in categories %}
-                                    <option value="{{ category.id }}">{{ category.category }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Sizing</label>
-                            <input type="text" name="sizing" class="form-control">
-                        </div>
-                        <div class="col-12 d-grid">
-                            <button class="btn btn-primary mt-2" type="submit">Add Type</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
 
             <!-- Add Category Card -->
             <div class="card shadow-sm">
@@ -233,8 +256,6 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <p>Edit settings for this stock item.</p>
-
           <!-- Hidden inputs to identify stock items -->
           <input type="hidden" name="type" id="modal-stock-type">
           <input type="hidden" name="sizing" id="modal-stock-sizing">

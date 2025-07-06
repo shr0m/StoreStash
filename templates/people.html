@@ -151,6 +151,75 @@
                     </form>
                 </div>
             </div>
+
+            <!-- Create Label Card -->
+            <div class="card shadow-sm mt-4">
+                <div class="card-body">
+                    <h2 class="h5 mb-3"><i class="fa-solid fa-tag me-2"></i>Labels</h2>
+                    <form method="POST" action="/create_label" class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Label Name</label>
+                            <input type="text" name="label_name" class="form-control" placeholder="e.g. Needs blues" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Label Colour</label>
+                            <select name="label_color" class="form-select" id="labelColorSelect" required>
+                                <option value="" disabled selected>Select Colour</option>
+                                <option value="primary">Blue</option>
+                                <option value="secondary">Grey</option>
+                                <option value="success">Green</option>
+                                <option value="danger">Red</option>
+                                <option value="warning">Yellow</option>
+                                <option value="info">Cyan</option>
+                                <option value="dark">Black</option>
+                            </select>
+                        </div>
+                        <div class="col-12 d-grid">
+                            <button type="submit" class="btn btn-secondary">Create Label</button>
+                        </div>
+
+                        <div class="col-12 d-grid">
+                            <button type="button" class="btn btn-outline mt-2" data-bs-toggle="modal" data-bs-target="#manageLabelsModal">
+                                <i class="fa-solid fa-tags me-1"></i> Manage Labels
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if session.get('privilege') in ['admin', 'edit'] %}
+        <div class="modal fade" id="manageLabelsModal" tabindex="-1" aria-labelledby="manageLabelsModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-scrollable">
+                <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="manageLabelsModalLabel"><i class="fa-solid fa-tags me-2"></i>Manage Labels</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    {% if labels %}
+                    <ul class="list-group">
+                    {% for label in labels %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span><span class="badge bg-{{ label.colour }}">{{ label.name }}</span></span>
+                        <form method="POST" action="{{ url_for('people.delete_label', label_id=label.id) }}" onsubmit="return confirm('Are you sure you want to delete this label?');">
+                            <button class="btn btn-sm btn-outline-danger" type="submit" title="Delete Label">
+                            <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </form>
+                        </li>
+                    {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted">No labels created yet.</p>
+                    {% endif %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+                </div>
+            </div>
         </div>
         {% endif %}
 
@@ -180,12 +249,14 @@
                             <div class="modal-content">
                                 <div class="modal-header align-items-start">
                                     <h5 class="modal-title" id="modalLabel-{{ loop.index }}">{{ person.rank }} {{ person.name }}</h5>
-
                                     <div class="d-flex align-items-center ms-auto">
+                                        <button class="btn btn-sm btn-outline-secondary me-2" data-bs-toggle="modal" data-bs-target="#labelModal-{{ loop.index }}">
+                                            <i class="fa-solid fa-tag"></i>
+                                        </button>
                                         {% if session.get('privilege') in ['admin', 'edit'] %}
                                         <div class="dropdown me-2">
                                             <button class="btn btn-sm btn-outline-secondary" type="button" id="dropdownMenuButton-{{ loop.index }}" data-bs-toggle="dropdown" aria-expanded="false">
-                                                <i class="fas fa-ellipsis-v"></i>
+                                                <i class="fa-solid fa-ellipsis"></i>
                                             </button>
                                             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton-{{ loop.index }}">
                                                 <li>
@@ -281,7 +352,7 @@
 
                     <!-- Confirm Delete Modal -->
                     <div class="modal fade" id="confirmDeleteModal-{{ loop.index }}" tabindex="-1" aria-labelledby="confirmDeleteLabel-{{ loop.index }}" aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-dialog modal-dialog-centered">    
                             <div class="modal-content border-danger">
                                 <div class="modal-header bg-danger text-white">
                                     <h5 class="modal-title" id="confirmDeleteLabel-{{ loop.index }}">Confirm Deletion</h5>
@@ -336,7 +407,7 @@
                     </div>
                     </div>
                     {% endfor %}
-                </div>
+                </div>  
             </section>
         </div>
     </div>
@@ -344,17 +415,9 @@
 
 <!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
 
 <script>
-function filterPersonCards() {
-    const filter = document.getElementById("stock-search").value.toLowerCase();
-    const cards = document.querySelectorAll(".person-card");
-    cards.forEach(card => {
-        const name = card.getAttribute("data-name");
-        card.style.display = name.includes(filter) ? "" : "none";
-    });
-}
-
 document.addEventListener("DOMContentLoaded", () => {
     const personInput = document.getElementById("personSearch");
     const dropdownMenu = document.getElementById("personDropdown");
@@ -409,38 +472,24 @@ document.addEventListener("DOMContentLoaded", () => {
             selectedSizingInput.value = sizing;
         });
     });
+
+    const select = document.getElementById('labelColorSelect');
+
+    select.addEventListener('change', function () {
+        // Remove any existing bg-* classes
+        select.classList.remove('bg-primary', 'bg-secondary', 'bg-success', 'bg-danger', 'bg-warning', 'bg-info', 'bg-dark', 'text-white');
+
+        const selected = select.value;
+        if (selected) {
+            select.classList.add(`bg-${selected}`);
+
+            // Add text color for contrast if needed
+            if (['dark', 'primary', 'danger', 'success', 'secondary', 'info'].includes(selected)) {
+                select.classList.add('text-white');
+            }
+        }
+    });
 });
-
-
-function setQuantity(event, index, parentIndex, type) {
-    event.preventDefault();
-
-    const qtyInput = document.getElementById(`qty-${index}-${parentIndex}`);
-    if (!qtyInput) {
-        alert("Quantity input field not found.");
-        return;
-    }
-
-    const qty = parseInt(qtyInput.value);
-
-    if (isNaN(qty) || qty <= 0) {
-        alert("Please enter a valid quantity.");
-        return;
-    }
-
-    const hiddenInputId = `${type}-hidden-${index}-${parentIndex}`;
-    const hiddenInput = document.getElementById(hiddenInputId);
-    if (hiddenInput) {
-        hiddenInput.value = qty;
-    } else {
-        alert("Hidden input not found.");
-        return;
-    }
-
-    // Submit the form manually
-    event.target.closest("form").submit();
-}
-
 </script>
 
 </body>
