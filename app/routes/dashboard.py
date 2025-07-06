@@ -289,3 +289,69 @@ def stock_view():
     overview_data = get_stock_overview()
     # plus other data like stock_items, categories, etc.
     return render_template('stock.html', **overview_data)
+
+@dashboard_bp.route('/update_stock_category', methods=['POST'])
+@limiter.limit("10 per minute")
+def update_stock_category():
+    if not has_edit_privileges():
+        return "Unauthorized", 403
+
+    redirect_resp = redirect_if_password_change_required()
+    if redirect_resp:
+        return redirect_resp
+
+    item_type = request.form.get('type')
+    sizing_raw = request.form.get('sizing')
+    sizing = normalize_sizing(sizing_raw)
+    new_category_id = request.form.get('category_id')
+
+    if not item_type or not new_category_id:
+        flash("Invalid input provided.", "danger")
+        return redirect(url_for('dashboard.dashboard'))
+
+    supabase = get_supabase_client()
+
+    # --- Step 1: Find stock items to update ---
+    stock_query = supabase.table('stock').select('id, category_id').eq('type', item_type)
+    stock_query = stock_query.is_('sizing', None) if sizing is None else stock_query.eq('sizing', sizing)
+    stock_result = stock_query.execute()
+    stock_items = stock_result.data or []
+    old_category_ids = {item['category_id'] for item in stock_items if item.get('category_id')}
+
+    # --- Step 2: Update stock if any found ---
+    stock_updated = False
+    if stock_items:
+        update_stock_query = supabase.table('stock')\
+            .update({'category_id': new_category_id})\
+            .eq('type', item_type)
+        update_stock_query = update_stock_query.is_('sizing', None) if sizing is None else update_stock_query.eq('sizing', sizing)
+        stock_update_result = update_stock_query.execute()
+        stock_updated = bool(stock_update_result.data)
+
+    # --- Step 3: Update issued_stock if matching old category_ids ---
+    issued_items_updated = False
+    issued_items_found = False
+    if old_category_ids:
+        for cat_id in old_category_ids:
+            # Check if any exist first
+            issued_check = supabase.table('issued_stock').select('id').eq('category_id', cat_id).execute()
+            issued_matches = issued_check.data or []
+            if issued_matches:
+                issued_items_found = True
+                update_issued = supabase.table('issued_stock')\
+                    .update({'category_id': new_category_id})\
+                    .eq('category_id', cat_id).execute()
+                if update_issued.data:
+                    issued_items_updated = True
+
+    # --- Step 4: Flash messages ---
+    if not stock_items and not issued_items_found:
+        flash("No matching stock or issued items found to update.", "info")
+    elif stock_items and not stock_updated:
+        flash("Failed to update stock category.", "danger")
+    elif issued_items_found and not issued_items_updated:
+        flash("Stock updated, but failed to update issued items.", "warning")
+    else:
+        flash("Category updated successfully for stock and issued items.", "success")
+
+    return redirect(url_for('dashboard.dashboard'))

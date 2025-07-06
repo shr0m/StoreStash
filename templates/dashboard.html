@@ -143,7 +143,7 @@
                             <div class="d-flex gap-2">
                                 <button type="button" class="btn btn-outline-success btn-sm" onclick="changeQuantity(this, 1)">+</button>
                                 <button type="button" class="btn btn-outline-danger btn-sm" onclick="changeQuantity(this, -1)">−</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="openModal(this)">
+                                <button class="btn btn-sm btn-outline-secondary" onclick="openStockModal('{{ item.type }}', '{{ item.sizing }}', '{{ item.category_id }}')">
                                     <i class="fas fa-cog"></i>
                                 </button>
                             </div>
@@ -225,21 +225,37 @@
 
 <!-- Modal -->
 <div class="modal fade" id="stock-modal" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Item Settings: <span id="modal-item-type"></span></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>Edit settings for this stock item.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary">Apply</button>
-            </div>
+  <div class="modal-dialog">
+    <form method="POST" action="/update_stock_category">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Item Settings</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-    </div>
+        <div class="modal-body">
+          <p>Edit settings for this stock item.</p>
+
+          <!-- Hidden inputs to identify stock items -->
+          <input type="hidden" name="type" id="modal-stock-type">
+          <input type="hidden" name="sizing" id="modal-stock-sizing">
+
+          <!-- Category selector -->
+          <div class="mb-3">
+            <label for="modal-category-id" class="form-label">Select new category:</label>
+            <select name="category_id" id="modal-category-id" class="form-select">
+              {% for cat in categories %}
+              <option value="{{ cat.id }}">{{ cat.category }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary">Apply</button>
+        </div>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- JavaScript -->

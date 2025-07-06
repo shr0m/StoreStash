@@ -108,12 +108,10 @@ function filterStockTable() {
 }
 
 // Open Bootstrap modal
-function openModal(button) {
-    const row = button.closest("tr");
-    const itemType = row.querySelector("td:nth-child(1)").innerText;
-    const modalLabel = document.getElementById("modal-item-type");
-    modalLabel.innerText = itemType;
-
-    const modal = new bootstrap.Modal(document.getElementById("stock-modal"));
+  function openStockModal(type, sizing, currentCategoryId) {
+    document.getElementById('modal-stock-type').value = type;
+    document.getElementById('modal-stock-sizing').value = sizing || '';
+    document.getElementById('modal-category-id').value = currentCategoryId;
+    const modal = new bootstrap.Modal(document.getElementById('stock-modal'));
     modal.show();
-}
+  }
