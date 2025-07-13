@@ -301,7 +301,7 @@
         const stockData = {
             labels: [{% for cat in category_summaries %}'{{ cat.category }}'{% if not loop.last %}, {% endif %}{% endfor %}],
             datasets: [{
-                data: [{% for cat in category_summaries %}{{ cat.total }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                data: [{% for cat in category_summaries %}{{ cat.in_stock }}{% if not loop.last %}, {% endif %}{% endfor %}],
                 backgroundColor: [
                     '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#858796', '#5a5c69'
                 ],
