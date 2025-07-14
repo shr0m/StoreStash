@@ -123,7 +123,8 @@ def people():
         "people.html",
         stock_items=stock_items,
         people=people,
-        all_labels=all_labels
+        all_labels=all_labels,
+        labels=all_labels
     )
 
 
@@ -690,7 +691,7 @@ def unassign_label():
 
 
 @people_bp.route('/toggle_label', methods=['POST'])
-@limiter.limit("30 per minute")
+@limiter.limit("1 per second")
 def toggle_label():
     if session.get('privilege') not in ['admin', 'edit']:
         return jsonify({'error': 'Unauthorized'}), 403
@@ -714,19 +715,41 @@ def toggle_label():
 
         if existing.data:
             # Label exists — remove it
-            delete_resp = supabase.table('label_issue')\
+            supabase.table('label_issue')\
                 .delete()\
                 .eq('person_id', person_id)\
                 .eq('label_id', label_id)\
                 .execute()
-            return jsonify({'status': 'removed'})
+            
+            status = 'removed'
         else:
             # Label not assigned — insert it
-            insert_resp = supabase.table('label_issue').insert({
+            supabase.table('label_issue').insert({
                 'person_id': person_id,
                 'label_id': label_id
             }).execute()
-            return jsonify({'status': 'added'})
+
+            status = 'added'
+
+        # Fetch updated list of assigned labels with name + colour
+        updated_labels_resp = supabase.table('label_issue')\
+            .select('label_id, labels(name, colour)')\
+            .eq('person_id', person_id)\
+            .execute()
+
+        assigned_labels = [
+            {
+                'id': row['label_id'],
+                'name': row['labels']['name'],
+                'colour': row['labels']['colour']
+            }
+            for row in updated_labels_resp.data
+        ]
+
+        return jsonify({
+            'status': status,
+            'assigned_labels': assigned_labels
+        })
 
     except Exception as e:
         print(f"Error toggling label: {e}")

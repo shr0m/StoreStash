@@ -159,19 +159,50 @@ function toggleLabel(personId, labelId, button) {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token() }}' // if using CSRF
+            'X-CSRFToken': '{{ csrf_token() }}'
         },
         body: JSON.stringify({ person_id: personId, label_id: labelId })
     })
     .then(response => response.json())
     .then(data => {
-        if (data.status === 'added') {
-            button.classList.remove('btn-outline-secondary');
-            button.classList.add('btn-danger');
-        } else if (data.status === 'removed') {
-            button.classList.remove('btn-danger');
-            button.classList.add('btn-outline-secondary');
+        if (data.error) {
+            alert('Error: ' + data.error);
+            return;
         }
-        // Optionally update badges on the card too
+
+        const classList = Array.from(button.classList);
+        const colorClass = classList.find(c => c.startsWith('btn-outline-') || c.startsWith('btn-'));
+
+        if (!colorClass) return;
+
+        const color = colorClass.replace('btn-outline-', '').replace('btn-', '');
+
+        button.classList.remove(`btn-${color}`);
+        button.classList.remove(`btn-outline-${color}`);
+
+        if (data.status === 'added') {
+            button.classList.add(`btn-${color}`);
+        } else if (data.status === 'removed') {
+            button.classList.add(`btn-outline-${color}`);
+        }
+
+        updateLabelsOnPersonCard(personId, data.assigned_labels || []);
+    })
+    .catch(err => {
+        console.error('Toggle label error:', err);
+        alert('An error occurred while toggling label.');
     });
+}
+
+function updateLabelsOnPersonCard(personId, assignedLabels) {
+    const personCard = document.querySelector(`.person-card[data-person-id="${personId}"]`);
+    if (!personCard) return;
+
+    const badgeContainer = personCard.querySelector('.badge-container');
+    if (!badgeContainer) return;
+
+    // Clear existing badges and add fresh ones
+    badgeContainer.innerHTML = assignedLabels.map(label =>
+        `<span class="badge bg-${label.colour}" data-label-id="label-${label.id}">${label.name}</span>`
+    ).join('');
 }

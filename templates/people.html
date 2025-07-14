@@ -70,88 +70,6 @@
 
         <!-- LEFT COLUMN -->
         <div class="col-lg-4 collapse d-lg-block mb-5" id="assignFormCollapse">
-            <!-- Assign Card -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <h2 class="h5 mb-3">Assign Items</h2>
-                    <form method="POST" action="/assign_item" class="row g-3">
-                        <div class="col-12">
-                            <div class="dropdown">
-                                <input type="text" id="personSearch" class="form-control" placeholder="Find person..." autocomplete="off" required>
-                                <input type="hidden" name="person_name" id="selectedPerson">
-                                <ul id="personDropdown" class="dropdown-menu w-100" style="max-height: 200px; overflow-y: auto;">
-                                    {% for person in people %}
-                                        <li><a class="dropdown-item" href="#" data-name="{{ person.name }}">{{ person.name }}</a></li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                        </div>
-
-                        <div class="col-12">
-                            <div class="dropdown">
-                                <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" id="itemDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                    Select Item Type
-                                </button>
-                                <ul class="dropdown-menu w-100" aria-labelledby="itemDropdown">
-                                    {% for item in stock_items %}
-                                    <li>
-                                        <a class="dropdown-item d-flex justify-content-between align-items-center"
-                                        href="#"
-                                        data-type="{{ item.type }}"
-                                        data-sizing="{{ item.sizing or 'N/A' }}">
-                                            <span>{{ item.type }}{% if item.sizing %} ({{ item.sizing }}){% endif %}</span>
-                                            <span class="badge bg-secondary">{{ item.count }}</span>
-                                        </a>
-                                    </li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                            <input type="hidden" name="item_type" id="selectedItemType" required>
-                            <input type="hidden" name="sizing" id="selectedSizing">
-                        </div>
-
-                        <div class="col-12">
-                            <input type="number" name="quantity" class="form-control" placeholder="Quantity" required min="1">
-                        </div>
-
-                        <div class="col-12">
-                            <input type="text" name="note" class="form-control" placeholder="Notes">
-                        </div>                        
-
-                        <div class="col-12 d-grid">
-                            <button type="submit" class="btn btn-primary">Assign Item</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Add Person Card -->
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h2 class="h5 mb-3"><i class="fa-solid fa-user-plus me-2"></i>Add Person</h2>
-                    <form method="POST" action="/add_person" class="row g-3">
-                        <div class="col-12">
-                            <label class="form-label">Rank</label>
-                            <select name="rank" class="form-select" required>
-                                <option value="" disabled selected>Select Rank</option>
-                                <option value="Cadet">Cadet</option>
-                                <option value="Corporal">Corporal</option>
-                                <option value="Sergeant">Sergeant</option>
-                                <option value="Flight Sergeant">Flight Sergeant</option>
-                                <option value="Cadet Warrant Officer">Cadet Warrant Officer</option>
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Name</label>
-                            <input type="text" name="name" class="form-control" placeholder="Surname" required>
-                        </div>
-                        <div class="col-12 d-grid">
-                            <button type="submit" class="btn btn-success">Add Person</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
             <!-- Create Label Card -->
             <div class="card shadow-sm mt-4">
                 <div class="card-body">
@@ -226,26 +144,46 @@
         <!-- RIGHT COLUMN -->
         <div class="col-lg-8">
             <section>
-                <div class="mb-3">
-                    <input type="text" id="stock-search" class="form-control" placeholder="Search people..." oninput="filterPersonCards()">
+                <div class="mb-4">
+                    <div class="row g-2 align-items-center">
+                        <div class="col">
+                            <input type="text" id="stock-search" class="form-control" placeholder="Search people..." oninput="filterPersonCards()">
+                        </div>
+
+                        {% if session.get('privilege') in ['admin', 'edit'] %}
+                        <div class="col-auto">
+                            <button type="button" class="btn btn-success d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#addPersonModal">
+                                <i class="fa-solid fa-user-plus"></i>
+                                <span class="d-none d-sm-inline">Add Person</span>
+                            </button>
+                        </div>
+                        <div class="col-auto">
+                            <button type="button" class="btn btn-primary d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#assignItemModal">
+                                <i class="fa-solid fa-link"></i>
+                                <span class="d-none d-sm-inline">Assign Items</span>
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
 
                 <h2 class="h5">People List</h2>
                 <div id="personCardList" class="d-flex flex-column gap-3">
                     {% for person in people %}
-                    <div class="card person-card shadow-sm" data-name="{{ person.name | lower }}">
+                    <div class="card person-card shadow-sm" data-name="{{ person.name | lower }}" data-person-id="{{ person.id }}">
                         <div class="card-body d-flex justify-content-between align-items-center" data-bs-toggle="modal" data-bs-target="#modal-{{ loop.index }}">
                             <div>
                                 <h5 class="card-title mb-0">{{ person.rank }}</h5>
                                 <p class="mb-0">{{ person.name }}</p>
                             </div>
-                            {% if person.assigned_labels %}
-                            <div class="d-flex flex-wrap gap-1 mt-1 ms-3">
+
+                            <!-- Ensure badge container exists even if empty -->
+                            <div class="d-flex flex-wrap gap-1 mt-1 ms-3 badge-container">
                                 {% for label in person.assigned_labels %}
-                                <span class="badge bg-{{ label.colour }}">{{ label.name }}</span>
+                                    <span class="badge bg-{{ label.colour }}" data-label-id="label-{{ label.id }}">{{ label.name }}</span>
                                 {% endfor %}
                             </div>
-                            {% endif %}
+
                             <i class="fas fa-chevron-right"></i>
                         </div>
                     </div>
@@ -397,6 +335,102 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Add Person Modal -->
+                    <div class="modal fade" id="addPersonModal" tabindex="-1" aria-labelledby="addPersonModalLabel" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="addPersonModalLabel"><i class="fa-solid fa-user-plus me-2"></i>Add Person</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form method="POST" action="/add_person" class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label">Rank</label>
+                                    <select name="rank" class="form-select" required>
+                                        <option value="" disabled selected>Select Rank</option>
+                                        <option value="Cadet">Cadet</option>
+                                        <option value="Corporal">Corporal</option>
+                                        <option value="Sergeant">Sergeant</option>
+                                        <option value="Flight Sergeant">Flight Sergeant</option>
+                                        <option value="Cadet Warrant Officer">Cadet Warrant Officer</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Name</label>
+                                    <input type="text" name="name" class="form-control" placeholder="Surname" required>
+                                </div>
+                                <div class="col-12 d-grid">
+                                    <button type="submit" class="btn btn-success">Add Person</button>
+                                </div>
+                            </form>
+                        </div>
+                        </div>
+                    </div>
+                    </div>
+
+                    <!-- Assign Item Modal -->
+                    <div class="modal fade" id="assignItemModal" tabindex="-1" aria-labelledby="assignItemModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="assignItemModalLabel">Assign Items</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form method="POST" action="/assign_item" class="row g-3">
+                                <div class="col-12">
+                                    <div class="dropdown">
+                                        <input type="text" id="personSearch" class="form-control" placeholder="Find person..." autocomplete="off" required>
+                                        <input type="hidden" name="person_name" id="selectedPerson">
+                                        <ul id="personDropdown" class="dropdown-menu w-100" style="max-height: 200px; overflow-y: auto;">
+                                            {% for person in people %}
+                                                <li><a class="dropdown-item" href="#" data-name="{{ person.name }}">{{ person.name }}</a></li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <div class="col-12">
+                                    <div class="dropdown">
+                                        <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" id="itemDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                            Select Item Type
+                                        </button>
+                                        <ul class="dropdown-menu w-100" aria-labelledby="itemDropdown">
+                                            {% for item in stock_items %}
+                                            <li>
+                                                <a class="dropdown-item d-flex justify-content-between align-items-center"
+                                                href="#"
+                                                data-type="{{ item.type }}"
+                                                data-sizing="{{ item.sizing or 'N/A' }}">
+                                                    <span>{{ item.type }}{% if item.sizing %} ({{ item.sizing }}){% endif %}</span>
+                                                    <span class="badge bg-secondary">{{ item.count }}</span>
+                                                </a>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                    <input type="hidden" name="item_type" id="selectedItemType" required>
+                                    <input type="hidden" name="sizing" id="selectedSizing">
+                                </div>
+
+                                <div class="col-12">
+                                    <input type="number" name="quantity" class="form-control" placeholder="Quantity" required min="1">
+                                </div>
+
+                                <div class="col-12">
+                                    <input type="text" name="note" class="form-control" placeholder="Notes">
+                                </div>                        
+
+                                <div class="col-12 d-grid">
+                                    <button type="submit" class="btn btn-primary">Assign Item</button>
+                                </div>
+                            </form>
+                        </div>
+                        </div>
+                    </div>
                     </div>
 
                     <!-- Edit Person Modal -->
