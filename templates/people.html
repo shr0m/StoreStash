@@ -239,6 +239,13 @@
                                 <h5 class="card-title mb-0">{{ person.rank }}</h5>
                                 <p class="mb-0">{{ person.name }}</p>
                             </div>
+                            {% if person.assigned_labels %}
+                            <div class="d-flex flex-wrap gap-1 mt-1 ms-3">
+                                {% for label in person.assigned_labels %}
+                                <span class="badge bg-{{ label.colour }}">{{ label.name }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
                             <i class="fas fa-chevron-right"></i>
                         </div>
                     </div>
@@ -250,9 +257,29 @@
                                 <div class="modal-header align-items-start">
                                     <h5 class="modal-title" id="modalLabel-{{ loop.index }}">{{ person.rank }} {{ person.name }}</h5>
                                     <div class="d-flex align-items-center ms-auto">
-                                        <button class="btn btn-sm btn-outline-secondary me-2" data-bs-toggle="modal" data-bs-target="#labelModal-{{ loop.index }}">
-                                            <i class="fa-solid fa-tag"></i>
-                                        </button>
+
+                                        <!-- Label Assignment Dropdown -->
+                                        <div class="dropdown me-2">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="labelDropdown-{{ loop.index }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                                <i class="fa-solid fa-tag"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end p-2" aria-labelledby="labelDropdown-{{ loop.index }}">
+                                                {% if all_labels %}
+                                                    {% for label in all_labels %}
+                                                        {% set is_assigned = label.id in person.assigned_labels | map(attribute='id') | list %}
+                                                        <li class="mb-1">
+                                                            <button class="btn btn-sm w-100 text-start {% if is_assigned %}btn-{{ label.colour }}{% else %}btn-outline-{{ label.colour }}{% endif %}"
+                                                                    onclick="toggleLabel('{{ person.id }}', '{{ label.id }}', this)">
+                                                                {{ label.name }}
+                                                            </button>
+                                                        </li>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <li class="text-muted px-2">No existing labels</li>
+                                                {% endif %}
+                                            </ul>
+                                        </div>
+
                                         {% if session.get('privilege') in ['admin', 'edit'] %}
                                         <div class="dropdown me-2">
                                             <button class="btn btn-sm btn-outline-secondary" type="button" id="dropdownMenuButton-{{ loop.index }}" data-bs-toggle="dropdown" aria-expanded="false">

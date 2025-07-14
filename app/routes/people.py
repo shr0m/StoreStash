@@ -1,7 +1,7 @@
 from app.extensions import limiter
 from app.db import get_supabase_client
 from app.utils.otp_utils import redirect_if_password_change_required
-from flask import redirect, url_for, flash, render_template, session, request, Blueprint
+from flask import redirect, url_for, flash, render_template, session, request, Blueprint, jsonify
 import re
 
 people_bp = Blueprint('people', __name__)
@@ -61,11 +61,11 @@ def people():
 
         issued_by_person[pid][key] = issued_by_person[pid].get(key, 0) + 1
 
-    # Load label_issue and attach label_ids to people
+    # Load label assignments
     label_issues_resp = supabase.table('label_issue').select('person_id, label_id').execute()
     label_issues = label_issues_resp.data if label_issues_resp.data else []
 
-    # Group labels by person_id
+    # Group label IDs by person
     labels_by_person = {}
     for record in label_issues:
         pid = record['person_id']
@@ -73,6 +73,13 @@ def people():
         if pid not in labels_by_person:
             labels_by_person[pid] = []
         labels_by_person[pid].append(lid)
+
+    # Load all labels
+    labels_resp = supabase.table('labels').select('*').order('name').execute()
+    all_labels = labels_resp.data if labels_resp.data else []
+
+    # Create a lookup dict for label objects
+    label_lookup = {label['id']: label for label in all_labels}
 
     # Attach data to each person
     for person in people:
@@ -85,10 +92,13 @@ def people():
             for (t, s, n), q in grouped.items()
         ]
 
-        # Labels
-        person['label_ids'] = labels_by_person.get(pid, [])
+        # Assigned labels (full objects)
+        label_ids = labels_by_person.get(pid, [])
+        person['assigned_labels'] = [
+            label_lookup[lid] for lid in label_ids if lid in label_lookup
+        ]
 
-    # Sorting
+    # Sort people by rank, then surname
     rank_order = {
         'cadet': 4,
         'corporal': 3,
@@ -108,15 +118,13 @@ def people():
         get_surname(p.get('name'))
     ))
 
-    labels = supabase.table('labels').select('*').order('name').execute().data
-
+    # Render template
     return render_template(
         "people.html",
         stock_items=stock_items,
         people=people,
-        labels=labels
+        all_labels=all_labels
     )
-
 
 
 @people_bp.route('/add_person', methods=['POST'])
@@ -561,6 +569,10 @@ def add_label():
     if not re.match(r'^[A-Za-z0-9\-\(\)\s]+$', label_name):
         flash("Label name can only contain letters, numbers, spaces, parentheses, and hyphens.", "danger")
         return redirect(url_for('people.people'))
+    
+    if len(label_name) > 25:
+        flash("Label name cannot exceed 25 characters")
+        return redirect(url_for('people.people'))
 
     supabase = get_supabase_client()
 
@@ -616,3 +628,106 @@ def delete_label(label_id):
         flash("An error occurred while deleting the label.", "danger")
 
     return redirect(url_for('people.people'))
+
+
+@people_bp.route('/assign_label', methods=['POST'])
+@limiter.limit("20 per minute")
+def assign_label():
+    if session.get('privilege') not in ['admin', 'edit']:
+        return "Unauthorized", 403
+
+    person_id = request.form.get('person_id')
+    label_id = request.form.get('label_id')
+
+    if not person_id or not label_id:
+        return "Missing data", 400
+
+    supabase = get_supabase_client()
+
+    try:
+        # Check if already exists
+        existing = supabase.table('label_issue').select('id', count='exact')\
+            .eq('person_id', person_id).eq('label_id', label_id).execute()
+
+        if existing.count > 0:
+            return "Already assigned", 200
+
+        supabase.table('label_issue').insert({
+            'person_id': person_id,
+            'label_id': label_id
+        }).execute()
+
+        return "Label assigned", 200
+
+    except Exception as e:
+        print(f"Error assigning label: {e}")
+        return "Error assigning label", 500
+
+
+@people_bp.route('/unassign_label', methods=['POST'])
+@limiter.limit("20 per minute")
+def unassign_label():
+    if session.get('privilege') not in ['admin', 'edit']:
+        return "Unauthorized", 403
+
+    person_id = request.form.get('person_id')
+    label_id = request.form.get('label_id')
+
+    if not person_id or not label_id:
+        return "Missing data", 400
+
+    supabase = get_supabase_client()
+
+    try:
+        supabase.table('label_issue').delete()\
+            .eq('person_id', person_id).eq('label_id', label_id).execute()
+
+        return "Label unassigned", 200
+
+    except Exception as e:
+        print(f"Error unassigning label: {e}")
+        return "Error unassigning label", 500
+
+
+@people_bp.route('/toggle_label', methods=['POST'])
+@limiter.limit("30 per minute")
+def toggle_label():
+    if session.get('privilege') not in ['admin', 'edit']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.get_json()
+    person_id = data.get('person_id')
+    label_id = data.get('label_id')
+
+    if not person_id or not label_id:
+        return jsonify({'error': 'Missing person_id or label_id'}), 400
+
+    supabase = get_supabase_client()
+
+    try:
+        # Check if label already assigned
+        existing = supabase.table('label_issue')\
+            .select('id')\
+            .eq('person_id', person_id)\
+            .eq('label_id', label_id)\
+            .execute()
+
+        if existing.data:
+            # Label exists — remove it
+            delete_resp = supabase.table('label_issue')\
+                .delete()\
+                .eq('person_id', person_id)\
+                .eq('label_id', label_id)\
+                .execute()
+            return jsonify({'status': 'removed'})
+        else:
+            # Label not assigned — insert it
+            insert_resp = supabase.table('label_issue').insert({
+                'person_id': person_id,
+                'label_id': label_id
+            }).execute()
+            return jsonify({'status': 'added'})
+
+    except Exception as e:
+        print(f"Error toggling label: {e}")
+        return jsonify({'error': 'Internal server error'}), 500

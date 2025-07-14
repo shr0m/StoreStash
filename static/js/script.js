@@ -153,3 +153,25 @@ function setQuantity(event, index, parentIndex, type) {
     // Submit the form manually
     event.target.closest("form").submit();
 }
+
+function toggleLabel(personId, labelId, button) {
+    fetch('/toggle_label', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}' // if using CSRF
+        },
+        body: JSON.stringify({ person_id: personId, label_id: labelId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'added') {
+            button.classList.remove('btn-outline-secondary');
+            button.classList.add('btn-danger');
+        } else if (data.status === 'removed') {
+            button.classList.remove('btn-danger');
+            button.classList.add('btn-outline-secondary');
+        }
+        // Optionally update badges on the card too
+    });
+}
