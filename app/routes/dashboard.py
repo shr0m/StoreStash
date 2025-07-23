@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from app.db import get_supabase_client
-import json
+import json, re
 from app.utils.otp_utils import redirect_if_password_change_required
 from app import limiter
 from collections import defaultdict
@@ -195,7 +195,6 @@ def update_stock_batch():
             if not ins_resp.data:
                 flash(f"Error adding stock for {item_type} ({sizing})", "danger")
 
-        # If new_quantity == current_count, nothing to do
 
     flash("Stock updated successfully.", "success")
     return redirect(url_for('dashboard.dashboard'))
@@ -212,6 +211,10 @@ def add_category():
     if not category_name:
         flash("Category name cannot be empty.", "warning")
         return redirect('/')
+    
+    if not re.match(r'^[A-Za-z0-9\-\(\)\s]+$', category_name):
+        flash("Category names cannot contain forbidden characters.", "danger")
+        return redirect(url_for('dashboard.dashboard'))
 
     supabase = get_supabase_client()
 
@@ -233,20 +236,15 @@ def add_category():
 def get_stock_overview():
     supabase = get_supabase_client()
 
-    # Query total stock grouped by category_id and join category name
     stock_resp = supabase.table('stock')\
         .select('category_id, categories(category)')\
         .execute()
     stock_data = stock_resp.data or []
 
-    # Query total assigned (issued_stock joined with kit_issue) grouped by category
     assigned_resp = supabase.table('issued_stock')\
         .select('category_id')\
         .execute()
     assigned_data = assigned_resp.data or []
-
-    # We need counts grouped by category_id for stock and assigned separately
-    # Then combine these into summary dict by category
 
     from collections import defaultdict
     summary = defaultdict(lambda: {'category': '', 'in_stock': 0, 'assigned': 0, 'total': 0})
@@ -260,7 +258,7 @@ def get_stock_overview():
     # Count assigned per category_id
     for item in assigned_data:
         cat_id = item['category_id']
-        # If category not present in stock, we still want to record it
+        # If category not present in stock still to record it
         if cat_id not in summary:
             summary[cat_id]['category'] = 'Unknown'
         summary[cat_id]['assigned'] += 1
@@ -311,14 +309,12 @@ def update_stock_category():
 
     supabase = get_supabase_client()
 
-    # --- Step 1: Find stock items to update ---
     stock_query = supabase.table('stock').select('id, category_id').eq('type', item_type)
     stock_query = stock_query.is_('sizing', None) if sizing is None else stock_query.eq('sizing', sizing)
     stock_result = stock_query.execute()
     stock_items = stock_result.data or []
     old_category_ids = {item['category_id'] for item in stock_items if item.get('category_id')}
 
-    # --- Step 2: Update stock if any found ---
     stock_updated = False
     if stock_items:
         update_stock_query = supabase.table('stock')\
@@ -328,12 +324,10 @@ def update_stock_category():
         stock_update_result = update_stock_query.execute()
         stock_updated = bool(stock_update_result.data)
 
-    # --- Step 3: Update issued_stock if matching old category_ids ---
     issued_items_updated = False
     issued_items_found = False
     if old_category_ids:
         for cat_id in old_category_ids:
-            # Check if any exist first
             issued_check = supabase.table('issued_stock').select('id').eq('category_id', cat_id).execute()
             issued_matches = issued_check.data or []
             if issued_matches:
@@ -344,7 +338,6 @@ def update_stock_category():
                 if update_issued.data:
                     issued_items_updated = True
 
-    # --- Step 4: Flash messages ---
     if not stock_items and not issued_items_found:
         flash("No matching stock or issued items found to update.", "info")
     elif stock_items and not stock_updated:
@@ -353,5 +346,37 @@ def update_stock_category():
         flash("Stock updated, but failed to update issued items.", "warning")
     else:
         flash("Category updated successfully for stock and issued items.", "success")
+
+    return redirect(url_for('dashboard.dashboard'))
+
+@dashboard_bp.route('/delete_category/<string:category_id>', methods=['POST'])
+@limiter.limit("30 per minute")
+def delete_category(category_id):
+    if session.get('privilege') not in ['admin', 'edit']:
+        return redirect(url_for('dashboard.dashboard'))
+
+    supabase = get_supabase_client()
+
+    try:
+        linked = supabase.table('stock')\
+            .select('id')\
+            .eq('category_id', category_id)\
+            .limit(1)\
+            .execute()
+        
+        if linked.data:
+            flash('Category is in use and cannot be deleted.', 'warning')
+            return redirect(url_for('dashboard.dashboard'))
+
+        # Delete the category
+        supabase.table('categories')\
+            .delete()\
+            .eq('id', category_id)\
+            .execute()
+
+        flash('Category deleted successfully.', 'success')
+    except Exception as e:
+        print(f"Error deleting category: {e}")
+        flash('An error occurred while deleting the category.', 'danger')
 
     return redirect(url_for('dashboard.dashboard'))

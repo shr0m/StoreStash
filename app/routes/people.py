@@ -568,7 +568,7 @@ def add_label():
 
     # Validate name format
     if not re.match(r'^[A-Za-z0-9\-\(\)\s]+$', label_name):
-        flash("Label name can only contain letters, numbers, spaces, parentheses, and hyphens.", "danger")
+        flash("Label names cannot contain forbidden characters.", "danger")
         return redirect(url_for('people.people'))
     
     if len(label_name) > 25:
