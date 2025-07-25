@@ -2,8 +2,10 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from app.utils.email_utils import send_support_email
 from app.utils.otp_utils import redirect_if_password_change_required
 from app import limiter, get_supabase_client
+import re
 
 support_bp = Blueprint('support', __name__)
+FORBIDDEN_CHARS_PATTERN = r"[{}\[\]<>¬`~,]"
 
 @support_bp.route('/support')
 @limiter.limit("100 per minute")
@@ -43,6 +45,8 @@ def submit_support():
     email = session.get('username')
     issue = request.form.get('issue')
     message = request.form.get('message')
+
+    message = re.sub(FORBIDDEN_CHARS_PATTERN, '', message)
 
     send_support_email(email, issue, message)
     flash("Your ticket has been submitted. Please check your emails", "success")

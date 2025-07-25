@@ -8,6 +8,7 @@ from email.mime.text import MIMEText
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL")
 SUPPORT_EMAIL_PASSWORD = os.getenv("SUPPORT_EMAIL_PASSWORD")
 SUPPORT_EMAIL_TO = os.getenv("SUPPORT_EMAIL_TO")
+CLIENT = os.getenv("CLIENT")
 
 def send_support_email(email, issue, message):
     try:
@@ -15,7 +16,7 @@ def send_support_email(email, issue, message):
         msg_to_support["Subject"] = f"Support Ticket: {issue}"
         msg_to_support["From"] = SUPPORT_EMAIL
         msg_to_support["To"] = SUPPORT_EMAIL_TO
-        msg_to_support.set_content(f"From: {email}\n\nIssue: {issue}\n\nMessage:\n{message}")
+        msg_to_support.set_content(f"From: {email}\nClient: {CLIENT}\n\nIssue: {issue}\n\nMessage:\n{message}")
 
         msg_to_user = EmailMessage()
         msg_to_user["Subject"] = "Support Ticket Received"
@@ -39,7 +40,7 @@ def send_reset_email(email):
         msg["Subject"] = f"Password Reset - StoreStash"
         msg["From"] = SUPPORT_EMAIL
         msg["To"] = email
-        msg.set_content(f"Greetings valued user,\n\nAn administrator has reset your StoreStash password.\nPlease contact an administrator to receive the default password.")
+        msg.set_content(f"Greetings valued user,\n\nAn administrator has reset your StoreStash password.\nPlease contact the administrator if you have not yet received the default password.")
 
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(SUPPORT_EMAIL, SUPPORT_EMAIL_PASSWORD)
