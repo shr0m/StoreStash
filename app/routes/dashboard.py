@@ -46,6 +46,10 @@ def dashboard():
         .execute()
     stock_items = response.data or []
 
+    categories_response = supabase.table('categories').select('*').order('category').execute()
+    categories = categories_response.data if categories_response else []
+
+    # Aggregate stock summary grouped by (type, sizing)
     aggregated = defaultdict(lambda: {'quantity': 0, 'category': None, 'category_id': None})
     for item in stock_items:
         key = (item['type'], item['sizing'])
@@ -55,21 +59,52 @@ def dashboard():
         aggregated[key]['category_id'] = item.get('category_id')
 
     stock_summary = [
-        {'type': t, 'sizing': s, 'quantity': data['quantity'], 'category': data['category'], 'category_id': data['category_id']}
+        {
+            'type': t,
+            'sizing': s,
+            'quantity': data['quantity'],
+            'category': data['category'],
+            'category_id': data['category_id']
+        }
         for (t, s), data in aggregated.items()
     ]
 
-    categories_response = supabase.table('categories').select('*').order('category').execute()
-    categories = categories_response.data if categories_response else []
+    category_totals = defaultdict(int)
+    for item in stock_summary:
+        category_totals[item['category']] += item['quantity']
 
-    overview_data = get_stock_overview()
+    category_summaries = [
+        {'category': cat, 'in_stock': qty}
+        for cat, qty in category_totals.items()
+    ]
+
+    stock_by_category = defaultdict(lambda: defaultdict(int))  # category_id -> type -> quantity
+    for item in stock_items:
+        category_id = item.get('category_id')
+        type_ = item['type']
+        if category_id is not None:
+            stock_by_category[category_id][type_] += 1
+
+    stock_by_category_serializable = {}
+    for category_id, type_quantities in stock_by_category.items():
+        stock_by_category_serializable[str(category_id)] = [
+            {'label': type_, 'quantity': qty}
+            for type_, qty in type_quantities.items()
+        ]
+
+    overview_data = get_stock_overview() or {}
+
+    conflicting_keys = ['category_summaries', 'stock_by_category', 'categories', 'stock_items', 'session']
+    cleaned_overview_data = {k: v for k, v in overview_data.items() if k not in conflicting_keys}
 
     return render_template(
         'dashboard.html',
         categories=categories,
         stock_items=stock_summary,
+        category_summaries=category_summaries,
+        stock_by_category=stock_by_category_serializable,
         session=session,
-        **overview_data
+        **cleaned_overview_data
     )
 
 @dashboard_bp.route('/add_stock_type', methods=['POST'])
@@ -120,13 +155,14 @@ def add_stock_type():
         query = query.is_('sizing', None)
     else:
         query = query.eq('sizing', sizing)
+    
+    query = query.eq('category_id', category_id)
     response = query.execute()
 
     if response.data and len(response.data) > 0:
-        flash("Stock type with this name and sizing already exists.", "danger")
+        flash("Stock type with this name and sizing already exists in the selected category.", "danger")
         return redirect(url_for('dashboard.dashboard'))
 
-    # Insert stock rows for the new type
     rows_to_insert = [{'type': new_type, 'sizing': sizing, 'category_id': category_id} for _ in range(initial_quantity)]
 
     if rows_to_insert:

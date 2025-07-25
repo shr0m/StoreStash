@@ -218,12 +218,33 @@
             <!-- Pie Chart Card -->
             <div class="card shadow-sm mb-4">
                 <div class="card-body">
-                    <h5 class="card-title mb-3"><i class="fa-solid fa-chart-pie me-2"></i>Stock by Category</h5>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title mb-0">
+                            <i class="fa-solid fa-chart-pie me-2"></i>Stock by <span id="selected-category">Category</span>
+                        </h5>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                                    id="categoryFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <span id="selected-category-name">All</span>
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="categoryFilterDropdown">
+                                <li><a class="dropdown-item category-filter active" data-id="all" href="#">All</a></li>
+                                {% for category in categories %}
+                                    <li>
+                                        <a class="dropdown-item category-filter" data-id="{{ category.id }}" href="#">
+                                            {{ category.category }}
+                                        </a>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
                     <canvas id="stockPieChart" width="100%" height="100"></canvas>
                 </div>
             </div>
+            
+            
             {% if session.get('privilege') in ['admin', 'edit'] %}
-
             <!-- Add Category Card -->
             <div class="card shadow-sm">
                 <div class="card-body py-3">
@@ -323,46 +344,91 @@
 <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    function filterStockTable() {
-        const input = document.getElementById("stock-search");
-        const filter = input.value.toLowerCase();
-        const rows = document.querySelectorAll("table tbody tr");
-
-        rows.forEach(row => {
-            const text = row.innerText.toLowerCase();
-            row.style.display = text.includes(filter) ? "" : "none";
-        });
-    }
+    const stockByCategory = {{ stock_by_category | tojson }};
+    const categorySummaries = {{ category_summaries | tojson }};
 
     document.addEventListener("DOMContentLoaded", function () {
         const ctx = document.getElementById('stockPieChart').getContext('2d');
+        const selectedLabel = document.getElementById('selected-category-name');
+        const categoryItems = document.querySelectorAll(".category-filter");
 
-        const stockData = {
-            labels: [{% for cat in category_summaries %}'{{ cat.category }}'{% if not loop.last %}, {% endif %}{% endfor %}],
-            datasets: [{
-                data: [{% for cat in category_summaries %}{{ cat.in_stock }}{% if not loop.last %}, {% endif %}{% endfor %}],
-                backgroundColor: [
-                    '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#858796', '#5a5c69'
-                ],
-                borderWidth: 1
-            }]
-        };
+        const backgroundColors = [
+            '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e',
+            '#e74a3b', '#858796', '#5a5c69', '#20c997'
+        ];
 
-        new Chart(ctx, {
-            type: 'pie',
-            data: stockData,
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            boxWidth: 20,
-                            padding: 15
+        let chart;
+
+        function updateChart(categoryId) {
+            let labels = [];
+            let values = [];
+
+            if (categoryId === 'all') {
+                // Show all categories with their total stock
+                labels = categorySummaries.map(c => c.category);
+                values = categorySummaries.map(c => c.in_stock);
+            } else {
+                // Show all type+sizing combos in the selected category
+                const data = stockByCategory[categoryId] || [];
+                labels = data.map(item => item.label);
+                values = data.map(item => item.quantity);
+            }
+
+            if (chart) {
+                chart.data.labels = labels;
+                chart.data.datasets[0].data = values;
+                chart.update({
+                    duration: 500,
+                    easing: 'easeOutQuart'
+                });
+            } else {
+                chart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: values,
+                            backgroundColor: backgroundColors,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    boxWidth: 20,
+                                    padding: 15
+                                }
+                            }
                         }
                     }
-                }
+                });
             }
+        }
+
+        // Initial render with all categories
+        updateChart('all');
+
+        // Dropdown item click behavior
+        categoryItems.forEach(item => {
+            item.addEventListener("click", function (e) {
+                e.preventDefault();
+
+                const selectedId = this.getAttribute("data-id");
+                const selectedCategoryName = this.textContent.trim();
+
+                // Update chart and label
+                updateChart(selectedId);
+
+                // Update active class
+                categoryItems.forEach(i => i.classList.remove("active"));
+                this.classList.add("active");
+
+                // Update label text to selected category name
+                selectedLabel.textContent = selectedCategoryName;
+            });
         });
     });
 </script>

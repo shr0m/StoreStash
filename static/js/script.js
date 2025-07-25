@@ -206,3 +206,14 @@ function updateLabelsOnPersonCard(personId, assignedLabels) {
         `<span class="badge bg-${label.colour}" data-label-id="label-${label.id}">${label.name}</span>`
     ).join('');
 }
+
+function filterStockTable() {
+    const input = document.getElementById("stock-search");
+    const filter = input.value.toLowerCase();
+    const rows = document.querySelectorAll("table tbody tr");
+
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(filter) ? "" : "none";
+    });
+}
