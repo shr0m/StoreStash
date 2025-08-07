@@ -204,8 +204,19 @@ def delete_person():
     supabase = get_supabase_client()
 
     try:
-        supabase.table('people').delete().eq('name', name).execute()
-        flash(f"{name} was deleted.", "success")
+        person_data = supabase.table('people').select('id').eq('name', name).execute()
+        if not person_data.data:
+            flash(f"No person found with name '{name}'.", "danger")
+            return redirect(url_for('people.people'))
+
+        person_id = person_data.data[0]['id']
+
+        supabase.table('label_issue').delete().eq('person_id', person_id).execute()
+        supabase.table('kit_issue').delete().eq('person_id', person_id).execute()
+        supabase.table('people').delete().eq('id', person_id).execute()
+
+        flash(f"{name} and related issues were deleted.", "success")
+
     except Exception as e:
         flash(f"Error deleting {name}: {str(e)}", "danger")
 
