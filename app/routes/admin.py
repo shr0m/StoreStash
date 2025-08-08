@@ -106,6 +106,8 @@ def update_users():
     existing_users = users_resp.data or []
     existing_map = {user['id']: user['privilege'] for user in existing_users}
 
+    self_deleted = False  # Track if the current logged-in user was deleted
+
     for user_id, old_priv in existing_map.items():
         new_priv = request.form.get(f"privilege_{user_id}")
         reset = request.form.get(f"reset_{user_id}")
@@ -145,7 +147,17 @@ def update_users():
                 if admin_count <= 1:
                     flash("Cannot delete the last admin.", "danger")
                     continue
+
             supabase.table('users').delete().eq('id', user_id).execute()
             flash(f"Deleted user {user_id}", "success")
+
+            # Check if the deleted user is the current session user
+            if str(user_id) == str(session.get('user_id')):
+                self_deleted = True
+
+    if self_deleted:
+        session.clear()
+        flash("Your account has been deleted. You have been logged out.", "warning")
+        return redirect(url_for('auth.login'))
 
     return redirect(url_for('admin.admin'))
