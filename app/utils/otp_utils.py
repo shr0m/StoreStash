@@ -63,11 +63,14 @@ def redirect_if_password_change_required():
     supabase = get_supabase_client()
     user_id = session['user_id']
 
-    response = supabase.table('users')\
-        .select('requires_password_change')\
-        .eq('id', user_id)\
-        .single()\
-        .execute()
+    try:
+        response = supabase.table('users')\
+            .select('requires_password_change')\
+            .eq('id', user_id)\
+            .single()\
+            .execute()
+    except Exception:
+        redirect(url_for('auth.login'))
 
     user_data = response.data
     if user_data and user_data.get('requires_password_change'):
