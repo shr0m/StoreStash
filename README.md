@@ -1,6 +1,6 @@
 # StoreStash
 
-![Program Demo](./image.png)
+![Program Demo](./1.png)
 
 StoreStash is a stock management solution which incorporates stock logging and assignment. The software allows users to view stock amounts, assign items to users and update stock amounts during delivery.
 
