@@ -1,8 +1,8 @@
 import os
-from flask import Flask, session
+from flask import Flask, session, redirect, url_for
 from dotenv import load_dotenv
 from config import Config
-from app.extensions import limiter
+from app.extensions import limiter, RateLimitExceeded
 from app.db import get_supabase_client
 from app.bootstrap import ensure_root_user
 
@@ -56,5 +56,10 @@ def create_app():
             except Exception as e:
                 print(f"Theme injection error (Supabase): {e}")
         return {'current_theme': theme}
+    
+    @app.errorhandler(RateLimitExceeded)
+    def redirect_to_login(e):
+        app.logger.warning(f"Rate limit exceeded: {e}")
+        return redirect(url_for("auth.login"))
 
     return app
