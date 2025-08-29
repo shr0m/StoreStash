@@ -364,14 +364,24 @@
             let values = [];
 
             if (categoryId === 'all') {
-                // Show all categories with their total stock
+                // Show all categories with their in-stock counts
                 labels = categorySummaries.map(c => c.category);
                 values = categorySummaries.map(c => c.in_stock);
             } else {
-                // Show all type+sizing combos in the selected category
+                // Show in-stock items for the selected category
                 const data = stockByCategory[categoryId] || [];
-                labels = data.map(item => item.label);
-                values = data.map(item => item.quantity);
+
+                // Group by label (ignore sizing, just use type)
+                const grouped = {};
+                data.forEach(item => {
+                    if (!grouped[item.label]) {
+                        grouped[item.label] = 0;
+                    }
+                    grouped[item.label] += item.quantity;
+                });
+
+                labels = Object.keys(grouped);
+                values = Object.values(grouped);
             }
 
             if (chart) {

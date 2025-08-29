@@ -40,16 +40,21 @@ def dashboard():
 
     supabase = get_supabase_client()
 
-    # Fetch stock and categories
-    response = supabase.table('stock')\
-        .select('type, sizing, id, category_id, categories(category)')\
+
+    stock_response = supabase.table('stock')\
+        .select('id, type, sizing, category_id, categories(category)')\
         .execute()
-    stock_items = response.data or []
+    stock_items = stock_response.data or []
+
+
+    issued_response = supabase.table('issued_stock')\
+        .select('id, category_id, categories(category)')\
+        .execute()
+    issued_items = issued_response.data or []
 
     categories_response = supabase.table('categories').select('*').order('category').execute()
     categories = categories_response.data if categories_response else []
 
-    # Aggregate stock summary grouped by (type, sizing)
     aggregated = defaultdict(lambda: {'quantity': 0, 'category': None, 'category_id': None})
     for item in stock_items:
         key = (item['type'], item['sizing'])
@@ -69,14 +74,22 @@ def dashboard():
         for (t, s), data in aggregated.items()
     ]
 
-    category_totals = defaultdict(int)
-    for item in stock_summary:
-        category_totals[item['category']] += item['quantity']
+    category_summaries = []
+    for cat in categories:
+        cat_name = cat['category']
+        cat_id = cat['id']
 
-    category_summaries = [
-        {'category': cat, 'in_stock': qty}
-        for cat, qty in category_totals.items()
-    ]
+        in_stock = sum(1 for i in stock_items if i.get('category_id') == cat_id)
+        assigned = sum(1 for i in issued_items if i.get('category_id') == cat_id)
+        total = in_stock + assigned
+
+        category_summaries.append({
+            'category': cat_name,
+            'in_stock': in_stock,
+            'assigned': assigned,
+            'total': total
+        })
+
 
     stock_by_category = defaultdict(lambda: defaultdict(int))  # category_id -> type -> quantity
     for item in stock_items:
@@ -92,8 +105,8 @@ def dashboard():
             for type_, qty in type_quantities.items()
         ]
 
-    overview_data = get_stock_overview() or {}
 
+    overview_data = get_stock_overview() or {}
     conflicting_keys = ['category_summaries', 'stock_by_category', 'categories', 'stock_items', 'session']
     cleaned_overview_data = {k: v for k, v in overview_data.items() if k not in conflicting_keys}
 
