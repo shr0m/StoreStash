@@ -181,14 +181,6 @@
                     <form id="add-stock-form" method="POST" action="/add_stock_type">
                         <div class="modal-body">
                         <div class="mb-3">
-                            <label class="form-label">Item Name</label>
-                            <input type="text" name="new_type" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Initial Quantity</label>
-                            <input type="number" name="initial_quantity" class="form-control" required min="1">
-                        </div>
-                        <div class="mb-3">
                             <label class="form-label">Category</label>
                             <select name="category_id" class="form-select" required>
                             <option value="">Select a category</option>
@@ -198,8 +190,16 @@
                             </select>
                         </div>
                         <div class="mb-3">
+                            <label class="form-label">Item Name</label>
+                            <input type="text" name="new_type" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label">Sizing</label>
                             <input type="text" name="sizing" class="form-control" placeholder="Optional">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Initial Quantity</label>
+                            <input type="number" name="initial_quantity" class="form-control" required min="1">
                         </div>
                         </div>
                         <div class="modal-footer">
