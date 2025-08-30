@@ -10,6 +10,16 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
+
+    <style>
+    .container-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .container-card:hover {
+        transform: scale(1.05);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    }
+</style>
 </head>
 <body class="bg-body text-body">
 
@@ -51,23 +61,7 @@
         {% endif %}
     {% endwith %}
 
-    <!-- Grid of Cards -->
-    <div class="row g-4">
-        {% for container in containers %}
-        <div class="col-md-4 col-lg-3">
-            <div class="card shadow-sm h-100 border-0">
-            </div>
-        </div>
-        {% else %}
-        <div class="col-12">
-            <div class="alert alert-info">
-                <i class="fa-solid fa-info-circle me-2"></i>No containers found.
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-
-    {% if session.get('privilege') in ['admin', 'edit'] %}
+    {% if session.get('privilege') in ['admin'] %}
     <!-- Add Container Button -->
     <div class="mt-4 text-end">
         <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addContainerModal">
@@ -75,10 +69,38 @@
         </button>
     </div>
     {% endif %}
+
+    <!-- Grid of Cards -->
+<div class="row g-4">
+    {% for container in containers %}
+    <div class="col-md-6 col-lg-4"> 
+        <a href="{{ url_for('dashboard.dashboard') }}" 
+           class="text-decoration-none text-body">
+            <div class="card shadow-sm h-100 border-0 container-card bg-primary bg-opacity-10">
+                <div class="card-body d-flex flex-column p-4">
+                    <h5 class="card-title d-flex align-items-center">
+                        <i class="fa-solid fa-box me-2 text-primary"></i>{{ container.name }}
+                    </h5>
+                    <p class="card-text text-muted small flex-grow-1">
+                        {{ container.total_stock }} items
+                    </p>
+                </div>
+            </div>
+        </a>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="fa-solid fa-info-circle me-2"></i>No containers found.
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
 </div>
 
 <!-- Add Container Modal -->
-{% if session.get('privilege') in ['admin', 'edit'] %}
+{% if session.get('privilege') in ['admin'] %}
 <div class="modal fade" id="addContainerModal" tabindex="-1" aria-labelledby="addContainerModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content shadow">
@@ -88,6 +110,17 @@
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
+            <form method="POST" action="{{ url_for('home.add_container') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Container Name</label>
+                        <input type="text" name="container_name" class="form-control" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-success">Add Container</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
