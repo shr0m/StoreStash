@@ -16,16 +16,6 @@ def normalize_sizing(sizing_str):
         return None
     sizing_cleaned = sizing_str.strip().lower()
     return None if sizing_cleaned in ['', 'none', 'n/a'] else sizing_str.strip()
-
-@dashboard_bp.route('/')
-@limiter.limit("100 per minute")
-def root():
-    if 'user_id' not in session:
-        return redirect(url_for('auth.login'))
-    redirect_resp = redirect_if_password_change_required()
-    if redirect_resp:
-        return redirect_resp
-    return redirect(url_for('dashboard.dashboard'))
     
 
 @dashboard_bp.route('/dashboard')
