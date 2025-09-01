@@ -222,3 +222,60 @@ def delete_container():
         flash(f"Error deleting '{name}': {str(e)}", "danger")
     
     return redirect(url_for('admin.admin'))
+
+@admin_bp.route('/edit_container', methods=['POST'])
+@limiter.limit("30 per minute")
+def edit_container():
+    if not is_admin():
+        flash("Unauthorized action.", "danger")
+        return redirect(url_for('home.home'))
+    
+    redirect_resp = redirect_if_password_change_required()
+    if redirect_resp:
+        return redirect_resp
+
+    # Current + new name
+    current_name = request.form.get('container_name')
+    new_name = request.form.get('new_container_name')
+
+    if not current_name or not new_name:
+        flash("Invalid request.", "danger")
+        return redirect(url_for('admin.admin'))
+
+    supabase = get_supabase_client()
+
+    try:
+        # Fetch container by current name
+        container_data = (
+            supabase.table('containers')
+            .select('id')
+            .eq('name', current_name)
+            .execute()
+        )
+
+        if not container_data.data:
+            flash(f"No container found with name '{current_name}'.", "danger")
+            return redirect(url_for('admin.admin'))
+
+        container_id = container_data.data[0]['id']
+
+        # Check if new name already exists
+        existing = (
+            supabase.table('containers')
+            .select('id')
+            .eq('name', new_name)
+            .execute()
+        )
+        if existing.data:
+            flash(f"A container with the name '{new_name}' already exists.", "warning")
+            return redirect(url_for('admin.admin'))
+
+        # Perform update
+        supabase.table('containers').update({"name": new_name}).eq('id', container_id).execute()
+
+        flash(f"Container '{current_name}' renamed to '{new_name}'.", "success")
+        return redirect(url_for('admin.admin'))
+
+    except Exception as e:
+        flash(f"Error updating container: {str(e)}", "danger")
+        return redirect(url_for('admin.admin'))
