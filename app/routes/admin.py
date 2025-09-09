@@ -149,9 +149,9 @@ def update_users():
                     continue
 
             # Get user's email before deletion
-            user_resp = supabase.table('users').select('email').eq('id', user_id).execute()
+            user_resp = supabase.table('users').select('username').eq('id', user_id).execute()
             users = user_resp.data or []
-            email = users[0]['email'] if users else None
+            email = users[0]['username'] if users else None
 
             # Delete user
             supabase.table('users').delete().eq('id', user_id).execute()
