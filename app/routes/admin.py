@@ -148,12 +148,24 @@ def update_users():
                     flash("Cannot delete the last admin.", "danger")
                     continue
 
+            # Get user's email before deletion
+            user_resp = supabase.table('users').select('email').eq('id', user_id).execute()
+            users = user_resp.data or []
+            email = users[0]['email'] if users else None
+
+            # Delete user
             supabase.table('users').delete().eq('id', user_id).execute()
-            flash(f"Deleted user {user_id}", "success")
+
+            # Delete OTPs if email exists
+            if email:
+                supabase.table('otps').delete().eq('email', email).execute()
+
+            flash(f"Deleted user {user_id} and any associated OTPs", "success")
 
             # Check if the deleted user is the current session user
             if str(user_id) == str(session.get('user_id')):
                 self_deleted = True
+
 
     if self_deleted:
         session.clear()

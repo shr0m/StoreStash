@@ -31,31 +31,6 @@ def send_otp_email(to_email, otp):
         print(f"Failed to send OTP email: {e}")
         return False
 
-def verify_otp_and_update_supabase(supabase, email, otp):
-    # Fetch latest OTP for email matching otp
-    response = supabase.table('otps') \
-        .select('created_at') \
-        .eq('email', email) \
-        .eq('otp', otp) \
-        .order('created_at', desc=True) \
-        .limit(1) \
-        .execute()
-    
-    if not response.data:
-        return False
-
-    created_at_str = response.data[0]['created_at']
-    created_at = datetime.datetime.fromisoformat(created_at_str.rstrip('Z'))
-
-    if datetime.datetime.utcnow() - created_at <= datetime.timedelta(minutes=10):
-        hashed_otp = generate_password_hash(otp)
-        supabase.table('users').update({
-            'password_hash': hashed_otp,
-            'requires_password_change': True
-        }).eq('username', email).execute()
-        return True
-    return False
-
 def redirect_if_password_change_required():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))

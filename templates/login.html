@@ -39,7 +39,7 @@
     {% endwith %}
 
             <!-- Login Form -->
-            <form action="{{ url_for('auth.otp_login') }}" method="POST" novalidate>
+            <form action="{{ url_for('auth.login') }}" method="POST" novalidate>
                 <div class="mb-3">
                     <label for="email" class="form-label">Email</label>
                     <input id="email" type="email" name="email" class="form-control" required>
