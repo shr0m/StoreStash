@@ -38,7 +38,6 @@ def login():
                     session['username'] = user['username']
                     session['privilege'] = user['privilege']
 
-                    flash("Logged in successfully.", "success")
                     return redirect(url_for('dashboard.dashboard'))
 
             # Check OTPs
