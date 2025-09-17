@@ -64,17 +64,14 @@ def send_otp_route():
         return redirect_resp
 
     if send_otp_email(email, otp):
-        # Save OTP
         supabase.table('otps').insert({'email': email, 'otp': otp}).execute()
 
-        # Check if user exists
         user_resp = supabase.table('users').select('id').eq('username', email).limit(1).execute()
 
         if not user_resp.data:
-            hashed_otp = generate_password_hash(otp)
             supabase.table('users').insert({
                 'username': email,
-                'password_hash': hashed_otp,
+                'password_hash': None,
                 'privilege': privilege,
                 'name': name
             }).execute()

@@ -28,9 +28,22 @@ def login():
             return redirect(url_for('auth.login'))
 
         try:
-            # Step 1: Check if OTP exists
-            otp_resp = supabase.table("otps")\
-                .select("id, otp, created_at")\
+            #Check Passwords
+            user_resp = supabase.table("users").select("*").eq("username", email).maybe_single().execute()
+            user = user_resp.data
+
+            if user and user.get("password_hash"):
+                if check_password_hash(user["password_hash"], password_or_otp):
+                    session['user_id'] = user['id']
+                    session['username'] = user['username']
+                    session['privilege'] = user['privilege']
+
+                    flash("Logged in successfully.", "success")
+                    return redirect(url_for('dashboard.dashboard'))
+
+            # Check OTPs
+            otp_resp = supabase.table("otps") \
+                .select("id, otp, created_at") \
                 .eq("email", email).execute()
 
             otp_records = otp_resp.data or []
@@ -43,46 +56,30 @@ def login():
                 age_minutes = (datetime.now(timezone.utc) - created_at).total_seconds() / 60
 
                 if age_minutes < 10 and otp_record["otp"] == password_or_otp:
-                    # ✅ OTP is valid → load user
-                    user_resp = supabase.table("users").select("*").eq("username", email).execute()
-                    users = user_resp.data or []
-                    user = users[0] if users else None
-
+                    # Valid OTP
                     if not user:
-                        flash("Invalid credentials.", "danger")
+                        flash("User not found for this OTP.", "danger")
                         return redirect(url_for('auth.login'))
 
                     session['user_id'] = user['id']
                     session['username'] = user['username']
                     session['privilege'] = user['privilege']
 
+                    # Delete OTP after successful login
                     supabase.table("otps").delete().eq("id", otp_record["id"]).execute()
-                    flash("Logged in successfully with OTP.", "success")
-                    return redirect(url_for('dashboard.dashboard'))
+
+                    flash("OTP verified. Please set a password to activate your account.", "success")
+                    return redirect(url_for('auth.change_password'))
 
                 else:
-                    # ❌ OTP expired
+                    # Expired OTP
                     supabase.table("otps").delete().eq("id", otp_record["id"]).execute()
-                    supabase.table("users").delete().eq("username", email).execute()
-                    flash("OTP expired. Your account has been removed.", "danger")
+                    if user and not user.get("password_hash"):
+                        supabase.table("users").delete().eq("username", email).execute()
+                    flash("Invalid or expired OTP. Your account has been removed.", "danger")
                     return redirect(url_for('auth.login'))
 
-            # Step 2: No OTP → password login
-            user_resp = supabase.table("users").select("*").eq("username", email).execute()
-            users = user_resp.data or []
-            user = users[0] if users else None
-
-            if not user:
-                flash("Invalid credentials.", "danger")
-                return redirect(url_for('auth.login'))
-
-            if user.get("password_hash") and check_password_hash(user["password_hash"], password_or_otp):
-                session['user_id'] = user['id']
-                session['username'] = user['username']
-                session['privilege'] = user['privilege']
-
-                return redirect(url_for('dashboard.dashboard'))
-
+            # Password and OTP invalid
             flash("Invalid credentials.", "danger")
             return redirect(url_for('auth.login'))
 
@@ -107,8 +104,20 @@ def change_password():
     supabase = get_supabase_client()
     user_id = session['user_id']
 
+    # Check if password exists
+    try:
+        response = supabase.table('users').select('password_hash').eq('id', user_id).single().execute()
+        user = response.data
+    except APIError as e:
+        if "Results contain 0 rows" in str(e):
+            flash("User not found.", "danger")
+            return redirect(url_for('auth.login'))
+        else:
+            raise
+
+    has_password = bool(user and user.get("password_hash"))
+
     if request.method == 'POST':
-        current_password = request.form['current_password']
         new_password = request.form['new_password']
         confirm_password = request.form['confirm_password']
 
@@ -116,20 +125,14 @@ def change_password():
             flash("Passwords do not match.", "danger")
             return redirect(url_for('auth.change_password'))
 
-        try:
-            # Check current password against stored hash
-            response = supabase.table('users').select('password_hash').eq('id', user_id).single().execute()
-            user = response.data
-            if not user or not check_password_hash(user['password_hash'], current_password):
+        if has_password:
+            #Verify current pass
+            current_password = request.form['current_password']
+            if not check_password_hash(user['password_hash'], current_password):
                 flash("Current password is incorrect.", "danger")
                 return redirect(url_for('auth.change_password'))
-        except APIError as e:
-            if "Results contain 0 rows" in str(e):
-                flash("User not found.", "danger")
-                return redirect(url_for('auth.login'))
-            else:
-                raise
 
+        # Save new pass
         new_hashed = generate_password_hash(new_password)
         supabase.table('users').update({
             'password_hash': new_hashed,
@@ -139,4 +142,7 @@ def change_password():
         flash("Password updated successfully!", "success")
         return redirect(url_for('dashboard.dashboard'))
 
-    return render_template('change_password.html')
+    if has_password:
+        return render_template('change_password.html')
+    else:
+        return render_template('set_password.html')
