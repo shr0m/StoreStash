@@ -64,17 +64,14 @@ def send_otp_route():
         return redirect_resp
 
     if send_otp_email(email, otp):
-        # Save OTP
         supabase.table('otps').insert({'email': email, 'otp': otp}).execute()
 
-        # Check if user exists
         user_resp = supabase.table('users').select('id').eq('username', email).limit(1).execute()
 
         if not user_resp.data:
-            hashed_otp = generate_password_hash(otp)
             supabase.table('users').insert({
                 'username': email,
-                'password_hash': hashed_otp,
+                'password_hash': None,
                 'privilege': privilege,
                 'name': name
             }).execute()
@@ -148,12 +145,24 @@ def update_users():
                     flash("Cannot delete the last admin.", "danger")
                     continue
 
+            # Get user's email before deletion
+            user_resp = supabase.table('users').select('username').eq('id', user_id).execute()
+            users = user_resp.data or []
+            email = users[0]['username'] if users else None
+
+            # Delete user
             supabase.table('users').delete().eq('id', user_id).execute()
-            flash(f"Deleted user {user_id}", "success")
+
+            # Delete OTPs if email exists
+            if email:
+                supabase.table('otps').delete().eq('email', email).execute()
+
+            flash(f"Deleted user {user_id} and any associated OTPs", "success")
 
             # Check if the deleted user is the current session user
             if str(user_id) == str(session.get('user_id')):
                 self_deleted = True
+
 
     if self_deleted:
         session.clear()
