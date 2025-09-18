@@ -56,7 +56,7 @@ def login():
 
                     if profile['requires_password_change']:
                         return redirect(url_for('auth.change_password'))
-                    return redirect(url_for('dashboard.dashboard'))
+                    return redirect(url_for('home.home'))
 
                 except APIError as e:
                     if "Results contain 0 rows" in str(e):
@@ -110,7 +110,7 @@ def otp_login():
         session['privilege'] = user['privilege']
         if user['requires_password_change']:
             return redirect(url_for('auth.change_password'))
-        return redirect(url_for('dashboard.dashboard'))
+        return redirect(url_for('home.home'))
 
     # OTP fallback
     if verify_otp_and_update_supabase(supabase, email, provided_password):
@@ -175,6 +175,6 @@ def change_password():
         }).eq('id', user_id).execute()
 
         flash("Password updated successfully!", "success")
-        return redirect(url_for('dashboard.dashboard'))
+        return redirect(url_for('home.home'))
 
     return render_template('change_password.html')

@@ -17,10 +17,29 @@ def normalize_sizing(sizing_str):
     sizing_cleaned = sizing_str.strip().lower()
     return None if sizing_cleaned in ['', 'none', 'n/a'] else sizing_str.strip()
 
+def redirect_to_dashboard():
+    """Redirect using current container in session."""
+    container_id = session.get('container_id')
+    if container_id:
+        return redirect(url_for('dashboard.dashboard', container_id=container_id))
+    else:
+        # fallback: default dashboard
+        return redirect(url_for('dash_default'))
+    
+#----------------------------------------------------------------------------------------------
+
 @dashboard_bp.route('/dashboard')
 @limiter.limit("50 per minute")
 def dash_default():
-    return redirect(url_for('home.home'))
+    supabase = get_supabase_client()
+    containers = supabase.table('containers').select('id').limit(1).execute().data
+    if containers:
+        container_id = containers[0]['id']
+        session['container_id'] = container_id
+        return redirect(url_for('dashboard.dashboard', container_id=container_id))
+    else:
+        flash("No containers found.", "warning")
+        return redirect(url_for('home.home'))
 
 @dashboard_bp.route('/dashboard/<container_id>')
 @limiter.limit("50 per minute")
@@ -32,6 +51,7 @@ def dashboard(container_id):
     if redirect_resp:
         return redirect_resp
 
+    session['container_id'] = container_id
     supabase = get_supabase_client()
 
 
@@ -133,30 +153,30 @@ def add_stock_type():
         initial_quantity = int(request.form.get('initial_quantity', 0))
     except ValueError:
         flash("Initial quantity must be a number.", "danger")
-        return redirect(url_for('dashboard.dashboard'))
+        return redirect(redirect_to_dashboard())
 
     sizing_raw = request.form.get('sizing', '')
     sizing = normalize_sizing(sizing_raw)
 
     if not new_type or initial_quantity < 0:
         flash("Invalid item name or quantity.", "danger")
-        return redirect(url_for('dashboard.dashboard'))
+        return redirect(redirect_to_dashboard())
 
     if len(new_type) > 30:
         flash("Item name exceeds character limit.", "danger")
-        return redirect(url_for('dashboard.dashboard'))
+        return redirect(redirect_to_dashboard())
 
     # Validate category_id is present and valid
     category_id = request.form.get('category_id')
     if not category_id:
         flash("Please select a category.", "danger")
-        return redirect(url_for('dashboard.dashboard'))
+        return redirect(redirect_to_dashboard())
 
     # Validate category_id exists
     exists_resp = supabase.table('categories').select('id').eq('id', category_id).execute()
     if not exists_resp.data or len(exists_resp.data) == 0:
         flash("Invalid category selected.", "danger")
-        return redirect(url_for('dashboard.dashboard'))
+        return redirect(redirect_to_dashboard())
 
     # Check if stock type already exists (case-insensitive)
     query = supabase.table('stock').select('id').ilike('type', new_type)
@@ -170,7 +190,7 @@ def add_stock_type():
 
     if response.data and len(response.data) > 0:
         flash("Stock type with this name and sizing already exists in the selected category.", "danger")
-        return redirect(url_for('dashboard.dashboard'))
+        return redirect(redirect_to_dashboard())
 
     rows_to_insert = [{'type': new_type, 'sizing': sizing, 'category_id': category_id} for _ in range(initial_quantity)]
 
@@ -178,10 +198,10 @@ def add_stock_type():
         insert_resp = supabase.table('stock').insert(rows_to_insert).execute()
         if not insert_resp.data:
             flash("Error inserting stock items.", "danger")
-            return redirect(url_for('dashboard.dashboard'))
+            return redirect(redirect_to_dashboard())
 
     flash(f"Added {initial_quantity} items of type '{new_type}'.", "success")
-    return redirect(url_for('dashboard.dashboard'))
+    return redirect(redirect_to_dashboard())
 
 @dashboard_bp.route('/update_stock_batch', methods=['POST'])
 @limiter.limit("1 per second")
@@ -197,7 +217,7 @@ def update_stock_batch():
         data = json.loads(request.form['update_data'])
     except Exception:
         flash("Invalid data format.", "danger")
-        return redirect(url_for('dashboard.dashboard'))
+        return redirect(redirect_to_dashboard())
 
     supabase = get_supabase_client()
 
@@ -242,7 +262,7 @@ def update_stock_batch():
 
 
     flash("Stock updated successfully.", "success")
-    return redirect(url_for('dashboard.dashboard'))
+    return redirect(redirect_to_dashboard())
 
 
 @dashboard_bp.route('/add_category', methods=['POST'])
@@ -259,7 +279,7 @@ def add_category():
     
     if not re.match(r'^[A-Za-z0-9\-\(\)\s]+$', category_name):
         flash("Category names cannot contain forbidden characters.", "danger")
-        return redirect(url_for('dashboard.dashboard'))
+        return redirect(redirect_to_dashboard())
 
     supabase = get_supabase_client()
 
@@ -350,7 +370,7 @@ def update_stock_category():
 
     if not item_type or not new_category_id:
         flash("Invalid input provided.", "danger")
-        return redirect(url_for('dashboard.dashboard'))
+        return redirect(redirect_to_dashboard())
 
     supabase = get_supabase_client()
 
@@ -392,13 +412,13 @@ def update_stock_category():
     else:
         flash("Category updated successfully for stock and issued items.", "success")
 
-    return redirect(url_for('dashboard.dashboard'))
+    return redirect(redirect_to_dashboard())
 
 @dashboard_bp.route('/delete_category/<string:category_id>', methods=['POST'])
 @limiter.limit("30 per minute")
 def delete_category(category_id):
     if session.get('privilege') not in ['admin', 'edit']:
-        return redirect(url_for('dashboard.dashboard'))
+        return redirect(redirect_to_dashboard())
 
     supabase = get_supabase_client()
 
@@ -411,7 +431,7 @@ def delete_category(category_id):
         
         if linked.data:
             flash('Category is in use and cannot be deleted.', 'warning')
-            return redirect(url_for('dashboard.dashboard'))
+            return redirect(redirect_to_dashboard())
 
         # Delete the category
         supabase.table('categories')\
@@ -424,4 +444,4 @@ def delete_category(category_id):
         print(f"Error deleting category: {e}")
         flash('An error occurred while deleting the category.', 'danger')
 
-    return redirect(url_for('dashboard.dashboard'))
+    return redirect(redirect_to_dashboard())
