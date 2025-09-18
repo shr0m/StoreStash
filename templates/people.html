@@ -395,25 +395,23 @@
 
                                 <div class="col-12">
                                     <div class="dropdown">
-                                        <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" id="itemDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                            Select Item Type
-                                        </button>
-                                        <ul class="dropdown-menu w-100" aria-labelledby="itemDropdown">
+                                        <input type="text" id="itemSearch" class="form-control" placeholder="Find item..." autocomplete="off" required>
+                                        <input type="hidden" name="item_type" id="selectedItemType" required>
+                                        <input type="hidden" name="sizing" id="selectedSizing">
+                                        <ul id="itemDropdown" class="dropdown-menu w-100" style="max-height: 200px; overflow-y: auto;">
                                             {% for item in stock_items %}
-                                            <li>
-                                                <a class="dropdown-item d-flex justify-content-between align-items-center"
-                                                href="#"
-                                                data-type="{{ item.type }}"
-                                                data-sizing="{{ item.sizing or 'N/A' }}">
-                                                    <span>{{ item.type }}{% if item.sizing %} ({{ item.sizing }}){% endif %}</span>
-                                                    <span class="badge bg-secondary">{{ item.count }}</span>
-                                                </a>
-                                            </li>
+                                                <li>
+                                                    <a class="dropdown-item d-flex justify-content-between align-items-center"
+                                                    href="#"
+                                                    data-type="{{ item.type }}"
+                                                    data-sizing="{{ item.sizing or 'N/A' }}">
+                                                        <span>{{ item.type }}{% if item.sizing %} ({{ item.sizing }}){% endif %}</span>
+                                                        <span class="badge bg-secondary">{{ item.count }}</span>
+                                                    </a>
+                                                </li>
                                             {% endfor %}
                                         </ul>
                                     </div>
-                                    <input type="hidden" name="item_type" id="selectedItemType" required>
-                                    <input type="hidden" name="sizing" id="selectedSizing">
                                 </div>
 
                                 <div class="col-12">
@@ -480,78 +478,106 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
+    // --- Person Search ---
     const personInput = document.getElementById("personSearch");
-    const dropdownMenu = document.getElementById("personDropdown");
-    const hiddenInput = document.getElementById("selectedPerson");
-    const items = dropdownMenu.querySelectorAll(".dropdown-item");
+    const personDropdown = document.getElementById("personDropdown");
+    const hiddenPerson = document.getElementById("selectedPerson");
 
-    personInput.addEventListener("input", () => {
-        const query = personInput.value.toLowerCase();
-        let anyVisible = false;
-        items.forEach(item => {
-            const name = item.getAttribute("data-name").toLowerCase();
-            const match = name.includes(query);
-            item.style.display = match ? "block" : "none";
-            if (match) anyVisible = true;
+    // Store all people in memory
+    const people = Array.from(personDropdown.querySelectorAll(".dropdown-item"))
+        .map(item => item.getAttribute("data-name"));
+
+    function updatePersonDropdown(query) {
+        personDropdown.innerHTML = ""; // clear
+        const matches = people.filter(name =>
+            name.toLowerCase().includes(query.toLowerCase())
+        );
+        matches.forEach(name => {
+            const li = document.createElement("li");
+            li.innerHTML = `<a class="dropdown-item" href="#" data-name="${name}">${name}</a>`;
+            li.querySelector("a").addEventListener("click", e => {
+                e.preventDefault();
+                personInput.value = name;
+                hiddenPerson.value = name;
+                personDropdown.classList.remove("show");
+            });
+            personDropdown.appendChild(li);
         });
-        dropdownMenu.classList.toggle("show", anyVisible);
-    });
+        personDropdown.classList.toggle("show", matches.length > 0);
+    }
 
-    items.forEach(item => {
-        item.addEventListener("click", (e) => {
-            e.preventDefault();
-            const selectedName = item.getAttribute("data-name");
-            personInput.value = selectedName;
-            hiddenInput.value = selectedName;
-            dropdownMenu.classList.remove("show");
-        });
-    });
-
-    document.addEventListener("click", (e) => {
-        if (!dropdownMenu.contains(e.target) && e.target !== personInput) {
-            dropdownMenu.classList.remove("show");
+    personInput.addEventListener("input", () => updatePersonDropdown(personInput.value));
+    document.addEventListener("click", e => {
+        if (!personDropdown.contains(e.target) && e.target !== personInput) {
+            personDropdown.classList.remove("show");
         }
     });
 
-    // Item type dropdown functionality
+    // --- Item Search ---
+    const itemInput = document.getElementById("itemSearch");
     const itemDropdown = document.getElementById("itemDropdown");
-    const itemDropdownMenu = itemDropdown.nextElementSibling;
-    const selectedItemTypeInput = document.getElementById("selectedItemType");
-    const selectedSizingInput = document.getElementById("selectedSizing"); // ADDED
+    const selectedItemType = document.getElementById("selectedItemType");
+    const selectedSizing = document.getElementById("selectedSizing");
 
-    itemDropdownMenu.querySelectorAll(".dropdown-item").forEach(item => {
-        item.addEventListener("click", function (e) {
-            e.preventDefault();
-            const itemType = this.getAttribute("data-type");
-            let sizing = this.getAttribute("data-sizing");
-            if (!sizing || sizing.toLowerCase() === 'none') sizing = 'N/A';
+    // Store all stock items in memory
+    const stockItems = Array.from(itemDropdown.querySelectorAll(".dropdown-item")).map(option => ({
+        type: option.getAttribute("data-type"),
+        sizing: option.getAttribute("data-sizing") || "N/A",
+        label: option.textContent.trim()
+    }));
 
-            const fullLabel = this.querySelector("span").textContent.trim();
-            itemDropdown.textContent = fullLabel;
-
-            selectedItemTypeInput.value = itemType;
-            selectedSizingInput.value = sizing;
+    function updateItemDropdown(query) {
+        itemDropdown.innerHTML = ""; // clear
+        const matches = stockItems.filter(item =>
+            item.label.toLowerCase().includes(query.toLowerCase())
+        );
+        matches.forEach(item => {
+            const li = document.createElement("li");
+            li.innerHTML = `
+                <a class="dropdown-item d-flex justify-content-between align-items-center" 
+                   href="#" data-type="${item.type}" data-sizing="${item.sizing}">
+                   <span>${item.label}</span>
+                </a>`;
+            li.querySelector("a").addEventListener("click", e => {
+                e.preventDefault();
+                itemInput.value = item.label;
+                selectedItemType.value = item.type;
+                selectedSizing.value = item.sizing;
+                itemDropdown.classList.remove("show");
+            });
+            itemDropdown.appendChild(li);
         });
-    });
+        itemDropdown.classList.toggle("show", matches.length > 0);
+    }
 
-    const select = document.getElementById('labelColorSelect');
-
-    select.addEventListener('change', function () {
-        // Remove any existing bg-* classes
-        select.classList.remove('bg-primary', 'bg-secondary', 'bg-success', 'bg-danger', 'bg-warning', 'bg-info', 'bg-dark', 'text-white');
-
-        const selected = select.value;
-        if (selected) {
-            select.classList.add(`bg-${selected}`);
-
-            // Add text color for contrast if needed
-            if (['dark', 'primary', 'danger', 'success', 'secondary', 'info'].includes(selected)) {
-                select.classList.add('text-white');
-            }
+    itemInput.addEventListener("input", () => updateItemDropdown(itemInput.value));
+    document.addEventListener("click", e => {
+        if (!itemDropdown.contains(e.target) && e.target !== itemInput) {
+            itemDropdown.classList.remove("show");
         }
     });
+
+    // --- Label Color Selector ---
+    const select = document.getElementById("labelColorSelect");
+    if (select) {
+        select.addEventListener("change", function () {
+            select.classList.remove(
+                "bg-primary", "bg-secondary", "bg-success", "bg-danger",
+                "bg-warning", "bg-info", "bg-dark", "text-white"
+            );
+
+            const selected = select.value;
+            if (selected) {
+                select.classList.add(`bg-${selected}`);
+                if (["dark", "primary", "danger", "success", "secondary", "info"].includes(selected)) {
+                    select.classList.add("text-white");
+                }
+            }
+        });
+    }
 });
 </script>
+
 
 </body>
 </html>

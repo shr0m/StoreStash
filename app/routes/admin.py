@@ -150,7 +150,6 @@ def update_users():
             users = user_resp.data or []
             email = users[0]['username'] if users else None
 
-            # Delete user
             supabase.table('users').delete().eq('id', user_id).execute()
 
             # Delete OTPs if email exists
