@@ -16,11 +16,15 @@ def normalize_sizing(sizing_str):
         return None
     sizing_cleaned = sizing_str.strip().lower()
     return None if sizing_cleaned in ['', 'none', 'n/a'] else sizing_str.strip()
-    
 
 @dashboard_bp.route('/dashboard')
-@limiter.limit("100 per minute")
-def dashboard():
+@limiter.limit("50 per minute")
+def dash_default():
+    return redirect(url_for('home.home'))
+
+@dashboard_bp.route('/dashboard/<container_id>')
+@limiter.limit("50 per minute")
+def dashboard(container_id):
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
@@ -32,13 +36,15 @@ def dashboard():
 
 
     stock_response = supabase.table('stock')\
-        .select('id, type, sizing, category_id, categories(category)')\
-        .execute()
+            .select('id, type, sizing, category_id, categories(category), container_id')\
+            .eq('container_id', container_id)\
+            .execute()
     stock_items = stock_response.data or []
 
 
     issued_response = supabase.table('issued_stock')\
-        .select('id, category_id, categories(category)')\
+        .select('id, category_id, categories(category), container_id')\
+        .eq('container_id', container_id)\
         .execute()
     issued_items = issued_response.data or []
 

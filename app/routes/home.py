@@ -33,7 +33,8 @@ def home():
     containers = containers_response.data or []
 
     if len(containers) == 1:
-        return redirect(url_for('dashboard.dashboard'))
+        container_id = containers[0]['id']
+        return redirect(url_for('dashboard.dashboard', container_id=container_id))
 
     # Count stock items in each container
     stock_response = supabase.table('stock').select('id, container_id').execute()
