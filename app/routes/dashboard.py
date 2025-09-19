@@ -1,11 +1,18 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from app.db import get_supabase_client
-import json, re
+import json, re, uuid
 from app.utils.otp_utils import redirect_if_password_change_required
 from app import limiter
 from collections import defaultdict
 
 dashboard_bp = Blueprint('dashboard', __name__)
+
+def is_valid_uuid(value):
+    try:
+        uuid.UUID(str(value))
+        return True
+    except ValueError:
+        return False
 
 def has_edit_privileges():
     return session.get('privilege') in ['admin', 'edit']
@@ -28,18 +35,6 @@ def redirect_to_dashboard():
     
 #----------------------------------------------------------------------------------------------
 
-@dashboard_bp.route('/dashboard')
-@limiter.limit("50 per minute")
-def dash_default():
-    supabase = get_supabase_client()
-    containers = supabase.table('containers').select('id').limit(1).execute().data
-    if containers:
-        container_id = containers[0]['id']
-        session['container_id'] = container_id
-        return redirect(url_for('dashboard.dashboard', container_id=container_id))
-    else:
-        flash("No containers found.", "warning")
-        return redirect(url_for('home.home'))
 
 @dashboard_bp.route('/dashboard/<container_id>')
 @limiter.limit("50 per minute")
@@ -50,16 +45,26 @@ def dashboard(container_id):
     redirect_resp = redirect_if_password_change_required()
     if redirect_resp:
         return redirect_resp
+    
+    if not is_valid_uuid(container_id):
+        flash("Invalid container ID format.", "danger")
+        return redirect(url_for('home.home'))
 
-    session['container_id'] = container_id
     supabase = get_supabase_client()
 
+    container_check = supabase.table('containers').select('id, name').eq('id', container_id).execute()
+    if not container_check.data:
+        flash("Invalid container selected.", "danger")
+        return redirect(url_for('home.home'))
+    
+    session['container_id'] = container_id
 
     stock_response = supabase.table('stock')\
             .select('id, type, sizing, category_id, categories(category), container_id')\
             .eq('container_id', container_id)\
             .execute()
     stock_items = stock_response.data or []
+
 
 
     issued_response = supabase.table('issued_stock')\
@@ -121,10 +126,9 @@ def dashboard(container_id):
             for type_, qty in type_quantities.items()
         ]
 
-
-    overview_data = get_stock_overview() or {}
-    conflicting_keys = ['category_summaries', 'stock_by_category', 'categories', 'stock_items', 'session']
-    cleaned_overview_data = {k: v for k, v in overview_data.items() if k not in conflicting_keys}
+    total_in_store = len(stock_items)
+    total_assigned = len(issued_items)
+    total_all = total_in_store + total_assigned
 
     return render_template(
         'dashboard.html',
@@ -133,7 +137,9 @@ def dashboard(container_id):
         category_summaries=category_summaries,
         stock_by_category=stock_by_category_serializable,
         session=session,
-        **cleaned_overview_data
+        total_in_store=total_in_store,
+        total_assigned=total_assigned,
+        total_all=total_all,
     )
 
 @dashboard_bp.route('/add_stock_type', methods=['POST'])
@@ -148,60 +154,74 @@ def add_stock_type():
 
     supabase = get_supabase_client()
 
+    # Get container_id
+    container_id = session.get('container_id')
+    if not container_id or not is_valid_uuid(container_id):
+        flash("Invalid or missing container. Please select a container.", "danger")
+        return redirect_to_dashboard()
+
     new_type = request.form.get('new_type', '').strip()
     try:
         initial_quantity = int(request.form.get('initial_quantity', 0))
     except ValueError:
         flash("Initial quantity must be a number.", "danger")
-        return redirect(redirect_to_dashboard())
+        return redirect_to_dashboard()
 
     sizing_raw = request.form.get('sizing', '')
     sizing = normalize_sizing(sizing_raw)
 
     if not new_type or initial_quantity < 0:
         flash("Invalid item name or quantity.", "danger")
-        return redirect(redirect_to_dashboard())
+        return redirect_to_dashboard()
 
     if len(new_type) > 30:
         flash("Item name exceeds character limit.", "danger")
-        return redirect(redirect_to_dashboard())
+        return redirect_to_dashboard()
 
-    # Validate category_id is present and valid
+    # Validate category_id
     category_id = request.form.get('category_id')
     if not category_id:
         flash("Please select a category.", "danger")
-        return redirect(redirect_to_dashboard())
+        return redirect_to_dashboard()
 
-    # Validate category_id exists
     exists_resp = supabase.table('categories').select('id').eq('id', category_id).execute()
-    if not exists_resp.data or len(exists_resp.data) == 0:
+    if not exists_resp.data:
         flash("Invalid category selected.", "danger")
-        return redirect(redirect_to_dashboard())
+        return redirect_to_dashboard()
 
-    # Check if stock type already exists (case-insensitive)
+    # Check if container has stock already
     query = supabase.table('stock').select('id').ilike('type', new_type)
     if sizing is None:
         query = query.is_('sizing', None)
     else:
         query = query.eq('sizing', sizing)
-    
-    query = query.eq('category_id', category_id)
+
+    query = query.eq('category_id', category_id).eq('container_id', container_id)
     response = query.execute()
 
     if response.data and len(response.data) > 0:
-        flash("Stock type with this name and sizing already exists in the selected category.", "danger")
-        return redirect(redirect_to_dashboard())
+        flash("Stock type with this name and sizing already exists in the selected category for this container.", "danger")
+        return redirect_to_dashboard()
 
-    rows_to_insert = [{'type': new_type, 'sizing': sizing, 'category_id': category_id} for _ in range(initial_quantity)]
+    # Insert
+    rows_to_insert = [
+        {
+            'type': new_type,
+            'sizing': sizing,
+            'category_id': category_id,
+            'container_id': container_id
+        }
+        for _ in range(initial_quantity)
+    ]
 
     if rows_to_insert:
         insert_resp = supabase.table('stock').insert(rows_to_insert).execute()
         if not insert_resp.data:
             flash("Error inserting stock items.", "danger")
-            return redirect(redirect_to_dashboard())
+            return redirect_to_dashboard()
 
-    flash(f"Added {initial_quantity} items of type '{new_type}'.", "success")
-    return redirect(redirect_to_dashboard())
+    flash(f"Added {initial_quantity} items of type '{new_type}' to this container.", "success")
+    return redirect_to_dashboard()
 
 @dashboard_bp.route('/update_stock_batch', methods=['POST'])
 @limiter.limit("1 per second")
@@ -213,11 +233,17 @@ def update_stock_batch():
     if redirect_resp:
         return redirect_resp
 
+    # Get container_id
+    container_id = session.get('container_id')
+    if not container_id or not is_valid_uuid(container_id):
+        flash("Invalid or missing container. Please select a container.", "danger")
+        return redirect_to_dashboard()
+
     try:
         data = json.loads(request.form['update_data'])
     except Exception:
         flash("Invalid data format.", "danger")
-        return redirect(redirect_to_dashboard())
+        return redirect_to_dashboard()
 
     supabase = get_supabase_client()
 
@@ -225,6 +251,7 @@ def update_stock_batch():
         item_type = item.get('type')
         sizing_raw = item.get('sizing', '')
         sizing = normalize_sizing(sizing_raw)
+
         try:
             new_quantity = int(item.get('quantity', 0))
         except Exception:
@@ -234,8 +261,13 @@ def update_stock_batch():
         if not item_type or new_quantity < 0 or not category_id:
             continue  # skip invalid items
 
-        # Fetch current stock entries matching type, sizing, and category_id
-        query = supabase.table('stock').select('id').eq('type', item_type).eq('category_id', category_id)
+        query = (
+            supabase.table('stock')
+            .select('id')
+            .eq('type', item_type)
+            .eq('category_id', category_id)
+            .eq('container_id', container_id)
+        )
         if sizing is None:
             query = query.is_('sizing', None)
         else:
@@ -246,23 +278,29 @@ def update_stock_batch():
         current_count = len(current_items)
 
         if new_quantity < current_count:
-            # Delete excess items — delete oldest first (lowest id)
+            # Delete excess items
             ids_to_delete = [itm['id'] for itm in sorted(current_items, key=lambda x: x['id'])[:current_count - new_quantity]]
             del_resp = supabase.table('stock').delete().in_('id', ids_to_delete).execute()
             if not del_resp.data:
                 flash(f"Error deleting stock for {item_type} ({sizing})", "danger")
 
         elif new_quantity > current_count:
-            # Insert missing items — create new identical records
-            rows_to_insert = [{'type': item_type, 'sizing': sizing, 'category_id': category_id} for _ in range(new_quantity - current_count)]
-            print(f"Adding stock: type={item_type}, sizing={sizing}, category_id={category_id}, quantity={new_quantity - current_count}")
+            # Insert missing items
+            rows_to_insert = [
+                {
+                    'type': item_type,
+                    'sizing': sizing,
+                    'category_id': category_id,
+                    'container_id': container_id,
+                }
+                for _ in range(new_quantity - current_count)
+            ]
             ins_resp = supabase.table('stock').insert(rows_to_insert).execute()
             if not ins_resp.data:
                 flash(f"Error adding stock for {item_type} ({sizing})", "danger")
 
-
     flash("Stock updated successfully.", "success")
-    return redirect(redirect_to_dashboard())
+    return redirect_to_dashboard()
 
 
 @dashboard_bp.route('/add_category', methods=['POST'])
@@ -346,12 +384,6 @@ def get_stock_overview():
         'total_assigned': total_assigned,
         'total_all': total_all,
     }
-
-@dashboard_bp.route('/stock')
-def stock_view():
-    overview_data = get_stock_overview()
-    # plus other data like stock_items, categories, etc.
-    return render_template('stock.html', **overview_data)
 
 @dashboard_bp.route('/update_stock_category', methods=['POST'])
 @limiter.limit("10 per minute")
@@ -445,3 +477,16 @@ def delete_category(category_id):
         flash('An error occurred while deleting the category.', 'danger')
 
     return redirect(redirect_to_dashboard())
+
+@dashboard_bp.route('/dashboard')
+@limiter.limit("50 per minute")
+def dash_default():
+    supabase = get_supabase_client()
+    containers = supabase.table('containers').select('id').limit(1).execute().data
+    if containers:
+        container_id = containers[0]['id']
+        session['container_id'] = container_id
+        return redirect(url_for('dashboard.dashboard', container_id=container_id))
+    else:
+        flash("No containers found.", "warning")
+        return redirect(url_for('home.home'))   

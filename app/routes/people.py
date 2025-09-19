@@ -382,19 +382,15 @@ def assign_item():
 def get_people_with_issued_items():
     supabase = get_supabase_client()
 
-    # Step 1: Get all people
     people_resp = supabase.table('people').select('*').execute()
     people = people_resp.data
 
-    # Step 2: For all people, get their issued items in one query (for efficiency)
-    # Join kit_issue with issued_stock to get all issued items with type & sizing
     issued_resp = supabase.table('kit_issue')\
         .select('person_id, issued_stock(type, sizing)')\
         .execute()
 
     issued_items = issued_resp.data or []
 
-    # Step 3: Group issued items by person
     issued_by_person = {}
     for record in issued_items:
         pid = record['person_id']
@@ -406,7 +402,6 @@ def get_people_with_issued_items():
 
         issued_by_person[pid][key] = issued_by_person[pid].get(key, 0) + 1
 
-    # Step 4: Attach grouped issued_items to each person
     for person in people:
         pid = person['id']
         grouped = issued_by_person.get(pid, {})
@@ -449,14 +444,14 @@ def return_item():
         return redirect(request.referrer)
 
     try:
-        # Step 1: Get person ID
+        # Get person ID
         person_resp = supabase.table('people').select('id').eq('name', person_name).limit(1).execute()
         if not person_resp.data:
             flash("Person not found.", "danger")
             return redirect(request.referrer)
         person_id = person_resp.data[0]['id']
 
-        # Step 2: Get issued_stock records joined with kit_issue for this person, including category_id
+        #Get issued_stock records joined with kit_issue
         kit_resp = (
             supabase.table('kit_issue')
             .select('id, issued_stock_id, issued_stock(type, sizing, category_id)')
@@ -465,7 +460,7 @@ def return_item():
         )
         kit_issues = kit_resp.data or []
 
-        # Filter matching items with normalized sizing
+        # Filter items with sizing
         matching = [
             issue for issue in kit_issues
             if issue['issued_stock']['type'] == item_type and normalize_sizing(issue['issued_stock']['sizing']) == sizing
