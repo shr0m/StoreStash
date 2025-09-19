@@ -35,7 +35,7 @@ def people():
         grouped_stock[key] = grouped_stock.get(key, 0) + 1
 
     stock_items = [
-        {'type': k[0], 'sizing': k[1], 'count': v}
+        {'type': k[0], 'sizing': k[1], 'count': v, 'container_id': next((i['container_id'] for i in stock_data if i.get('type') == k[0] and i.get('sizing') == k[1]), None)}
         for k, v in grouped_stock.items()
         if v > 0
     ]
@@ -118,14 +118,20 @@ def people():
         get_surname(p.get('name'))
     ))
 
+    # Load containers
+    containers_resp = supabase.table('containers').select('*').order('name').execute()
+    containers = containers_resp.data if containers_resp.data else []
+
     # Render template
     return render_template(
         "people.html",
         stock_items=stock_items,
         people=people,
         all_labels=all_labels,
-        labels=all_labels
+        labels=all_labels,
+        containers=containers
     )
+
 
 
 @people_bp.route('/add_person', methods=['POST'])
