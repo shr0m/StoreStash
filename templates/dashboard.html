@@ -64,14 +64,6 @@
                             <div class="text-muted">Stock in Storage</div>
                             <h6 class="fw-bold">{{ total_in_store }}</h6>
                         </div>
-                        <div class="col-md-4">
-                            <div class="text-muted">Stock Assigned</div>
-                            <h6 class="fw-bold">{{ total_assigned }}</h6>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="text-muted">Total Stock</div>
-                            <h6 class="fw-bold">{{ total_all }}</h6>
-                        </div>
                     </div>
 
                     <!-- Category Summary Table -->
@@ -81,8 +73,6 @@
                                 <tr>
                                     <th>Category</th>
                                     <th>In Stock</th>
-                                    <th>Assigned</th>
-                                    <th>Total</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -90,8 +80,6 @@
                                 <tr>
                                     <td>{{ cat.category }}</td>
                                     <td>{{ cat.in_stock }}</td>
-                                    <td>{{ cat.assigned }}</td>
-                                    <td>{{ cat.total }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>

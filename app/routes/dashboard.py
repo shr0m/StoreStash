@@ -65,14 +65,6 @@ def dashboard(container_id):
             .execute()
     stock_items = stock_response.data or []
 
-
-
-    issued_response = supabase.table('issued_stock')\
-        .select('id, category_id, categories(category), container_id')\
-        .eq('container_id', container_id)\
-        .execute()
-    issued_items = issued_response.data or []
-
     categories_response = supabase.table('categories').select('*').order('category').execute()
     categories = categories_response.data if categories_response else []
 
@@ -101,14 +93,10 @@ def dashboard(container_id):
         cat_id = cat['id']
 
         in_stock = sum(1 for i in stock_items if i.get('category_id') == cat_id)
-        assigned = sum(1 for i in issued_items if i.get('category_id') == cat_id)
-        total = in_stock + assigned
 
         category_summaries.append({
             'category': cat_name,
-            'in_stock': in_stock,
-            'assigned': assigned,
-            'total': total
+            'in_stock': in_stock
         })
 
 
@@ -127,8 +115,6 @@ def dashboard(container_id):
         ]
 
     total_in_store = len(stock_items)
-    total_assigned = len(issued_items)
-    total_all = total_in_store + total_assigned
 
     return render_template(
         'dashboard.html',
@@ -138,8 +124,6 @@ def dashboard(container_id):
         stock_by_category=stock_by_category_serializable,
         session=session,
         total_in_store=total_in_store,
-        total_assigned=total_assigned,
-        total_all=total_all,
     )
 
 @dashboard_bp.route('/add_stock_type', methods=['POST'])
@@ -344,13 +328,8 @@ def get_stock_overview():
         .execute()
     stock_data = stock_resp.data or []
 
-    assigned_resp = supabase.table('issued_stock')\
-        .select('category_id')\
-        .execute()
-    assigned_data = assigned_resp.data or []
-
     from collections import defaultdict
-    summary = defaultdict(lambda: {'category': '', 'in_stock': 0, 'assigned': 0, 'total': 0})
+    summary = defaultdict(lambda: {'category': '', 'in_stock': 0})
 
     for item in stock_data:
         cat_id = item['category_id']
@@ -358,31 +337,15 @@ def get_stock_overview():
         summary[cat_id]['category'] = cat_name
         summary[cat_id]['in_stock'] += 1
 
-    # Count assigned per category_id
-    for item in assigned_data:
-        cat_id = item['category_id']
-        # If category not present in stock still to record it
-        if cat_id not in summary:
-            summary[cat_id]['category'] = 'Unknown'
-        summary[cat_id]['assigned'] += 1
-
-    # Calculate total per category
-    for cat_id in summary:
-        summary[cat_id]['total'] = summary[cat_id]['in_stock'] + summary[cat_id]['assigned']
-
     # Convert to list sorted by category name
     category_summaries = sorted(summary.values(), key=lambda x: x['category'])
 
     # Also total overall (can compute or from previous vars)
     total_in_store = sum(x['in_stock'] for x in category_summaries)
-    total_assigned = sum(x['assigned'] for x in category_summaries)
-    total_all = total_in_store + total_assigned
 
     return {
         'category_summaries': category_summaries,
-        'total_in_store': total_in_store,
-        'total_assigned': total_assigned,
-        'total_all': total_all,
+        'total_in_store': total_in_store
     }
 
 @dashboard_bp.route('/update_stock_category', methods=['POST'])
