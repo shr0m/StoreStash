@@ -251,7 +251,6 @@
                                                 <th>Issued Quantity</th>
                                                 <th>Notes</th>
                                                 {% if session.get('privilege') in ['admin', 'edit'] %}
-                                                <th>Select Quantity</th>
                                                 <th>Actions</th>
                                                 {% endif %}
                                             </tr>
@@ -265,41 +264,44 @@
                                                 <td>{{ item.note }}</td>
 
                                                 {% if session.get('privilege') in ['admin', 'edit'] %}
-                                                <!-- Quantity input field -->
-                                                <td>
-                                                    <input type="number" class="form-control"
-                                                        name="quantity"
-                                                        id="qty-{{ person.name | replace(' ', '-') }}-{{ loop.index0 }}"
-                                                        min="1"
-                                                        max="{{ item.quantity }}"
-                                                        value="1"
-                                                        required>
-                                                </td>
 
-                                                <!-- Action buttons and forms -->
+                                                <!-- Action buttons and form -->
                                                 <td class="text-nowrap">
-                                                    <!-- Return Form -->
-                                                    <form method="POST" action="/return_item" class="d-inline">
-                                                        <input type="hidden" name="person_name" value="{{ person.name }}">
-                                                        <input type="hidden" name="item_type" value="{{ item.type }}">
-                                                        <input type="hidden" name="sizing" value="{{ item.sizing }}">
-                                                        <input type="hidden" name="quantity" id="return-hidden-{{ person.name | replace(' ', '-') }}-{{ loop.index0 }}">
-                                                        <button type="submit" class="btn btn-sm btn-outline-success"
-                                                                onclick="setQuantity(event, '{{ person.name | replace(' ', '-') }}', '{{ loop.index0 }}', 'return')">
+                                                    <form method="POST" action="/process_item" class="d-flex flex-column flex-sm-row align-items-sm-center gap-2">
+
+                                                        <!-- Quantity input -->
+                                                        <input type="number" class="form-control"
+                                                            name="quantity"
+                                                            min="1"
+                                                            max="{{ item.quantity }}"
+                                                            value="1"
+                                                            required
+                                                            style="width: 80px;"
+                                                            placeholder="Qty">
+
+                                                        <!-- Container select for Return only -->
+                                                        <select name="container_id" class="form-select d-inline-block" style="width: 150px;">
+                                                            <option value="" disabled selected>Container</option>
+                                                            {% for container in containers %}
+                                                            <option value="{{ container.id }}">{{ container.name }}</option>
+                                                            {% endfor %}
+                                                        </select>
+
+                                                        <!-- Return to Stock button -->
+                                                        <button type="submit" class="btn btn-sm btn-outline-success" name="action" value="return">
                                                             Return to Stock
                                                         </button>
-                                                    </form>
 
-                                                    <!-- Lost Form -->
-                                                    <form method="POST" action="/mark_lost" class="d-inline">
+                                                        <!-- Mark as Lost button -->
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger" name="action" value="lost">
+                                                            Mark as Lost
+                                                        </button>
+
+                                                        <!-- Hidden fields -->
                                                         <input type="hidden" name="person_name" value="{{ person.name }}">
                                                         <input type="hidden" name="item_type" value="{{ item.type }}">
                                                         <input type="hidden" name="sizing" value="{{ item.sizing }}">
-                                                        <input type="hidden" name="quantity" id="lost-hidden-{{ person.name | replace(' ', '-') }}-{{ loop.index0 }}">
-                                                        <button type="submit" class="btn btn-sm btn-outline-danger"
-                                                                onclick="setQuantity(event, '{{ person.name | replace(' ', '-') }}', '{{ loop.index0 }}', 'lost')">
-                                                            Mark as Lost
-                                                        </button>
+
                                                     </form>
                                                 </td>
                                                 {% endif %}
