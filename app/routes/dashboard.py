@@ -59,15 +59,30 @@ def dashboard(container_id):
     
     session['container_id'] = container_id
 
-    stock_response = supabase.table('stock')\
-            .select('id, type, sizing, category_id, categories(category), container_id')\
-            .eq('container_id', container_id)\
-            .execute()
-    stock_items = stock_response.data or []
+    stock_items = []
+    batch_size = 1000
+    offset = 0
 
+    while True:
+        batch = (
+            supabase.table('stock')
+            .select('id, type, sizing, category_id, categories(category), container_id')
+            .eq('container_id', container_id)
+            .range(offset, offset + batch_size - 1)
+            .execute()
+        )
+        if not batch.data:
+            break
+        stock_items.extend(batch.data)
+        if len(batch.data) < batch_size:
+            break
+        offset += batch_size
+
+    # Fetch categories
     categories_response = supabase.table('categories').select('*').order('category').execute()
     categories = categories_response.data if categories_response else []
 
+    # Aggregate stock items
     aggregated = defaultdict(lambda: {'quantity': 0, 'category': None, 'category_id': None})
     for item in stock_items:
         key = (item['type'], item['sizing'])
@@ -87,6 +102,7 @@ def dashboard(container_id):
         for (t, s), data in aggregated.items()
     ]
 
+    # Category summaries
     category_summaries = []
     for cat in categories:
         cat_name = cat['category']
@@ -99,20 +115,18 @@ def dashboard(container_id):
             'in_stock': in_stock
         })
 
-
-    stock_by_category = defaultdict(lambda: defaultdict(int))  # category_id -> type -> quantity
+    # Stock by category
+    stock_by_category = defaultdict(lambda: defaultdict(int))
     for item in stock_items:
         category_id = item.get('category_id')
         type_ = item['type']
         if category_id is not None:
             stock_by_category[category_id][type_] += 1
 
-    stock_by_category_serializable = {}
-    for category_id, type_quantities in stock_by_category.items():
-        stock_by_category_serializable[str(category_id)] = [
-            {'label': type_, 'quantity': qty}
-            for type_, qty in type_quantities.items()
-        ]
+    stock_by_category_serializable = {
+        str(category_id): [{'label': type_, 'quantity': qty} for type_, qty in type_quantities.items()]
+        for category_id, type_quantities in stock_by_category.items()
+    }
 
     total_in_store = len(stock_items)
 
@@ -217,16 +231,21 @@ def update_stock_batch():
     if redirect_resp:
         return redirect_resp
 
-    # Get container_id
     container_id = session.get('container_id')
     if not container_id or not is_valid_uuid(container_id):
         flash("Invalid or missing container. Please select a container.", "danger")
         return redirect_to_dashboard()
 
+    raw_update_data = request.form.get("update_data", "").strip()
+    if not raw_update_data:
+        flash("No update data received.", "danger")
+        return redirect_to_dashboard()
+
     try:
-        data = json.loads(request.form['update_data'])
-    except Exception:
+        data = json.loads(raw_update_data)
+    except Exception as e:
         flash("Invalid data format.", "danger")
+        print("JSON parse error:", e, "Raw input:", raw_update_data)
         return redirect_to_dashboard()
 
     supabase = get_supabase_client()
@@ -242,7 +261,7 @@ def update_stock_batch():
             continue  # skip invalid quantity
 
         category_id = item.get('category_id')
-        if not item_type or new_quantity < 0 or not category_id:
+        if not item_type or new_quantity < 0 or not category_id or not is_valid_uuid(category_id):
             continue  # skip invalid items
 
         query = (
@@ -264,9 +283,7 @@ def update_stock_batch():
         if new_quantity < current_count:
             # Delete excess items
             ids_to_delete = [itm['id'] for itm in sorted(current_items, key=lambda x: x['id'])[:current_count - new_quantity]]
-            del_resp = supabase.table('stock').delete().in_('id', ids_to_delete).execute()
-            if not del_resp.data:
-                flash(f"Error deleting stock for {item_type} ({sizing})", "danger")
+            supabase.table('stock').delete().in_('id', ids_to_delete).execute()
 
         elif new_quantity > current_count:
             # Insert missing items
@@ -274,14 +291,12 @@ def update_stock_batch():
                 {
                     'type': item_type,
                     'sizing': sizing,
-                    'category_id': category_id,
-                    'container_id': container_id,
+                    'category_id': str(category_id),
+                    'container_id': str(container_id),
                 }
                 for _ in range(new_quantity - current_count)
             ]
-            ins_resp = supabase.table('stock').insert(rows_to_insert).execute()
-            if not ins_resp.data:
-                flash(f"Error adding stock for {item_type} ({sizing})", "danger")
+            supabase.table('stock').insert(rows_to_insert).execute()
 
     flash("Stock updated successfully.", "success")
     return redirect_to_dashboard()

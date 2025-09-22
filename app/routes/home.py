@@ -36,9 +36,23 @@ def home():
         container_id = containers[0]['id']
         return redirect(url_for('dashboard.dashboard', container_id=container_id))
 
-    # Count stock items in each container
-    stock_response = supabase.table('stock').select('id, container_id').execute()
-    stock_items = stock_response.data or []
+    # Fetch in batches of 1000
+    stock_items = []
+    batch_size = 1000
+    start = 0
+
+    while True:
+        resp = (
+            supabase.table('stock')
+            .select('id, container_id')
+            .range(start, start + batch_size - 1)
+            .execute()
+        )
+        data = resp.data or []
+        stock_items.extend(data)
+        if len(data) < batch_size:
+            break  # no more rows
+        start += batch_size
 
     stock_count_by_container = {}
     for item in stock_items:
@@ -46,9 +60,7 @@ def home():
         if cid:
             stock_count_by_container[cid] = stock_count_by_container.get(cid, 0) + 1
 
-    # Attach stock counts to container objects
     for c in containers:
         c['total_stock'] = stock_count_by_container.get(c['id'], 0)
 
     return render_template('home.html', containers=containers)
-
