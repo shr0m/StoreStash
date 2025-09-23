@@ -122,13 +122,19 @@ function filterStockTable() {
 }
 
 // Open Bootstrap modal
-  function openStockModal(type, sizing, currentCategoryId) {
-    document.getElementById('modal-stock-type').value = type;
-    document.getElementById('modal-stock-sizing').value = sizing || '';
-    document.getElementById('modal-category-id').value = currentCategoryId;
-    const modal = new bootstrap.Modal(document.getElementById('stock-modal'));
+  function openStockModal(type, sizing, categoryId) {
+    document.getElementById("modal-stock-type").value = type;
+    document.getElementById("modal-stock-sizing").value = sizing;
+    document.getElementById("modal-stock-category-id").value = categoryId;
+
+    // Reset selects each time
+    document.getElementById("modal-category-id").value = "";
+    document.getElementById("modal-container-id").value = "";
+    document.getElementById("modal-transfer-qty").value = "";
+
+    const modal = new bootstrap.Modal(document.getElementById("stock-modal"));
     modal.show();
-  }
+}
 
 function setQuantity(event, index, parentIndex, type) {
     event.preventDefault();

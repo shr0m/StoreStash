@@ -52,6 +52,7 @@ def dashboard(container_id):
 
     supabase = get_supabase_client()
 
+    # Validate current container
     container_check = supabase.table('containers').select('id, name').eq('id', container_id).execute()
     if not container_check.data:
         flash("Invalid container selected.", "danger")
@@ -59,6 +60,11 @@ def dashboard(container_id):
     
     session['container_id'] = container_id
 
+    # Fetch containers
+    containers_response = supabase.table('containers').select('id, name').order('name').execute()
+    containers = containers_response.data or []
+
+    # Fetch stock for current container
     stock_items = []
     batch_size = 1000
     offset = 0
@@ -133,6 +139,7 @@ def dashboard(container_id):
     return render_template(
         'dashboard.html',
         categories=categories,
+        containers=containers,
         stock_items=stock_summary,
         category_summaries=category_summaries,
         stock_by_category=stock_by_category_serializable,
@@ -316,7 +323,7 @@ def add_category():
     
     if not re.match(r'^[A-Za-z0-9\-\(\)\s]+$', category_name):
         flash("Category names cannot contain forbidden characters.", "danger")
-        return redirect(redirect_to_dashboard())
+        return redirect_to_dashboard()
 
     supabase = get_supabase_client()
 
@@ -363,9 +370,9 @@ def get_stock_overview():
         'total_in_store': total_in_store
     }
 
-@dashboard_bp.route('/update_stock_category', methods=['POST'])
+@dashboard_bp.route('/update_stock_settings', methods=['POST'])
 @limiter.limit("10 per minute")
-def update_stock_category():
+def update_stock_settings():
     if not has_edit_privileges():
         return "Unauthorized", 403
 
@@ -373,62 +380,81 @@ def update_stock_category():
     if redirect_resp:
         return redirect_resp
 
+    # --- Form data ---
     item_type = request.form.get('type')
     sizing_raw = request.form.get('sizing')
     sizing = normalize_sizing(sizing_raw)
     new_category_id = request.form.get('category_id')
+    new_container_id = request.form.get('container_id')
+    transfer_quantity_raw = request.form.get('transfer_quantity')
 
-    if not item_type or not new_category_id:
+    transfer_quantity = int(transfer_quantity_raw) if transfer_quantity_raw else None
+
+    if not item_type:
         flash("Invalid input provided.", "danger")
-        return redirect(redirect_to_dashboard())
+        return redirect_to_dashboard()
 
     supabase = get_supabase_client()
 
-    stock_query = supabase.table('stock').select('id, category_id').eq('type', item_type)
+    # --- Fetch all matching stock items ---
+    stock_query = supabase.table('stock').select('*').eq('type', item_type)
     stock_query = stock_query.is_('sizing', None) if sizing is None else stock_query.eq('sizing', sizing)
     stock_result = stock_query.execute()
     stock_items = stock_result.data or []
-    old_category_ids = {item['category_id'] for item in stock_items if item.get('category_id')}
 
-    stock_updated = False
-    if stock_items:
-        update_stock_query = supabase.table('stock')\
-            .update({'category_id': new_category_id})\
-            .eq('type', item_type)
-        update_stock_query = update_stock_query.is_('sizing', None) if sizing is None else update_stock_query.eq('sizing', sizing)
-        stock_update_result = update_stock_query.execute()
-        stock_updated = bool(stock_update_result.data)
+    if not stock_items:
+        flash("No matching stock items found.", "info")
+        return redirect_to_dashboard()
 
-    issued_items_updated = False
-    issued_items_found = False
-    if old_category_ids:
-        for cat_id in old_category_ids:
-            issued_check = supabase.table('issued_stock').select('id').eq('category_id', cat_id).execute()
-            issued_matches = issued_check.data or []
-            if issued_matches:
-                issued_items_found = True
-                update_issued = supabase.table('issued_stock')\
-                    .update({'category_id': new_category_id})\
-                    .eq('category_id', cat_id).execute()
-                if update_issued.data:
-                    issued_items_updated = True
+    current_category_id = stock_items[0].get('category_id')
 
-    if not stock_items and not issued_items_found:
-        flash("No matching stock or issued items found to update.", "info")
-    elif stock_items and not stock_updated:
-        flash("Failed to update stock category.", "danger")
-    elif issued_items_found and not issued_items_updated:
-        flash("Stock updated, but failed to update issued items.", "warning")
-    else:
-        flash("Category updated successfully for stock and issued items.", "success")
+    # --- Update category if requested ---
+    if new_category_id and new_category_id != current_category_id:
+        for item in stock_items:
+            supabase.table('stock').update({'category_id': new_category_id}).eq('id', item['id']).execute()
 
-    return redirect(redirect_to_dashboard())
+        # Also update issued_stock to keep consistency
+        issued_matches = supabase.table('issued_stock').select('id').eq('category_id', current_category_id).execute()
+        if issued_matches.data:
+            supabase.table('issued_stock').update({'category_id': new_category_id}).eq('category_id', current_category_id).execute()
+
+    # --- Handle container transfer ---
+    current_container_id = session.get('container_id')
+
+    if new_container_id and new_container_id != current_container_id:
+        items_in_container = [i for i in stock_items if i.get('container_id') == current_container_id]
+
+        if transfer_quantity and transfer_quantity > 0:
+            if transfer_quantity > len(items_in_container):
+                flash("Not enough items to transfer.", "danger")
+                return redirect_to_dashboard()
+
+            items_to_transfer = items_in_container[:transfer_quantity]
+
+            for item in items_to_transfer:
+                # Remove from current container
+                supabase.table('stock').delete().eq('id', item['id']).execute()
+
+                # Insert into target container
+                supabase.table('stock').insert({
+                    'type': item_type,
+                    'sizing': sizing,
+                    'category_id': new_category_id or current_category_id,
+                    'container_id': new_container_id
+                }).execute()
+        else:
+            # Full transfer
+            for item in items_in_container:
+                supabase.table('stock').update({'container_id': new_container_id}).eq('id', item['id']).execute()
+
+    flash("Stock settings updated successfully.", "success")
+    return redirect_to_dashboard()
 
 @dashboard_bp.route('/delete_category/<string:category_id>', methods=['POST'])
 @limiter.limit("30 per minute")
 def delete_category(category_id):
     if session.get('privilege') not in ['admin', 'edit']:
-        return redirect(redirect_to_dashboard())
+        return redirect_to_dashboard()
 
     supabase = get_supabase_client()
 
@@ -441,7 +467,7 @@ def delete_category(category_id):
         
         if linked.data:
             flash('Category is in use and cannot be deleted.', 'warning')
-            return redirect(redirect_to_dashboard())
+            return redirect_to_dashboard()
 
         # Delete the category
         supabase.table('categories')\
@@ -454,7 +480,7 @@ def delete_category(category_id):
         print(f"Error deleting category: {e}")
         flash('An error occurred while deleting the category.', 'danger')
 
-    return redirect(redirect_to_dashboard())
+    return redirect_to_dashboard()
 
 @dashboard_bp.route('/dashboard')
 @limiter.limit("50 per minute")

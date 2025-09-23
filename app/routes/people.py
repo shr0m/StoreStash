@@ -31,11 +31,16 @@ def people():
 
     grouped_stock = {}
     for item in stock_data:
-        key = (item.get('type'), item.get('sizing'))
+        key = (item.get('type'), item.get('sizing'), item.get('container_id'))
         grouped_stock[key] = grouped_stock.get(key, 0) + 1
 
     stock_items = [
-        {'type': k[0], 'sizing': k[1], 'count': v, 'container_id': next((i['container_id'] for i in stock_data if i.get('type') == k[0] and i.get('sizing') == k[1]), None)}
+        {
+            'type': k[0],
+            'sizing': k[1],
+            'container_id': k[2],
+            'count': v
+        }
         for k, v in grouped_stock.items()
         if v > 0
     ]
