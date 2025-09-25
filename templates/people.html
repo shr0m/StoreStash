@@ -33,10 +33,10 @@
             {% endif %}
         </ul>
         <ul class="navbar-nav">
-            <li class="nav-item"><a class="nav-link" href="/support"><i class="fa-solid fa-circle-question me-1"></i>Support</a></li>
-            <li class="nav-item"><a class="nav-link" href="/settings"><i class="fas fa-cog me-1"></i>Settings</a></li>
+            <li class="nav-item"><a class="nav-link" href="/support"><i class="fa-solid fa-circle-question me-1"></i></a></li>
+            <li class="nav-item"><a class="nav-link" href="/settings"><i class="fas fa-cog me-1"></i></a></li>
             {% if 'user_id' in session %}
-                <li class="nav-item"><a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>Logout</a></li>
+                <li class="nav-item"><a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt me-1"></i></a></li>
             {% endif %}
         </ul>
     </div>
@@ -168,176 +168,204 @@
                 </div>
 
                 <h2 class="h5">People List</h2>
-                <div id="personCardList" class="d-flex flex-column gap-3">
-                    {% for person in people %}
-                    <div class="card person-card shadow-sm" data-name="{{ person.name | lower }}" data-person-id="{{ person.id }}">
-                        <div class="card-body d-flex justify-content-between align-items-center" data-bs-toggle="modal" data-bs-target="#modal-{{ loop.index }}">
-                            <div>
-                                <h5 class="card-title mb-0">{{ person.rank }}</h5>
-                                <p class="mb-0">{{ person.name }}</p>
+                <!-- Container for cards -->
+                <section id="personCardList" class="container">
+                    <div class="row g-3">
+                        {% for person in people %}
+                        <div class="col-12">
+                            <div class="card person-card shadow-sm h-100" 
+                                data-name="{{ person.name | lower }}" 
+                                data-person-id="{{ person.id }}">
+                                <div class="card-body d-flex justify-content-between align-items-center"
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#modal-{{ loop.index }}">
+                                    <div>
+                                        <h5 class="card-title mb-0">{{ person.rank }}</h5>
+                                        <p class="mb-0">{{ person.name }}</p>
+                                    </div>
+
+                                    <!-- Labels -->
+                                    <div class="d-flex flex-wrap gap-1 mt-1 ms-3 badge-container">
+                                        {% for label in person.assigned_labels %}
+                                            <span class="badge bg-{{ label.colour }}" data-label-id="label-{{ label.id }}">
+                                                {{ label.name }}
+                                            </span>
+                                        {% endfor %}
+                                    </div>
+
+                                    <i class="fas fa-chevron-right"></i>
+                                </div>
                             </div>
 
-                            <!-- Ensure badge container exists even if empty -->
-                            <div class="d-flex flex-wrap gap-1 mt-1 ms-3 badge-container">
-                                {% for label in person.assigned_labels %}
-                                    <span class="badge bg-{{ label.colour }}" data-label-id="label-{{ label.id }}">{{ label.name }}</span>
-                                {% endfor %}
-                            </div>
+                            <!-- Modal for viewing items -->
+                            <div class="modal fade" id="modal-{{ loop.index }}" tabindex="-1" aria-labelledby="modalLabel-{{ loop.index }}" aria-hidden="true">
+                                <div class="modal-dialog modal-xl modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header align-items-start">
+                                            <h5 class="modal-title" id="modalLabel-{{ loop.index }}">{{ person.rank }} {{ person.name }}</h5>
+                                            <div class="d-flex align-items-center ms-auto">
 
-                            <i class="fas fa-chevron-right"></i>
-                        </div>
-                    </div>
+                                                <!-- Label Assignment Dropdown -->
+                                                <div class="dropdown me-2">
+                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="labelDropdown-{{ loop.index }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                                        <i class="fa-solid fa-tag"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-end p-2" aria-labelledby="labelDropdown-{{ loop.index }}">
+                                                        {% if all_labels %}
+                                                            {% for label in all_labels %}
+                                                                {% set is_assigned = label.id in person.assigned_labels | map(attribute='id') | list %}
+                                                                <li class="mb-1">
+                                                                    <button class="btn btn-sm w-100 text-start {% if is_assigned %}btn-{{ label.colour }}{% else %}btn-outline-{{ label.colour }}{% endif %}"
+                                                                            onclick="toggleLabel('{{ person.id }}', '{{ label.id }}', this)">
+                                                                        {{ label.name }}
+                                                                    </button>
+                                                                </li>
+                                                            {% endfor %}
+                                                        {% else %}
+                                                            <li class="text-muted px-2">No existing labels</li>
+                                                        {% endif %}
+                                                    </ul>
+                                                </div>
 
-                    <!-- Modal for viewing items -->
-                    <div class="modal fade" id="modal-{{ loop.index }}" tabindex="-1" aria-labelledby="modalLabel-{{ loop.index }}" aria-hidden="true">
-                        <div class="modal-dialog modal-xl modal-dialog-centered">
-                            <div class="modal-content">
-                                <div class="modal-header align-items-start">
-                                    <h5 class="modal-title" id="modalLabel-{{ loop.index }}">{{ person.rank }} {{ person.name }}</h5>
-                                    <div class="d-flex align-items-center ms-auto">
-
-                                        <!-- Label Assignment Dropdown -->
-                                        <div class="dropdown me-2">
-                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="labelDropdown-{{ loop.index }}" data-bs-toggle="dropdown" aria-expanded="false">
-                                                <i class="fa-solid fa-tag"></i>
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end p-2" aria-labelledby="labelDropdown-{{ loop.index }}">
-                                                {% if all_labels %}
-                                                    {% for label in all_labels %}
-                                                        {% set is_assigned = label.id in person.assigned_labels | map(attribute='id') | list %}
-                                                        <li class="mb-1">
-                                                            <button class="btn btn-sm w-100 text-start {% if is_assigned %}btn-{{ label.colour }}{% else %}btn-outline-{{ label.colour }}{% endif %}"
-                                                                    onclick="toggleLabel('{{ person.id }}', '{{ label.id }}', this)">
-                                                                {{ label.name }}
+                                                {% if session.get('privilege') in ['admin', 'edit'] %}
+                                                <div class="dropdown me-2">
+                                                    <button class="btn btn-sm btn-outline-secondary" type="button" id="dropdownMenuButton-{{ loop.index }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                                        <i class="fa-solid fa-ellipsis"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton-{{ loop.index }}">
+                                                        <li>
+                                                            <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#editPersonModal-{{ loop.index }}">
+                                                                <i class="fas fa-edit me-2"></i>Edit Person
                                                             </button>
                                                         </li>
-                                                    {% endfor %}
-                                                {% else %}
-                                                    <li class="text-muted px-2">No existing labels</li>
+                                                        <li>
+                                                            <button class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal-{{ loop.index }}">
+                                                                <i class="fas fa-trash-alt me-2"></i>Delete Person
+                                                            </button>
+                                                        </li>
+                                                    </ul>
+                                                </div>
                                                 {% endif %}
-                                            </ul>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
                                         </div>
 
-                                        {% if session.get('privilege') in ['admin', 'edit'] %}
-                                        <div class="dropdown me-2">
-                                            <button class="btn btn-sm btn-outline-secondary" type="button" id="dropdownMenuButton-{{ loop.index }}" data-bs-toggle="dropdown" aria-expanded="false">
-                                                <i class="fa-solid fa-ellipsis"></i>
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton-{{ loop.index }}">
-                                                <li>
-                                                    <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#editPersonModal-{{ loop.index }}">
-                                                        <i class="fas fa-edit me-2"></i>Edit Person
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal-{{ loop.index }}">
-                                                        <i class="fas fa-trash-alt me-2"></i>Delete Person
-                                                    </button>
-                                                </li>
-                                            </ul>
+                                        <div class="modal-body">
+                                            {% if person.issued_items %}
+                                            <table class="table table-bordered align-middle text-center">
+                                                <thead class="bg-primary text-white bg-opacity-75">
+                                                    <tr>
+                                                        <th>Item</th>
+                                                        <th>Sizing</th>
+                                                        <th>Issued Quantity</th>
+                                                        <th>Notes</th>
+                                                        {% if session.get('privilege') in ['admin', 'edit'] %}
+                                                        <th>Actions</th>
+                                                        {% endif %}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for item in person.issued_items %}
+                                                    <tr>
+                                                        <td>{{ item.type }}</td>
+                                                        <td>{{ item.sizing }}</td>
+                                                        <td>{{ item.quantity }}</td>
+                                                        <td>{{ item.note }}</td>
+
+                                                        {% if session.get('privilege') in ['admin', 'edit'] %}
+                                                        <td class="text-nowrap">
+                                                            <form method="POST" action="/process_item" class="d-flex flex-column flex-sm-row align-items-sm-center gap-2">
+                                                                <input type="number" class="form-control" name="quantity" min="1" max="{{ item.quantity }}" value="1" required style="width: 80px;" placeholder="Qty">
+                                                                <select name="container_id" class="form-select d-inline-block" style="width: 150px;">
+                                                                    <option value="" disabled selected>Container</option>
+                                                                    {% for container in containers %}
+                                                                    <option value="{{ container.id }}">{{ container.name }}</option>
+                                                                    {% endfor %}
+                                                                </select>
+                                                                <button type="submit" class="btn btn-sm btn-outline-success" name="action" value="return">Return to Stock</button>
+                                                                <button type="submit" class="btn btn-sm btn-outline-danger" name="action" value="lost">Mark as Lost</button>
+                                                                <input type="hidden" name="person_name" value="{{ person.name }}">
+                                                                <input type="hidden" name="item_type" value="{{ item.type }}">
+                                                                <input type="hidden" name="sizing" value="{{ item.sizing }}">
+                                                            </form>
+                                                        </td>
+                                                        {% endif %}
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                            {% else %}
+                                            <p>No items assigned.</p>
+                                            {% endif %}
                                         </div>
-                                        {% endif %}
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                     </div>
                                 </div>
+                            </div>
 
-                                <div class="modal-body">
-                                    {% if person.issued_items %}
-                                    <table class="table table-bordered align-middle text-center">
-                                        <thead class="bg-primary text-white bg-opacity-75">
-                                            <tr>
-                                                <th>Item</th>
-                                                <th>Sizing</th>
-                                                <th>Issued Quantity</th>
-                                                <th>Notes</th>
-                                                {% if session.get('privilege') in ['admin', 'edit'] %}
-                                                <th>Select Quantity</th>
-                                                <th>Actions</th>
-                                                {% endif %}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for item in person.issued_items %}
-                                            <tr>
-                                                <td>{{ item.type }}</td>
-                                                <td>{{ item.sizing }}</td>
-                                                <td>{{ item.quantity }}</td>
-                                                <td>{{ item.note }}</td>
-
-                                                {% if session.get('privilege') in ['admin', 'edit'] %}
-                                                <!-- Quantity input field -->
-                                                <td>
-                                                    <input type="number" class="form-control"
-                                                        name="quantity"
-                                                        id="qty-{{ person.name | replace(' ', '-') }}-{{ loop.index0 }}"
-                                                        min="1"
-                                                        max="{{ item.quantity }}"
-                                                        value="1"
-                                                        required>
-                                                </td>
-
-                                                <!-- Action buttons and forms -->
-                                                <td class="text-nowrap">
-                                                    <!-- Return Form -->
-                                                    <form method="POST" action="/return_item" class="d-inline">
-                                                        <input type="hidden" name="person_name" value="{{ person.name }}">
-                                                        <input type="hidden" name="item_type" value="{{ item.type }}">
-                                                        <input type="hidden" name="sizing" value="{{ item.sizing }}">
-                                                        <input type="hidden" name="quantity" id="return-hidden-{{ person.name | replace(' ', '-') }}-{{ loop.index0 }}">
-                                                        <button type="submit" class="btn btn-sm btn-outline-success"
-                                                                onclick="setQuantity(event, '{{ person.name | replace(' ', '-') }}', '{{ loop.index0 }}', 'return')">
-                                                            Return to Stock
-                                                        </button>
-                                                    </form>
-
-                                                    <!-- Lost Form -->
-                                                    <form method="POST" action="/mark_lost" class="d-inline">
-                                                        <input type="hidden" name="person_name" value="{{ person.name }}">
-                                                        <input type="hidden" name="item_type" value="{{ item.type }}">
-                                                        <input type="hidden" name="sizing" value="{{ item.sizing }}">
-                                                        <input type="hidden" name="quantity" id="lost-hidden-{{ person.name | replace(' ', '-') }}-{{ loop.index0 }}">
-                                                        <button type="submit" class="btn btn-sm btn-outline-danger"
-                                                                onclick="setQuantity(event, '{{ person.name | replace(' ', '-') }}', '{{ loop.index0 }}', 'lost')">
-                                                            Mark as Lost
-                                                        </button>
-                                                    </form>
-                                                </td>
-                                                {% endif %}
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                    {% else %}
-                                    <p>No items assigned.</p>
-                                    {% endif %}
+                            <!-- Confirm Delete Modal -->
+                            <div class="modal fade" id="confirmDeleteModal-{{ loop.index }}" tabindex="-1" aria-labelledby="confirmDeleteLabel-{{ loop.index }}" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">    
+                                    <div class="modal-content border-danger">
+                                        <div class="modal-header bg-danger text-white">
+                                            <h5 class="modal-title" id="confirmDeleteLabel-{{ loop.index }}">Confirm Deletion</h5>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            Are you sure you want to delete <strong>{{ person.rank }} {{ person.name }}</strong>? This action cannot be undone.
+                                        </div>
+                                        <div class="modal-footer">
+                                            <form method="POST" action="/delete_person">
+                                                <input type="hidden" name="name" value="{{ person.name }}">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="btn btn-danger">Delete</button>
+                                            </form>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
 
-                    <!-- Confirm Delete Modal -->
-                    <div class="modal fade" id="confirmDeleteModal-{{ loop.index }}" tabindex="-1" aria-labelledby="confirmDeleteLabel-{{ loop.index }}" aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered">    
-                            <div class="modal-content border-danger">
-                                <div class="modal-header bg-danger text-white">
-                                    <h5 class="modal-title" id="confirmDeleteLabel-{{ loop.index }}">Confirm Deletion</h5>
-                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    Are you sure you want to delete <strong>{{ person.rank }} {{ person.name }}</strong>? This action cannot be undone.
-                                </div>
-                                <div class="modal-footer">
-                                    <form method="POST" action="/delete_person">
-                                        <input type="hidden" name="name" value="{{ person.name }}">
-                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                        <button type="submit" class="btn btn-danger">Delete</button>
-                                    </form>
+                            <!-- Edit Person Modal -->
+                            <div class="modal fade" id="editPersonModal-{{ loop.index }}" tabindex="-1" aria-labelledby="editPersonLabel-{{ loop.index }}" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <form method="POST" action="/edit_person">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="editPersonLabel-{{ loop.index }}">Edit Person</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <input type="hidden" name="original_name" value="{{ person.name }}">
+                                                <div class="mb-3">
+                                                    <label for="editRank-{{ loop.index }}" class="form-label">Rank</label>
+                                                    <select class="form-select" id="editRank-{{ loop.index }}" name="rank" required>
+                                                        <option value="Cadet" {% if person.rank == 'Cadet' %}selected{% endif %}>Cadet</option>
+                                                        <option value="Corporal" {% if person.rank == 'Corporal' %}selected{% endif %}>Corporal</option>
+                                                        <option value="Sergeant" {% if person.rank == 'Sergeant' %}selected{% endif %}>Sergeant</option>
+                                                        <option value="Flight Sergeant" {% if person.rank == 'Flight Sergeant' %}selected{% endif %}>Flight Sergeant</option>
+                                                        <option value="Cadet Warrant Officer" {% if person.rank == 'Cadet Warrant Officer' %}selected{% endif %}>Cadet Warrant Officer</option>
+                                                    </select>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label for="editName-{{ loop.index }}" class="form-label">Name</label>
+                                                    <input type="text" class="form-control" id="editName-{{ loop.index }}" name="name" value="{{ person.name }}" required>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                                            </div>
+                                        </form>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
 
-                    <!-- Add Person Modal -->
+                        </div> <!-- End col -->
+                        {% endfor %}
+                    </div> <!-- End row -->
+                </section>
+
+                
+                <!-- Add Person Modal -->
                     <div class="modal fade" id="addPersonModal" tabindex="-1" aria-labelledby="addPersonModalLabel" aria-hidden="true">
                     <div class="modal-dialog">
                         <div class="modal-content">
@@ -381,6 +409,17 @@
                         </div>
                         <div class="modal-body">
                             <form method="POST" action="/assign_item" class="row g-3">
+                            
+                            <!-- Container Selector -->
+                            <div class="col-12">
+                                <select id="containerSelect" name="container_id" class="form-select" required>
+                                <option value="" selected disabled>Container</option>
+                                {% for container in containers %}
+                                    <option value="{{ container.id }}">{{ container.name }}</option>
+                                {% endfor %}
+                                </select>
+                            </div>
+
 
                             <!-- Person Selector -->
                             <div class="col-12">
@@ -431,43 +470,6 @@
                             </form>
                     </div>
                     </div>
-
-                    <!-- Edit Person Modal -->
-                    <div class="modal fade" id="editPersonModal-{{ loop.index }}" tabindex="-1" aria-labelledby="editPersonLabel-{{ loop.index }}" aria-hidden="true">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-                        <form method="POST" action="/edit_person">
-                            <div class="modal-header">
-                            <h5 class="modal-title" id="editPersonLabel-{{ loop.index }}">Edit Person</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                            <input type="hidden" name="original_name" value="{{ person.name }}">
-                            <div class="mb-3">
-                                <label for="editRank-{{ loop.index }}" class="form-label">Rank</label>
-                                <select class="form-select" id="editRank-{{ loop.index }}" name="rank" required>
-                                <option value="Cadet" {% if person.rank == 'Cadet' %}selected{% endif %}>Cadet</option>
-                                <option value="Corporal" {% if person.rank == 'Corporal' %}selected{% endif %}>Corporal</option>
-                                <option value="Sergeant" {% if person.rank == 'Sergeant' %}selected{% endif %}>Sergeant</option>
-                                <option value="Flight Sergeant" {% if person.rank == 'Flight Sergeant' %}selected{% endif %}>Flight Sergeant</option>
-                                <option value="Cadet Warrant Officer" {% if person.rank == 'Cadet Warrant Officer' %}selected{% endif %}>Cadet Warrant Officer</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label for="editName-{{ loop.index }}" class="form-label">Name</label>
-                                <input type="text" class="form-control" id="editName-{{ loop.index }}" name="name" value="{{ person.name }}" required>
-                            </div>
-                            </div>
-                            <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-primary">Save Changes</button>
-                            </div>
-                        </form>
-                        </div>
-                    </div>
-                    </div>
-                    {% endfor %}
-                </div>  
             </section>
         </div>
     </div>
@@ -479,17 +481,18 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
+
     // --- Person Search ---
     const personInput = document.getElementById("personSearch");
     const personDropdown = document.getElementById("personDropdown");
     const hiddenPerson = document.getElementById("selectedPerson");
 
-    // Store all people in memory
     const people = Array.from(personDropdown.querySelectorAll(".dropdown-item"))
         .map(item => item.getAttribute("data-name"));
 
     function updatePersonDropdown(query) {
-        personDropdown.innerHTML = ""; // clear
+        personDropdown.innerHTML = "";
+
         const matches = people.filter(name =>
             name.toLowerCase().includes(query.toLowerCase())
         );
@@ -520,18 +523,28 @@ document.addEventListener("DOMContentLoaded", () => {
     const selectedItemType = document.getElementById("selectedItemType");
     const selectedSizing = document.getElementById("selectedSizing");
 
-    // Store all stock items in memory
-    const stockItems = Array.from(itemDropdown.querySelectorAll(".dropdown-item")).map(option => ({
-        type: option.getAttribute("data-type"),
-        sizing: option.getAttribute("data-sizing") || "N/A",
-        label: option.textContent.trim()
-    }));
+    const containerSelect = document.getElementById("containerSelect");
+
+    // Store all stock items in memory with container info
+    const stockItems = Array.from(itemDropdown.querySelectorAll("li")).map(li => {
+        const link = li.querySelector("a");
+        return {
+            type: link.getAttribute("data-type"),
+            sizing: link.getAttribute("data-sizing") || "N/A",
+            label: link.textContent.trim(),
+            container_id: li.getAttribute("data-container")
+        };
+    });
 
     function updateItemDropdown(query) {
+        const selectedContainer = containerSelect.value;
         itemDropdown.innerHTML = ""; // clear
+
         const matches = stockItems.filter(item =>
-            item.label.toLowerCase().includes(query.toLowerCase())
+            item.label.toLowerCase().includes(query.toLowerCase()) &&
+            (!selectedContainer || item.container_id === selectedContainer)
         );
+
         matches.forEach(item => {
             const li = document.createElement("li");
             li.innerHTML = `
@@ -552,9 +565,30 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     itemInput.addEventListener("input", () => updateItemDropdown(itemInput.value));
+
+    // Refilter when container changes
+    containerSelect.addEventListener("change", () => {
+        if (itemInput.value) updateItemDropdown(itemInput.value);
+    });
+
     document.addEventListener("click", e => {
         if (!itemDropdown.contains(e.target) && e.target !== itemInput) {
             itemDropdown.classList.remove("show");
+        }
+    });
+
+    document.querySelectorAll("form[action='/process_item']").forEach(form => {
+        const containerSelect = form.querySelector("select[name='container_id']");
+        const returnBtn = form.querySelector("button[name='action'][value='return']");
+        const lostBtn = form.querySelector("button[name='action'][value='lost']");
+
+        if (containerSelect && returnBtn && lostBtn) {
+            returnBtn.addEventListener("click", () => {
+                containerSelect.required = true;
+            });
+            lostBtn.addEventListener("click", () => {
+                containerSelect.required = false;
+            });
         }
     });
 

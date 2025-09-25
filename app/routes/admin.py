@@ -31,7 +31,10 @@ def admin():
     privilege_order = {'admin': 0, 'edit': 1, 'view': 2}
     sorted_users = sorted(users, key=lambda u: privilege_order.get(u.get('privilege'), 99))
 
-    return render_template('admin.html', users=sorted_users)
+    containers_resp = supabase.table('containers').select('name').execute()
+    containers = containers_resp.data or []
+
+    return render_template('admin.html', users=sorted_users, containers=containers)
 
 
 @admin_bp.route('/send_otp', methods=['POST'])
@@ -91,7 +94,7 @@ def send_otp_route():
 def update_users():
     if not is_admin():
         flash("Unauthorized action", "danger")
-        return redirect(url_for('dashboard.dashboard'))
+        return redirect(url_for('home.home'))
 
     redirect_resp = redirect_if_password_change_required()
     if redirect_resp:
@@ -169,3 +172,118 @@ def update_users():
         return redirect(url_for('auth.login'))
 
     return redirect(url_for('admin.admin'))
+
+@admin_bp.route('/add_container', methods=['POST'])
+@limiter.limit("10 per minute")
+def add_container():
+    if not is_admin():
+        flash("Unauthorized action.", "danger")
+        return redirect(url_for('home.home'))
+
+    redirect_resp = redirect_if_password_change_required()
+    if redirect_resp:
+        return redirect_resp
+
+    name = request.form.get('container_name')
+    if not name:
+        flash("Container name cannot be empty.", "danger")
+        return redirect(url_for('admin.admin'))
+
+    supabase = get_supabase_client()
+    supabase.table('containers').insert({'name': name}).execute()
+
+    flash(f"Container '{name}' added successfully!", "success")
+    return redirect(url_for('admin.admin'))
+
+@admin_bp.route('/delete_container', methods=['POST'])
+@limiter.limit("10 per minute")
+def delete_container():
+    if not is_admin():
+        flash("Unauthorized action.", "danger")
+        return redirect(url_for('home.home'))
+    
+    redirect_resp = redirect_if_password_change_required()
+    if redirect_resp:
+        return redirect_resp
+
+    name = request.form.get('container_name')
+    if not name:
+        flash("Invalid request", "danger")
+        return redirect(url_for('admin.admin'))
+    
+    supabase = get_supabase_client()
+    
+    try:
+        container_data = supabase.table('containers').select('id').eq('name', name).execute()
+        if not container_data.data:
+            flash(f"No container found with name '{name}'.", "danger")
+            return redirect(url_for('admin.admin'))
+
+        container_id = container_data.data[0]['id']
+
+        supabase.table('stock').delete().eq('container_id', container_id).execute()
+        supabase.table('containers').delete().eq('id', container_id).execute()
+
+        flash("Container and stored items were deleted", "success")
+
+    except Exception as e:
+        flash(f"Error deleting '{name}': {str(e)}", "danger")
+    
+    return redirect(url_for('admin.admin'))
+
+@admin_bp.route('/edit_container', methods=['POST'])
+@limiter.limit("30 per minute")
+def edit_container():
+    if not is_admin():
+        flash("Unauthorized action.", "danger")
+        return redirect(url_for('home.home'))
+    
+    redirect_resp = redirect_if_password_change_required()
+    if redirect_resp:
+        return redirect_resp
+
+    # Current + new name
+    current_name = request.form.get('container_name')
+    new_name = request.form.get('new_container_name')
+
+    if not current_name or not new_name:
+        flash("Invalid request.", "danger")
+        return redirect(url_for('admin.admin'))
+
+    supabase = get_supabase_client()
+
+    try:
+        # Fetch container by current name
+        container_data = (
+            supabase.table('containers')
+            .select('id')
+            .eq('name', current_name)
+            .execute()
+        )
+
+        if not container_data.data:
+            flash(f"No container found with name '{current_name}'.", "danger")
+            return redirect(url_for('admin.admin'))
+
+        container_id = container_data.data[0]['id']
+
+        # Check if new name already exists
+        existing = (
+            supabase.table('containers')
+            .select('id')
+            .eq('name', new_name)
+            .execute()
+        )
+        if existing.data:
+            flash(f"A container with the name '{new_name}' already exists.", "warning")
+            return redirect(url_for('admin.admin'))
+
+        # Perform update
+        supabase.table('containers').update({"name": new_name}).eq('id', container_id).execute()
+
+        flash(f"Container '{current_name}' renamed to '{new_name}'.", "success")
+        return redirect(url_for('admin.admin'))
+
+    except Exception as e:
+        flash(f"Error updating container: {str(e)}", "danger")
+        return redirect(url_for('admin.admin'))

@@ -33,10 +33,10 @@
             {% endif %}
         </ul>
         <ul class="navbar-nav">
-            <li class="nav-item"><a class="nav-link" href="/support"><i class="fa-solid fa-circle-question me-1"></i>Support</a></li>
-            <li class="nav-item"><a class="nav-link" href="/settings"><i class="fas fa-cog me-1"></i>Settings</a></li>
+            <li class="nav-item"><a class="nav-link" href="/support"><i class="fa-solid fa-circle-question me-1"></i></a></li>
+            <li class="nav-item"><a class="nav-link" href="/settings"><i class="fas fa-cog me-1"></i></a></li>
             {% if 'user_id' in session %}
-                <li class="nav-item"><a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>Logout</a></li>
+                <li class="nav-item"><a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt me-1"></i></a></li>
             {% endif %}
         </ul>
     </div>
@@ -61,9 +61,10 @@
     {% endwith %}
 
     <div class="row">
-        <!-- Add User Section -->
+        <!-- Left column: Add User + Control Panel -->
         <div class="col-md-4 mb-4">
-            <div class="card shadow-sm">
+            <!-- Add User Section -->
+            <div class="card shadow-sm mb-4">
                 <div class="card-body">
                     <h5 class="card-title mb-3"><i class="fa-solid fa-user-plus me-2"></i>Add Users</h5>
                     <form action="/send_otp" method="POST" class="row g-2">
@@ -89,9 +90,59 @@
                     </form>
                 </div>
             </div>
+
+            <!-- Container Section -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="card-title mb-0">
+                        <i class="fa-solid fa-boxes-stacked"></i> Containers
+                    </h5>
+                    <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addContainerModal">
+                        <i class="fa-solid fa-plus me-1"></i> Add Container
+                    </button>
+                    </div>
+
+                    <!-- Container List -->
+                    {% if containers %}
+                    <div class="table-responsive">
+                    <table class="table table-bordered align-middle table-hover">
+                        <thead class="bg-secondary bg-opacity-25">
+                        <tr>
+                            <th>Container Name</th>
+                            <th style="width: 120px;">Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for container in containers %}
+                        <tr>
+                            <td>{{ container.name }}</td>
+                            <td class="text-center">
+                            <button class="btn btn-danger btn-sm"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#deleteContainerModal"
+                                    data-container="{{ container.name }}">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                            <button class="btn btn-secondary btn-sm"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#containerSettingsModal"
+                                    data-container="{{ container.name }}">
+                                <i class="fa-solid fa-gear"></i>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted fst-italic">No containers available.</p>
+                    {% endif %}
+                </div>
+            </div>
         </div>
 
-        <!-- User Table Section -->
+        <!-- Right column: User Table -->
         <div class="col-md-8">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="mb-0"><i class="fa-solid fa-users me-2"></i>Current Users</h5>
@@ -164,9 +215,106 @@
   </div>
 </div>
 
+<!-- Add Container Modal -->
+<div class="modal fade" id="addContainerModal" tabindex="-1" aria-labelledby="addContainerModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-body text-body shadow-lg">
+      <div class="modal-header border-2 border-bottom">
+        <h5 class="modal-title" id="addContainerModalLabel">
+          <i class="fa-solid fa-plus me-2 text-primary"></i>Add New Container
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="{{ url_for('admin.add_container') }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Container Name</label>
+            <input type="text" name="container_name" class="form-control" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-success">Add Container</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Container Modal -->
+<div class="modal fade" id="deleteContainerModal" tabindex="-1" aria-labelledby="deleteContainerModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-body text-body shadow-lg">
+      <div class="modal-header border-2 border-bottom">
+        <h5 class="modal-title" id="deleteContainerModalLabel">Delete Container</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="{{ url_for('admin.delete_container') }}">
+        <div class="modal-body">
+          <p class="mb-2">
+            Are you sure you want to delete container <strong id="containerToDelete"></strong>?
+          </p>
+          <p class="text-danger fw-bold mb-3">
+            Deleting a container will also delete <u>all items</u> stored inside it. This action cannot be undone.
+          </p>
+          <div class="mb-3">
+            <label for="confirmContainerName" class="form-label">Type the container name to confirm:</label>
+            <input type="text" id="confirmContainerName" class="form-control" placeholder="Enter container name">
+          </div>
+          <input type="hidden" name="container_name" id="containerNameInput">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger" id="deleteContainerBtn" disabled>Delete Container</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Container Settings Modal -->
+<div class="modal fade" id="containerSettingsModal" tabindex="-1" aria-labelledby="containerSettingsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-body text-body shadow-lg">
+      <div class="modal-header border-2 border-bottom">
+        <h5 class="modal-title" id="containerSettingsModalLabel">
+          <i class="fa-solid fa-gear me-2 text-secondary"></i>Container Settings
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="{{ url_for('admin.edit_container') }}">
+        <div class="modal-body">
+          <input type="hidden" name="container_name" id="settingsOldName">
+
+          <div class="mb-3">
+            <label for="settingsNewName" class="form-label">New Container Name</label>
+            <input type="text" name="new_container_name" id="settingsNewName" class="form-control" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- JavaScript -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    const containerSettingsModal = document.getElementById('containerSettingsModal');
+    const settingsOldNameInput = document.getElementById('settingsOldName');
+    const settingsNewNameInput = document.getElementById('settingsNewName');
+
+    containerSettingsModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const containerName = button.getAttribute('data-container');
+
+        settingsOldNameInput.value = containerName;
+        settingsNewNameInput.value = containerName;
+    });
+
+
     function filterUserTable() {
         const input = document.getElementById("stock-search");
         const filter = input.value.toLowerCase();
@@ -184,7 +332,6 @@
                     break;
                 }
             }
-
             row.style.display = matchFound ? "" : "none";
         }
     }
@@ -210,6 +357,36 @@
         confirmModal.hide();
         updateForm.submit();
     });
+
+
+
+    const deleteContainerModal = document.getElementById('deleteContainerModal');
+    const containerToDeleteEl = document.getElementById('containerToDelete');
+    const containerNameInput = document.getElementById('containerNameInput');
+    const confirmContainerNameInput = document.getElementById('confirmContainerName');
+    const deleteBtn = document.getElementById('deleteContainerBtn');
+    // When modal is shown, populate container name
+    deleteContainerModal.addEventListener('show.bs.modal', function (event) {
+    const button = event.relatedTarget;
+    const containerName = button.getAttribute('data-container');
+
+    containerToDeleteEl.textContent = containerName;
+    containerNameInput.value = containerName;
+
+    // Reset input and button state
+    confirmContainerNameInput.value = '';
+    deleteBtn.disabled = true;
+    });
+
+    // Enable delete button only when input matches container name
+    confirmContainerNameInput.addEventListener('input', function() {
+    if (confirmContainerNameInput.value === containerNameInput.value) {
+        deleteBtn.disabled = false;
+    } else {
+        deleteBtn.disabled = true;
+    }
+    });
 </script>
+
 </body>
 </html>

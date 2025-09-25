@@ -56,11 +56,10 @@ function removeQuantity(button) {
 function prepareUpdateData(event) {
     const rows = document.querySelectorAll("tbody tr");
     const data = [];
-    let hasChanges = false;
 
     rows.forEach(row => {
-        const type = row.querySelector("td:nth-child(2)").innerText.trim();     // Name/Type
-        const sizing = row.querySelector("td:nth-child(3)").innerText.trim();   // Sizing
+        const type = row.querySelector("td:nth-child(2)")?.innerText.trim();
+        const sizing = row.querySelector("td:nth-child(3)")?.innerText.trim();
         const input = row.querySelector(".quantity-input");
         const categoryId = row.getAttribute("data-category-id");
 
@@ -69,25 +68,31 @@ function prepareUpdateData(event) {
         const quantity = parseInt(input.value, 10);
         const original = parseInt(input.getAttribute("data-original"), 10);
 
-        if (quantity !== original) {
-            hasChanges = true;
+        if (!isNaN(quantity) && quantity !== original) {
             data.push({
-                type,        
-                sizing,       
+                type,
+                sizing,
                 quantity,
                 category_id: categoryId
             });
         }
     });
 
-    if (!hasChanges) {
+    if (data.length === 0) {
         alert("No changes to update.");
         event.preventDefault();
         return false;
     }
 
-    document.getElementById("update-data-input").value = JSON.stringify(data);
-    // form submits normally
+    const hiddenInput = document.getElementById("update-data-input");
+    if (!hiddenInput) {
+        console.error("Hidden input #update-data-input not found.");
+        event.preventDefault();
+        return false;
+    }
+
+    hiddenInput.value = JSON.stringify(data);
+    console.log("Submitting update data:", hiddenInput.value); // debug
 }
 
 function filterPersonCards() {
@@ -117,13 +122,19 @@ function filterStockTable() {
 }
 
 // Open Bootstrap modal
-  function openStockModal(type, sizing, currentCategoryId) {
-    document.getElementById('modal-stock-type').value = type;
-    document.getElementById('modal-stock-sizing').value = sizing || '';
-    document.getElementById('modal-category-id').value = currentCategoryId;
-    const modal = new bootstrap.Modal(document.getElementById('stock-modal'));
+  function openStockModal(type, sizing, categoryId) {
+    document.getElementById("modal-stock-type").value = type;
+    document.getElementById("modal-stock-sizing").value = sizing;
+    document.getElementById("modal-stock-category-id").value = categoryId;
+
+    // Reset selects each time
+    document.getElementById("modal-category-id").value = "";
+    document.getElementById("modal-container-id").value = "";
+    document.getElementById("modal-transfer-qty").value = "";
+
+    const modal = new bootstrap.Modal(document.getElementById("stock-modal"));
     modal.show();
-  }
+}
 
 function setQuantity(event, index, parentIndex, type) {
     event.preventDefault();

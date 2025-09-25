@@ -38,7 +38,10 @@ def login():
                     session['username'] = user['username']
                     session['privilege'] = user['privilege']
 
-                    return redirect(url_for('dashboard.dashboard'))
+                    if profile['requires_password_change']:
+                        return redirect(url_for('auth.change_password'))
+                    return redirect(url_for('home.home'))
+
 
             # Check OTPs
             otp_resp = supabase.table("otps") \
@@ -69,6 +72,7 @@ def login():
 
                     flash("OTP verified. Please set a password to activate your account.", "success")
                     return redirect(url_for('auth.change_password'))
+
 
                 else:
                     # Expired OTP
@@ -139,7 +143,7 @@ def change_password():
         }).eq('id', user_id).execute()
 
         flash("Password updated successfully!", "success")
-        return redirect(url_for('dashboard.dashboard'))
+        return redirect(url_for('home.home'))
 
     if has_password:
         return render_template('change_password.html')

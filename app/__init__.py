@@ -34,6 +34,7 @@ def create_app():
     from .routes.support import support_bp
     from .routes.settings import settings_bp
     from .routes.people import people_bp
+    from .routes.home import home_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -41,6 +42,7 @@ def create_app():
     app.register_blueprint(support_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(people_bp)
+    app.register_blueprint(home_bp)
 
     # Context processor to inject theme from Supabase
     @app.context_processor
