@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import check_password_hash
 from app.db import get_supabase_client
-from app.utils.otp_utils import generate_password_hash
+from app.utils.otp_utils import generate_password_hash, redirect_if_password_change_required
 from app import limiter
 from postgrest import APIError
 from datetime import datetime, timezone
@@ -38,9 +38,11 @@ def login():
                     session['username'] = user['username']
                     session['privilege'] = user['privilege']
 
-                    if profile['requires_password_change']:
-                        return redirect(url_for('auth.change_password'))
-                    return redirect(url_for('home.home'))
+                    redirect_resp = redirect_if_password_change_required()
+                    if redirect_resp:
+                        return redirect_resp
+                    else:
+                        return redirect(url_for('home.home'))
 
 
             # Check OTPs
