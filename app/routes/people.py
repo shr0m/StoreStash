@@ -395,12 +395,15 @@ def get_people_with_issued_items():
 
     people_resp = supabase.table('people').select('*').execute()
     people = people_resp.data
-
+    
     issued_resp = supabase.table('kit_issue')\
         .select('person_id, issued_stock(type, sizing)')\
         .execute()
 
     issued_items = issued_resp.data or []
+
+
+    # Groups items by person
 
     issued_by_person = {}
     for record in issued_items:
@@ -413,6 +416,8 @@ def get_people_with_issued_items():
 
         issued_by_person[pid][key] = issued_by_person[pid].get(key, 0) + 1
 
+
+    # Attach grouped items
     for person in people:
         pid = person['id']
         grouped = issued_by_person.get(pid, {})
@@ -457,6 +462,7 @@ def process_item():
         return redirect(request.referrer)
 
     try:
+
         # Get person ID if applicable (for return)
         person_id = None
         if person_name:
@@ -476,6 +482,7 @@ def process_item():
                 .execute()
             )
             kit_issues = kit_resp.data or []
+
 
         # Filter matching items
         matching = [
@@ -527,6 +534,7 @@ def process_item():
             supabase.table('issued_stock').delete().in_('id', lost_stock_ids).execute()
 
             flash(f"Marked {quantity} {item_type}(s) as lost.", "success")
+
         else:
             flash("Invalid action.", "danger")
 

@@ -420,6 +420,7 @@
                                 </select>
                             </div>
 
+
                             <!-- Person Selector -->
                             <div class="col-12">
                                 <div class="dropdown">
@@ -480,7 +481,8 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-    // --- Person Search (unchanged) ---
+
+    // --- Person Search ---
     const personInput = document.getElementById("personSearch");
     const personDropdown = document.getElementById("personDropdown");
     const hiddenPerson = document.getElementById("selectedPerson");
@@ -490,6 +492,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function updatePersonDropdown(query) {
         personDropdown.innerHTML = "";
+
         const matches = people.filter(name =>
             name.toLowerCase().includes(query.toLowerCase())
         );
@@ -519,6 +522,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const itemDropdown = document.getElementById("itemDropdown");
     const selectedItemType = document.getElementById("selectedItemType");
     const selectedSizing = document.getElementById("selectedSizing");
+
     const containerSelect = document.getElementById("containerSelect");
 
     // Store all stock items in memory with container info
@@ -587,6 +591,25 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         }
     });
+
+    // --- Label Color Selector ---
+    const select = document.getElementById("labelColorSelect");
+    if (select) {
+        select.addEventListener("change", function () {
+            select.classList.remove(
+                "bg-primary", "bg-secondary", "bg-success", "bg-danger",
+                "bg-warning", "bg-info", "bg-dark", "text-white"
+            );
+
+            const selected = select.value;
+            if (selected) {
+                select.classList.add(`bg-${selected}`);
+                if (["dark", "primary", "danger", "success", "secondary", "info"].includes(selected)) {
+                    select.classList.add("text-white");
+                }
+            }
+        });
+    }
 });
 </script>
 
