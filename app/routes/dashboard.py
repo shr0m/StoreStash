@@ -380,7 +380,7 @@ def update_stock_settings():
     if redirect_resp:
         return redirect_resp
 
-    # --- Form data ---
+    # Form data
     item_type = request.form.get('type')
     sizing_raw = request.form.get('sizing')
     sizing = normalize_sizing(sizing_raw)
@@ -396,57 +396,58 @@ def update_stock_settings():
 
     supabase = get_supabase_client()
 
-    # --- Fetch all matching stock items ---
-    stock_query = supabase.table('stock').select('*').eq('type', item_type)
+    # Fetch matching stock for container
+    current_container_id = session.get('container_id')
+    stock_query = (
+        supabase.table('stock')
+        .select('*')
+        .eq('type', item_type)
+        .eq('container_id', current_container_id)
+    )
     stock_query = stock_query.is_('sizing', None) if sizing is None else stock_query.eq('sizing', sizing)
-    stock_result = stock_query.execute()
-    stock_items = stock_result.data or []
+    stock_items = stock_query.execute().data or []
 
     if not stock_items:
-        flash("No matching stock items found.", "info")
+        flash("No matching stock items found in this container.", "info")
         return redirect_to_dashboard()
 
     current_category_id = stock_items[0].get('category_id')
 
-    # --- Update category if requested ---
+    # Category update check
     if new_category_id and new_category_id != current_category_id:
         for item in stock_items:
             supabase.table('stock').update({'category_id': new_category_id}).eq('id', item['id']).execute()
 
-        # Also update issued_stock to keep consistency
+        # Update issued_stock
         issued_matches = supabase.table('issued_stock').select('id').eq('category_id', current_category_id).execute()
         if issued_matches.data:
             supabase.table('issued_stock').update({'category_id': new_category_id}).eq('category_id', current_category_id).execute()
 
-    # --- Handle container transfer ---
-    current_container_id = session.get('container_id')
-
+    # Container transfer
     if new_container_id and new_container_id != current_container_id:
-        items_in_container = [i for i in stock_items if i.get('container_id') == current_container_id]
-
         if transfer_quantity and transfer_quantity > 0:
-            if transfer_quantity > len(items_in_container):
+            if transfer_quantity > len(stock_items):
                 flash("Not enough items to transfer.", "danger")
                 return redirect_to_dashboard()
 
-            items_to_transfer = items_in_container[:transfer_quantity]
+            # Pick the subset of IDs to move
+            item_ids = [item['id'] for item in stock_items[:transfer_quantity]]
 
-            for item in items_to_transfer:
-                # Remove from current container
-                supabase.table('stock').delete().eq('id', item['id']).execute()
+            # Bulk update by IDs
+            supabase.table('stock')\
+                .update({'container_id': new_container_id})\
+                .in_('id', item_ids)\
+                .execute()
 
-                # Insert into target container
-                supabase.table('stock').insert({
-                    'type': item_type,
-                    'sizing': sizing,
-                    'category_id': new_category_id or current_category_id,
-                    'container_id': new_container_id
-                }).execute()
         else:
             # Full transfer
-            for item in items_in_container:
-                supabase.table('stock').update({'container_id': new_container_id}).eq('id', item['id']).execute()
+            update_query = supabase.table('stock')\
+                .update({'container_id': new_container_id})\
+                .eq('type', item_type)\
+                .eq('container_id', current_container_id)
 
+            update_query = update_query.is_('sizing', None) if sizing is None else update_query.eq('sizing', sizing)
+            update_query.execute()
     flash("Stock settings updated successfully.", "success")
     return redirect_to_dashboard()
 
