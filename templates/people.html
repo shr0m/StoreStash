@@ -381,53 +381,54 @@
                         </div>
                         <div class="modal-body">
                             <form method="POST" action="/assign_item" class="row g-3">
-                                <div class="col-12">
-                                    <div class="dropdown">
-                                        <input type="text" id="personSearch" class="form-control" placeholder="Find person..." autocomplete="off" required>
-                                        <input type="hidden" name="person_name" id="selectedPerson">
-                                        <ul id="personDropdown" class="dropdown-menu w-100" style="max-height: 200px; overflow-y: auto;">
-                                            {% for person in people %}
-                                                <li><a class="dropdown-item" href="#" data-name="{{ person.name }}">{{ person.name }}</a></li>
-                                            {% endfor %}
-                                        </ul>
-                                    </div>
-                                </div>
 
-                                <div class="col-12">
-                                    <div class="dropdown">
-                                        <input type="text" id="itemSearch" class="form-control" placeholder="Find item..." autocomplete="off" required>
-                                        <input type="hidden" name="item_type" id="selectedItemType" required>
-                                        <input type="hidden" name="sizing" id="selectedSizing">
-                                        <ul id="itemDropdown" class="dropdown-menu w-100" style="max-height: 200px; overflow-y: auto;">
-                                            {% for item in stock_items %}
-                                                <li>
-                                                    <a class="dropdown-item d-flex justify-content-between align-items-center"
-                                                    href="#"
-                                                    data-type="{{ item.type }}"
-                                                    data-sizing="{{ item.sizing or 'N/A' }}">
-                                                        <span>{{ item.type }}{% if item.sizing %} ({{ item.sizing }}){% endif %}</span>
-                                                        <span class="badge bg-secondary">{{ item.count }}</span>
-                                                    </a>
-                                                </li>
-                                            {% endfor %}
-                                        </ul>
-                                    </div>
+                            <!-- Person Selector -->
+                            <div class="col-12">
+                                <div class="dropdown">
+                                <input type="text" id="personSearch" class="form-control" placeholder="Find person..." autocomplete="off" required>
+                                <input type="hidden" name="person_name" id="selectedPerson">
+                                <ul id="personDropdown" class="dropdown-menu w-100" style="max-height: 200px; overflow-y: auto;">
+                                    {% for person in people %}
+                                    <li><a class="dropdown-item" href="#" data-name="{{ person.name }}">{{ person.name }}</a></li>
+                                    {% endfor %}
+                                </ul>
                                 </div>
+                            </div>
 
-                                <div class="col-12">
-                                    <input type="number" name="quantity" class="form-control" placeholder="Quantity" required min="1">
+                            <!-- Item Selector (filtered by container) -->
+                            <div class="col-12">
+                                <div class="dropdown">
+                                <input type="text" id="itemSearch" class="form-control" placeholder="Find item..." autocomplete="off" required>
+                                <input type="hidden" name="item_type" id="selectedItemType" required>
+                                <input type="hidden" name="sizing" id="selectedSizing">
+                                <ul id="itemDropdown" class="dropdown-menu w-100" style="max-height: 200px; overflow-y: auto;">
+                                    {% for item in stock_items %}
+                                    <li data-container="{{ item.container_id }}">
+                                        <a class="dropdown-item d-flex justify-content-between align-items-center"
+                                        href="#"
+                                        data-type="{{ item.type }}"
+                                        data-sizing="{{ item.sizing or 'N/A' }}">
+                                        <span>{{ item.type }}{% if item.sizing %} ({{ item.sizing }}){% endif %}</span>
+                                        <span class="badge bg-secondary">{{ item.count }}</span>
+                                        </a>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
                                 </div>
+                            </div>
 
-                                <div class="col-12">
-                                    <input type="text" name="note" class="form-control" placeholder="Notes">
-                                </div>                        
+                            <div class="col-12">
+                                <input type="number" name="quantity" class="form-control" placeholder="Quantity" required min="1">
+                            </div>
 
-                                <div class="col-12 d-grid">
-                                    <button type="submit" class="btn btn-primary">Assign Item</button>
-                                </div>
+                            <div class="col-12">
+                                <input type="text" name="note" class="form-control" placeholder="Notes">
+                            </div>                        
+
+                            <div class="col-12 d-grid">
+                                <button type="submit" class="btn btn-primary">Assign Item</button>
+                            </div>
                             </form>
-                        </div>
-                        </div>
                     </div>
                     </div>
 
