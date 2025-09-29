@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from app.db import get_supabase_client
 from app import limiter
 from app.utils.otp_utils import redirect_if_password_change_required
-from app.utils.email_utils import generate_email_token, send_cemail_email, confirm_email_token
+from app.utils.email_utils import generate_email_token, send_cemail_email, confirm_email_token, fetch_github_releases
 
 settings_bp = Blueprint('settings', __name__)
 
@@ -28,7 +28,14 @@ def settings():
     response = supabase.table('users').select('theme').eq('id', user_id).single().execute()
     current_theme = response.data.get('theme') if response.data else 'light'
 
-    return render_template('settings.html', current_theme=current_theme)
+    # Patch notes
+    patch_notes = fetch_github_releases("shr0m/StoreStash", limit=5)
+
+    return render_template(
+        'settings.html',
+        current_theme=current_theme,
+        patch_notes=patch_notes
+    )
 
 @settings_bp.route('/hard_reset')
 @limiter.limit("1 per minute")
