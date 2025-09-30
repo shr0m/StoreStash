@@ -30,7 +30,7 @@ def login():
         try:
             #Check Passwords
             user_resp = supabase.table("users").select("*").eq("username", email).maybe_single().execute()
-            user = user_resp.data
+            user = user_resp.data if user_resp else None
 
             if user and user.get("password_hash"):
                 if check_password_hash(user["password_hash"], password_or_otp):
