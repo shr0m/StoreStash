@@ -1,5 +1,4 @@
-import os
-import smtplib
+import os, smtplib, requests
 from email.message import EmailMessage
 from itsdangerous import URLSafeTimedSerializer
 from flask import current_app
@@ -72,3 +71,29 @@ def confirm_email_token(token, max_age=3600):
         return s.loads(token, salt='email-confirm', max_age=max_age)
     except Exception:
         return None
+    
+def fetch_github_releases(repo: str, limit: int = 5):
+    """
+    Fetch the latest releases from a GitHub repository.
+    
+    :param repo: GitHub repo in "owner/repo" format
+    :param limit: Max number of releases to return
+    :return: List of releases with tag, name, body, and URL
+    """
+    url = f"https://api.github.com/repos/{repo}/releases"
+    try:
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        releases = response.json()
+        return [
+            {
+                "tag": r.get("tag_name"),
+                "name": r.get("name") or r.get("tag_name"),
+                "body": r.get("body", ""),
+                "url": r.get("html_url"),
+                "published_at": r.get("published_at")
+            }
+            for r in releases[:limit]
+        ]
+    except requests.RequestException:
+        return []

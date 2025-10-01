@@ -303,38 +303,41 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <!-- Hidden inputs to identify stock items -->
-          <input type="hidden" name="type" id="modal-stock-type">
-          <input type="hidden" name="sizing" id="modal-stock-sizing">
-          <input type="hidden" name="category_id_current" id="modal-stock-category-id">
+        <!-- Hidden inputs to identify stock items -->
+        <input type="hidden" name="type" id="modal-stock-type">
+        <input type="hidden" name="sizing" id="modal-stock-sizing">
+        <input type="hidden" name="category_id_current" id="modal-stock-category-id">
 
-          <!-- Change category -->
-          <div class="mb-3">
+        <!-- Change category -->
+        <div class="mb-3">
             <label for="modal-category-id" class="form-label">Select new category:</label>
             <select name="category_id" id="modal-category-id" class="form-select">
-              <option value="">Keep Current</option>
-              {% for cat in categories %}
-              <option value="{{ cat.id }}">{{ cat.category }}</option>
-              {% endfor %}
+            <option value="">Keep Current</option>
+            {% for cat in categories %}
+            <option value="{{ cat.id }}">{{ cat.category }}</option>
+            {% endfor %}
             </select>
-          </div>
+        </div>
 
-          <!-- Transfer to container -->
-          <div class="mb-3">
+        <!-- Divider -->
+        <hr class="my-4">
+
+        <!-- Transfer to container -->
+        <div class="mb-3">
             <label for="modal-container-id" class="form-label">Transfer to container:</label>
             <select name="container_id" id="modal-container-id" class="form-select">
-              <option value="">Do Not Transfer</option>
-              {% for container in containers %}
-              <option value="{{ container.id }}">{{ container.name }}</option>
-              {% endfor %}
+            <option value="">Do Not Transfer</option>
+            {% for container in containers %}
+            <option value="{{ container.id }}">{{ container.name }}</option>
+            {% endfor %}
             </select>
-          </div>
+        </div>
 
-          <!-- Quantity to transfer -->
-          <div class="mb-3">
+        <!-- Quantity to transfer -->
+        <div class="mb-3">
             <label for="modal-transfer-qty" class="form-label">Quantity to transfer:</label>
             <input type="number" class="form-control" name="transfer_quantity" id="modal-transfer-qty" min="1" placeholder="Leave empty to move all">
-          </div>
+        </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
