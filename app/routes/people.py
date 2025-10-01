@@ -26,51 +26,42 @@ def people():
     supabase = get_supabase_client()
 
     # Load stock
-    response = supabase.table('stock').select("*").execute()
+    response = supabase.table('stock').select("type, sizing, container_id, quantity").execute()
     stock_data = response.data if response.data else []
 
-    grouped_stock = {}
+    stock_items = []
     for item in stock_data:
-        key = (item.get('type'), item.get('sizing'), item.get('container_id'))
-        grouped_stock[key] = grouped_stock.get(key, 0) + 1
-
-    stock_items = [
-        {
-            'type': k[0],
-            'sizing': k[1],
-            'container_id': k[2],
-            'count': v
-        }
-        for k, v in grouped_stock.items()
-        if v > 0
-    ]
+        if item.get('quantity', 0) > 0:
+            stock_items.append({
+                'type': item.get('type'),
+                'sizing': item.get('sizing'),
+                'container_id': item.get('container_id'),
+                'count': item.get('quantity', 0)
+            })
 
     # Load people
     people_response = supabase.table('people').select("*").execute()
     people = people_response.data if people_response.data else []
 
-    # Load kit issues
-    kit_issues_resp = supabase.table('kit_issue')\
-        .select('person_id, issued_stock(type, sizing, note)')\
-        .execute()
-    kit_issues = kit_issues_resp.data if kit_issues_resp.data else []
+    # Load issued stock
+    issued_resp = supabase.table('issued_stock').select("person_id, type, sizing, note, quantity").execute()
+    issued_records = issued_resp.data if issued_resp.data else []
 
     issued_by_person = {}
-    for record in kit_issues:
+    for record in issued_records:
         pid = record['person_id']
-        stock = record.get('issued_stock', {})
-        key = (stock.get('type'), stock.get('sizing'), stock.get('note'))
+        key = (record.get('type'), record.get('sizing'), record.get('note'))
+        qty = record.get('quantity', 0)
 
         if pid not in issued_by_person:
             issued_by_person[pid] = {}
 
-        issued_by_person[pid][key] = issued_by_person[pid].get(key, 0) + 1
+        issued_by_person[pid][key] = issued_by_person[pid].get(key, 0) + qty
 
     # Load label assignments
     label_issues_resp = supabase.table('label_issue').select('person_id, label_id').execute()
     label_issues = label_issues_resp.data if label_issues_resp.data else []
 
-    # Group label IDs by person
     labels_by_person = {}
     for record in label_issues:
         pid = record['person_id']
@@ -83,10 +74,9 @@ def people():
     labels_resp = supabase.table('labels').select('*').order('name').execute()
     all_labels = labels_resp.data if labels_resp.data else []
 
-    # Create a lookup dict for label objects
     label_lookup = {label['id']: label for label in all_labels}
 
-    # Attach data to each person
+    # Attach stock + labels to each person
     for person in people:
         pid = person.get('id')
 
@@ -95,15 +85,16 @@ def people():
         person['issued_items'] = [
             {'type': t, 'sizing': s or 'N/A', 'note': n or '', 'quantity': q}
             for (t, s, n), q in grouped.items()
+            if q > 0
         ]
 
-        # Assigned labels (full objects)
+        # Assigned labels
         label_ids = labels_by_person.get(pid, [])
         person['assigned_labels'] = [
             label_lookup[lid] for lid in label_ids if lid in label_lookup
         ]
 
-    # Sort people by rank, then surname
+    # Sort people by rank then surname
     rank_order = {
         'cadet': 4,
         'corporal': 3,
@@ -127,7 +118,6 @@ def people():
     containers_resp = supabase.table('containers').select('*').order('name').execute()
     containers = containers_resp.data if containers_resp.data else []
 
-    # Render template
     return render_template(
         "people.html",
         stock_items=stock_items,
@@ -170,7 +160,7 @@ def add_person():
 
     supabase = get_supabase_client()
 
-    # Convert name to uppercase as you store it that way
+    # Convert name to uppercase
     name_upper = name.upper()
 
     try:
@@ -278,7 +268,7 @@ def edit_person():
             flash("Original person not found.", "danger")
             return redirect(url_for('people.people'))
 
-        # If name changed, check if new name already exists (to avoid duplicates)
+        # Check if name exists
         if new_name_upper != original_name_upper:
             duplicate_check = supabase.table('people').select('name').eq('name', new_name_upper).execute()
             if duplicate_check.data and len(duplicate_check.data) > 0:
@@ -340,93 +330,75 @@ def assign_item():
 
         person_id = person_resp.data[0]['id']
 
-        # Fetch enough matching stock items WITH category_id
-        stock_query = supabase.table('stock').select('id, category_id').eq('type', item_type)
-        if sizing is None:
-            stock_query = stock_query.is_('sizing', None)
-        else:
-            stock_query = stock_query.eq('sizing', sizing)
-
-        stock_resp = stock_query.limit(quantity).execute()
+        # Check available stock, match container id
+        container_id = session.get("container_id")
+        stock_query = (
+            supabase.table('stock')
+            .select('id, category_id, quantity')
+            .eq('type', item_type)
+            .eq('container_id', container_id)
+        )
+        stock_query = stock_query.is_('sizing', None) if sizing is None else stock_query.eq('sizing', sizing)
+        stock_resp = stock_query.limit(1).execute()
         stock_items = stock_resp.data or []
 
         if not stock_items:
             flash(f"No stock available for {item_type}{f' ({sizing})' if sizing else ''}.", "danger")
             return redirect(url_for('people.people'))
 
-        assigned_count = len(stock_items)
-        stock_ids = [item['id'] for item in stock_items]
+        stock_item = stock_items[0]
+        available_qty = stock_item.get("quantity", 0)
 
-        # Prepare issued_stock insert with category_id copied
-        issued_records = [
-            {
+        if available_qty < quantity:
+            flash(f"Only {available_qty} available for {item_type}{f' ({sizing})' if sizing else ''}.", "warning")
+            return redirect(url_for('people.people'))
+
+        category_id = stock_item.get("category_id")
+
+        # Decrement stock
+        supabase.table('stock').update({
+            'quantity': available_qty - quantity
+        }).eq('id', stock_item['id']).execute()
+
+        # Check if person already has this item in issued_stock
+        issued_query = (
+            supabase.table('issued_stock')
+            .select('id, quantity')
+            .eq('person_id', person_id)
+            .eq('type', item_type)
+        )
+        issued_query = issued_query.is_('sizing', None) if sizing is None else issued_query.eq('sizing', sizing)
+        if note:
+            issued_query = issued_query.eq('note', note)
+        else:
+            issued_query = issued_query.is_('note', None)
+
+        issued_resp = issued_query.execute()
+        existing_issued = issued_resp.data or []
+
+        if existing_issued:
+            issued_id = existing_issued[0]['id']
+            current_qty = existing_issued[0]['quantity'] or 0
+            supabase.table('issued_stock').update({
+                'quantity': current_qty + quantity
+            }).eq('id', issued_id).execute()
+        else:
+            supabase.table('issued_stock').insert({
+                'person_id': person_id,
                 'type': item_type,
                 'sizing': sizing,
                 'note': note if note else None,
-                'category_id': item['category_id']
-            }
-            for item in stock_items
-        ]
-        issued_resp = supabase.table('issued_stock').insert(issued_records).execute()
-        issued_data = issued_resp.data
-        if not issued_data:
-            flash("Failed to insert issued_stock records.", "danger")
-            return redirect(url_for('people.people'))
+                'category_id': category_id,
+                'quantity': quantity
+            }).execute()
 
-        # Prepare kit_issue insert
-        kit_issue_records = [
-            {'person_id': person_id, 'issued_stock_id': issued['id']}
-            for issued in issued_data
-        ]
-        supabase.table('kit_issue').insert(kit_issue_records).execute()
-
-        # Delete used stock items
-        supabase.table('stock').delete().in_('id', stock_ids).execute()
-
-        flash(f"Assigned {assigned_count} x {item_type}{f' ({sizing})' if sizing else ''} to {name}.", "success")
+        flash(f"Assigned {quantity} x {item_type}{f' ({sizing})' if sizing else ''} to {name}.", "success")
 
     except Exception as e:
         flash(f"Error assigning item: {str(e)}", "danger")
 
     return redirect(url_for('people.people'))
 
-def get_people_with_issued_items():
-    supabase = get_supabase_client()
-
-    people_resp = supabase.table('people').select('*').execute()
-    people = people_resp.data
-    
-    issued_resp = supabase.table('kit_issue')\
-        .select('person_id, issued_stock(type, sizing)')\
-        .execute()
-
-    issued_items = issued_resp.data or []
-
-
-    # Groups items by person
-
-    issued_by_person = {}
-    for record in issued_items:
-        pid = record['person_id']
-        stock = record.get('issued_stock', {})
-        key = (stock.get('type'), stock.get('sizing'))
-
-        if pid not in issued_by_person:
-            issued_by_person[pid] = {}
-
-        issued_by_person[pid][key] = issued_by_person[pid].get(key, 0) + 1
-
-
-    # Attach grouped items
-    for person in people:
-        pid = person['id']
-        grouped = issued_by_person.get(pid, {})
-        person['issued_items'] = [
-            {'type': t, 'sizing': s or 'N/A', 'quantity': q}
-            for (t, s), q in grouped.items()
-        ]
-
-    return people
 
 @people_bp.route('/process_item', methods=['POST'])
 @limiter.limit('30 per minute')
@@ -462,8 +434,7 @@ def process_item():
         return redirect(request.referrer)
 
     try:
-
-        # Get person ID if applicable (for return)
+        # Resolve person
         person_id = None
         if person_name:
             person_resp = supabase.table('people').select('id').eq('name', person_name).limit(1).execute()
@@ -472,23 +443,32 @@ def process_item():
                 return redirect(request.referrer)
             person_id = person_resp.data[0]['id']
 
-        # Get issued_stock records joined with kit_issue
-        kit_issues = []
-        if person_id:
-            kit_resp = (
-                supabase.table('kit_issue')
-                .select('id, issued_stock_id, issued_stock(type, sizing, category_id)')
-                .eq('person_id', person_id)
-                .execute()
-            )
-            kit_issues = kit_resp.data or []
+        # Find matching issued_stock entry
+        issued_query = (
+            supabase.table('issued_stock')
+            .select('id, quantity, category_id')
+            .eq('person_id', person_id)
+            .eq('type', item_type)
+        )
+        if sizing is None:
+            issued_query = issued_query.is_('sizing', None)
+        else:
+            issued_query = issued_query.eq('sizing', sizing)
 
+        issued_resp = issued_query.execute()
+        issued_records = issued_resp.data or []
 
-        # Filter matching items
-        matching = [
-            issue for issue in kit_issues
-            if issue['issued_stock']['type'] == item_type and normalize_sizing(issue['issued_stock']['sizing']) == sizing
-        ]
+        if not issued_records:
+            flash("No matching issued items found.", "warning")
+            return redirect(request.referrer)
+
+        issued = issued_records[0]
+        issued_id = issued['id']
+        current_quantity = issued.get('quantity', 0)
+
+        if current_quantity < quantity:
+            flash("Not enough issued items to process.", "warning")
+            return redirect(request.referrer)
 
         if action == "return":
             container_id = request.form.get('container_id')
@@ -496,42 +476,49 @@ def process_item():
                 flash("You must select a container to return items.", "warning")
                 return redirect(request.referrer)
 
-            if len(matching) < quantity:
-                flash("Not enough matching items to return.", "warning")
-                return redirect(request.referrer)
+            # Decrease issued quantity (or delete row if 0 left)
+            new_quantity = current_quantity - quantity
+            if new_quantity > 0:
+                supabase.table('issued_stock').update({'quantity': new_quantity}).eq('id', issued_id).execute()
+            else:
+                supabase.table('issued_stock').delete().eq('id', issued_id).execute()
 
-            # Extract relevant IDs
-            return_kit_ids = [issue['id'] for issue in matching[:quantity]]
-            return_stock_ids = [issue['issued_stock_id'] for issue in matching[:quantity]]
+            # Add back to stock (merge quantities)
+            stock_query = (
+                supabase.table('stock')
+                .select('id, quantity')
+                .eq('type', item_type)
+                .eq('category_id', issued['category_id'])
+                .eq('container_id', container_id)
+            )
+            if sizing is None:
+                stock_query = stock_query.is_('sizing', None)
+            else:
+                stock_query = stock_query.eq('sizing', sizing)
+            stock_resp = stock_query.execute()
+            stock_records = stock_resp.data or []
 
-            # Delete kit_issue and issued_stock
-            supabase.table('kit_issue').delete().in_('id', return_kit_ids).execute()
-            supabase.table('issued_stock').delete().in_('id', return_stock_ids).execute()
-
-            # Insert returned items back to stock, including container_id
-            returned_items = [
-                {
+            if stock_records:
+                stock_id = stock_records[0]['id']
+                stock_qty = stock_records[0]['quantity']
+                supabase.table('stock').update({'quantity': stock_qty + quantity}).eq('id', stock_id).execute()
+            else:
+                supabase.table('stock').insert({
                     'type': item_type,
                     'sizing': sizing,
-                    'category_id': issue['issued_stock']['category_id'],
-                    'container_id': container_id
-                }
-                for issue in matching[:quantity]
-            ]
-            supabase.table('stock').insert(returned_items).execute()
+                    'category_id': issued['category_id'],
+                    'container_id': container_id,
+                    'quantity': quantity
+                }).execute()
+
             flash(f"Returned {quantity} {item_type}(s) to stock.", "success")
 
         elif action == "lost":
-            if len(matching) < quantity:
-                flash("Not enough matching items to mark as lost.", "warning")
-                return redirect(request.referrer)
-
-            lost_kit_ids = [issue['id'] for issue in matching[:quantity]]
-            lost_stock_ids = [issue['issued_stock_id'] for issue in matching[:quantity]]
-
-            # Delete kit_issue and issued_stock
-            supabase.table('kit_issue').delete().in_('id', lost_kit_ids).execute()
-            supabase.table('issued_stock').delete().in_('id', lost_stock_ids).execute()
+            new_quantity = current_quantity - quantity
+            if new_quantity > 0:
+                supabase.table('issued_stock').update({'quantity': new_quantity}).eq('id', issued_id).execute()
+            else:
+                supabase.table('issued_stock').delete().eq('id', issued_id).execute()
 
             flash(f"Marked {quantity} {item_type}(s) as lost.", "success")
 
@@ -542,6 +529,7 @@ def process_item():
         flash(f"Error processing request: {str(e)}", "danger")
 
     return redirect('/people')
+
 
 @people_bp.route('/create_label', methods=['POST'])
 @limiter.limit("10 per minute")
