@@ -132,7 +132,7 @@
                     </thead>
                     <tbody>
                     {% for item in stock_items %}
-                    <tr data-category-id="{{ item.category_id }}">
+                    <tr data-category-id="{{ item.category_id }}" data-alert-threshold="{{ item.alert_threshold if item.alert_threshold is not none else '0' }}">
                         <td>{{ item.category }}</td>
                         <td>{{ item.type if item.type != "None" else "N/A" }}</td>
                         <td>{{ item.sizing }}</td>
@@ -320,6 +320,19 @@
         </div>
 
         <!-- Divider -->
+        <hr class="my-4">
+
+        <!-- Alert threshold -->
+        <div class="mb-3">
+            <label for="modal-alert-threshold" class="form-label">Alert Quantity:</label>
+            <input type="number" 
+                class="form-control" 
+                name="alert_threshold" 
+                id="modal-alert-threshold" 
+                min="0" 
+                placeholder="Leave empty for none">
+        </div>
+
         <hr class="my-4">
 
         <!-- Transfer to container -->

@@ -65,24 +65,12 @@ def dashboard(container_id):
     containers = containers_response.data or []
 
     # Current container stock fetch
-    stock_items = []
-    batch_size = 1000
-    offset = 0
-
-    while True:
-        batch = (
-            supabase.table('stock')
-            .select('id, type, sizing, quantity, category_id, categories(category), container_id')
-            .eq('container_id', container_id)
-            .range(offset, offset + batch_size - 1)
-            .execute()
-        )
-        if not batch.data:
-            break
-        stock_items.extend(batch.data)
-        if len(batch.data) < batch_size:
-            break
-        offset += batch_size
+    stock_items = (
+        supabase.table('stock')
+        .select('id, type, sizing, quantity, category_id, categories(category), container_id, alert_threshold')
+        .eq('container_id', container_id)
+        .execute()
+    ).data or []
 
     # Fetch categories
     categories_response = supabase.table('categories').select('*').order('category').execute()
@@ -90,11 +78,13 @@ def dashboard(container_id):
 
     stock_summary = [
         {
+            'id': item['id'],
             'type': item['type'],
             'sizing': item['sizing'],
             'quantity': item.get('quantity', 0),
-            'category': (item.get('categories') or {}).get('category', 'Uncategorized'),
-            'category_id': item.get('category_id')
+            'category': item.get('categories', {}).get('category', 'Unknown'),
+            'category_id': item.get('category_id'),
+            'alert_threshold': item.get('alert_threshold')
         }
         for item in stock_items
     ]
@@ -388,8 +378,10 @@ def update_stock_settings():
     new_category_id = request.form.get('category_id')
     new_container_id = request.form.get('container_id')
     transfer_quantity_raw = request.form.get('transfer_quantity')
+    alert_threshold_raw = request.form.get('alert_threshold')
 
     transfer_quantity = int(transfer_quantity_raw) if transfer_quantity_raw else None
+    alert_threshold = int(alert_threshold_raw) if alert_threshold_raw else None  # None = NULL
 
     if not item_type:
         flash("Invalid input provided.", "danger")
@@ -417,11 +409,14 @@ def update_stock_settings():
     current_quantity = stock_item.get('quantity', 0)
     current_category_id = stock_item.get('category_id')
 
+    # Prepare update data
+    update_data = {'alert_threshold': alert_threshold}  # Always include alert_threshold
+
     # Category update
     if new_category_id and new_category_id != current_category_id:
-        supabase.table('stock').update({'category_id': new_category_id}).eq('id', stock_item['id']).execute()
+        update_data['category_id'] = new_category_id
 
-        # Upd issued_stock
+        # Update issued_stock category references
         issued_matches = supabase.table('issued_stock').select('id').eq('category_id', current_category_id).execute()
         if issued_matches.data:
             supabase.table('issued_stock').update({'category_id': new_category_id}).eq('category_id', current_category_id).execute()
@@ -437,9 +432,8 @@ def update_stock_settings():
 
             # Decrease quantity in current container
             if remaining_quantity > 0:
-                supabase.table('stock').update({'quantity': remaining_quantity}).eq('id', stock_item['id']).execute()
+                supabase.table('stock').update({'quantity': remaining_quantity, **update_data}).eq('id', stock_item['id']).execute()
             else:
-                # Remove the row if transferring all
                 supabase.table('stock').delete().eq('id', stock_item['id']).execute()
 
             # Add to target container
@@ -453,20 +447,19 @@ def update_stock_settings():
             target_items = target_resp.data or []
 
             if target_items:
-                # Increment quantity if row exists
                 new_qty = target_items[0]['quantity'] + transfer_quantity
-                supabase.table('stock').update({'quantity': new_qty}).eq('id', target_items[0]['id']).execute()
+                supabase.table('stock').update({'quantity': new_qty, 'alert_threshold': alert_threshold}).eq('id', target_items[0]['id']).execute()
             else:
-                # Insert new row if none exists
                 supabase.table('stock').insert({
                     'type': item_type,
                     'sizing': sizing,
                     'category_id': new_category_id or current_category_id,
                     'container_id': new_container_id,
-                    'quantity': transfer_quantity
+                    'quantity': transfer_quantity,
+                    'alert_threshold': alert_threshold
                 }).execute()
         else:
-            # Full transfer: move entire quantity to new container
+            # Full transfer
             target_query = supabase.table('stock')\
                 .select('id, quantity')\
                 .eq('type', item_type)\
@@ -477,14 +470,15 @@ def update_stock_settings():
             target_items = target_resp.data or []
 
             if target_items:
-                # Merge quantities
                 new_qty = target_items[0]['quantity'] + current_quantity
-                supabase.table('stock').update({'quantity': new_qty}).eq('id', target_items[0]['id']).execute()
-                # Delete old row
+                supabase.table('stock').update({'quantity': new_qty, 'alert_threshold': alert_threshold}).eq('id', target_items[0]['id']).execute()
                 supabase.table('stock').delete().eq('id', stock_item['id']).execute()
             else:
-                # Simply update container_id
-                supabase.table('stock').update({'container_id': new_container_id}).eq('id', stock_item['id']).execute()
+                update_data['container_id'] = new_container_id
+                supabase.table('stock').update(update_data).eq('id', stock_item['id']).execute()
+    else:
+        # No container transfer
+        supabase.table('stock').update(update_data).eq('id', stock_item['id']).execute()
 
     flash("Stock settings updated successfully.", "success")
     return redirect_to_dashboard()
