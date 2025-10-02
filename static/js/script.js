@@ -160,6 +160,39 @@ function openStockModal(type, sizing, categoryId) {
     modal.show();
 }
 
+function exportStockCSV() {
+    const rows = document.querySelectorAll("table tbody tr");
+    if (!rows.length) {
+        alert("No stock data available to export.");
+        return;
+    }
+
+    // CSV header
+    const csvData = [["Category", "Type", "Sizing", "Quantity"]];
+
+    rows.forEach(row => {
+        const category = row.querySelector("td:nth-child(1)")?.textContent.trim() || "";
+        const type = row.querySelector("td:nth-child(2)")?.textContent.trim() || "";
+        const sizing = row.querySelector("td:nth-child(3)")?.textContent.trim() || "";
+        const quantity = row.querySelector("td:nth-child(4)")?.textContent.trim() || "";
+
+        csvData.push([category, type, sizing, quantity]);
+    });
+
+    // Convert array to CSV string
+    const csvContent = csvData.map(e => e.map(v => `"${v.replace(/"/g, '""')}"`).join(",")).join("\n");
+
+    // Download CSV
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `stock_export_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
 
 function highlightRow(row) {
     const threshold = parseInt(row.getAttribute("data-alert-threshold")) || 0;

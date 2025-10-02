@@ -73,13 +73,6 @@ def confirm_email_token(token, max_age=3600):
         return None
     
 def fetch_github_releases(repo: str, limit: int = 5):
-    """
-    Fetch the latest releases from a GitHub repository.
-    
-    :param repo: GitHub repo in "owner/repo" format
-    :param limit: Max number of releases to return
-    :return: List of releases with tag, name, body, and URL
-    """
     url = f"https://api.github.com/repos/{repo}/releases"
     try:
         response = requests.get(url, timeout=5)
