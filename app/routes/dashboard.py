@@ -59,6 +59,7 @@ def dashboard(container_id):
         return redirect(url_for('home.home'))
 
     session['container_id'] = container_id
+    container_name = container_check.data[0]['name']
 
     # Fetch containers for drops
     containers_response = supabase.table('containers').select('id, name').order('name').execute()
@@ -127,6 +128,7 @@ def dashboard(container_id):
         stock_by_category=stock_by_category_serializable,
         session=session,
         total_in_store=total_in_store,
+        container_name=container_name
     )
 
 
