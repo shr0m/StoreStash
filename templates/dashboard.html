@@ -35,7 +35,7 @@
 
 <!-- Main Container -->
 <div class="container my-5">
-    <h1 class="mb-4">Stock File</h1>
+    <h1 class="mb-4">{{ container_name }} - Storage Information</h1>
 
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -55,10 +55,22 @@
 
         <!-- Stock Table Section -->
         <div class="col-md-8">
+
             <!-- Stock Summary Card -->
             <div class="card mb-4 shadow-sm">
                 <div class="card-body">
-                    <h5 class="card-title"><i class="fa-solid fa-chart-column me-2"></i>Stock Overview</h5>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title mb-0">
+                            <i class="fa-solid fa-chart-column me-2"></i>Stock Overview
+                        </h5>
+                        {% if session.get('privilege') in ['admin', 'edit'] %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="exportStockCSV()">
+                                <i class="fa-solid fa-file-csv me-1"></i> Export CSV
+                            </button>
+                        {% endif %}
+                    </div>
+
+                    <!-- Stock in Storage -->
                     <div class="row mt-3">
                         <div class="col-md-4">
                             <div class="text-muted">Stock in Storage</div>
@@ -132,7 +144,7 @@
                     </thead>
                     <tbody>
                     {% for item in stock_items %}
-                    <tr data-category-id="{{ item.category_id }}">
+                    <tr data-category-id="{{ item.category_id }}" data-alert-threshold="{{ item.alert_threshold if item.alert_threshold is not none else '0' }}">
                         <td>{{ item.category }}</td>
                         <td>{{ item.type if item.type != "None" else "N/A" }}</td>
                         <td>{{ item.sizing }}</td>
@@ -322,6 +334,19 @@
         <!-- Divider -->
         <hr class="my-4">
 
+        <!-- Alert threshold -->
+        <div class="mb-3">
+            <label for="modal-alert-threshold" class="form-label">Alert Quantity:</label>
+            <input type="number" 
+                class="form-control" 
+                name="alert_threshold" 
+                id="modal-alert-threshold" 
+                min="0" 
+                placeholder="Leave empty for none">
+        </div>
+
+        <hr class="my-4">
+
         <!-- Transfer to container -->
         <div class="mb-3">
             <label for="modal-container-id" class="form-label">Transfer to container:</label>
@@ -362,8 +387,10 @@
         const categoryItems = document.querySelectorAll(".category-filter");
 
         const backgroundColors = [
-            '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e',
-            '#e74a3b', '#858796', '#5a5c69', '#20c997'
+            '#3B5BDB', '#20C997', '#4ECDC4', '#F6C23E', '#E74A3B',
+            '#6F42C1', '#0DCAF0', '#F97316', '#84CC16', '#DB2777',
+            '#2563EB', '#A3E635', '#FF6B81', '#6366F1', '#10B981',
+            '#F59E0B', '#EC4899', '#14B8A6', '#C084FC', '#64748B'
         ];
 
         let chart;

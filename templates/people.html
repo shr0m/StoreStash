@@ -409,17 +409,6 @@
                         </div>
                         <div class="modal-body">
                             <form method="POST" action="/assign_item" class="row g-3">
-                            
-                            <!-- Container Selector -->
-                            <div class="col-12">
-                                <select id="containerSelect" name="container_id" class="form-select" required>
-                                <option value="" selected disabled>Container</option>
-                                {% for container in containers %}
-                                    <option value="{{ container.id }}">{{ container.name }}</option>
-                                {% endfor %}
-                                </select>
-                            </div>
-
 
                             <!-- Person Selector -->
                             <div class="col-12">
@@ -434,7 +423,17 @@
                                 </div>
                             </div>
 
-                            <!-- Item Selector (filtered by container) -->
+                            <!-- Container Selector -->
+                            <div class="col-12">
+                                <select id="containerSelect" name="container_id" class="form-select" required>
+                                <option value="" selected disabled>Container</option>
+                                {% for container in containers %}
+                                    <option value="{{ container.id }}">{{ container.name }}</option>
+                                {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Item Selector -->
                             <div class="col-12">
                                 <div class="dropdown">
                                 <input type="text" id="itemSearch" class="form-control" placeholder="Find item..." autocomplete="off" required>

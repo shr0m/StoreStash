@@ -48,38 +48,8 @@ def send_reset_email(email):
     except Exception as e:
         print(f"Support email error: {e}")
         return False
-
-def send_cemail_email(subject, recipient, html_body):
-
-    msg = MIMEText(html_body, 'html')
-    msg['Subject'] = subject
-    msg['From'] = SUPPORT_EMAIL
-    msg['To'] = recipient
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(SUPPORT_EMAIL, SUPPORT_EMAIL_PASSWORD)
-        server.sendmail(SUPPORT_EMAIL, recipient, msg.as_string())
-    
-
-def generate_email_token(email):
-    s = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
-    return s.dumps(email, salt='email-confirm')
-
-def confirm_email_token(token, max_age=3600):
-    s = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
-    try:
-        return s.loads(token, salt='email-confirm', max_age=max_age)
-    except Exception:
-        return None
     
 def fetch_github_releases(repo: str, limit: int = 5):
-    """
-    Fetch the latest releases from a GitHub repository.
-    
-    :param repo: GitHub repo in "owner/repo" format
-    :param limit: Max number of releases to return
-    :return: List of releases with tag, name, body, and URL
-    """
     url = f"https://api.github.com/repos/{repo}/releases"
     try:
         response = requests.get(url, timeout=5)

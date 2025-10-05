@@ -9,8 +9,6 @@ from app.db import get_supabase_client
 from flask import session, url_for, redirect
 
 
-
-
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL")
 SUPPORT_EMAIL_PASSWORD = os.getenv("SUPPORT_EMAIL_PASSWORD")
 
@@ -54,30 +52,3 @@ def redirect_if_password_change_required():
         return redirect(url_for('auth.change_password'))
 
     return None
-
-
-def fetch_github_releases(repo: str, limit: int = 5):
-    """
-    Fetch the latest releases from a GitHub repository.
-    
-    :param repo: GitHub repo in "owner/repo" format
-    :param limit: Max number of releases to return
-    :return: List of releases with tag, name, body, and URL
-    """
-    url = f"https://api.github.com/repos/{repo}/releases"
-    try:
-        response = requests.get(url, timeout=5)
-        response.raise_for_status()
-        releases = response.json()
-        return [
-            {
-                "tag": r.get("tag_name"),
-                "name": r.get("name") or r.get("tag_name"),
-                "body": r.get("body", ""),
-                "url": r.get("html_url"),
-                "published_at": r.get("published_at")
-            }
-            for r in releases[:limit]
-        ]
-    except requests.RequestException:
-        return []

@@ -21,12 +21,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Handle highlighting rows with zero quantity
     document.querySelectorAll(".quantity-input").forEach(input => {
+        const row = input.closest("tr");
+
         const updateRowClass = () => {
-            const row = input.closest("tr");
-            const value = parseInt(input.value) || 0;
-            input.value = value;
-            row.classList.toggle("table-danger", value === 0);  // Bootstrap class for red row
+            highlightRow(row);
         };
+
+        // Initial highlight
+        updateRowClass();
 
         input.addEventListener("input", updateRowClass);
         input.addEventListener("blur", updateRowClass);
@@ -41,7 +43,8 @@ function changeQuantity(button, delta) {
     let newVal = currentVal + delta;
     if (newVal < 0) newVal = 0;
     input.value = newVal;
-    row.classList.toggle("table-danger", newVal === 0);
+
+    highlightRow(row);
 }
 
 // Set quantity to 0
@@ -49,7 +52,8 @@ function removeQuantity(button) {
     const row = button.closest("tr");
     const input = row.querySelector(".quantity-input");
     input.value = 0;
-    row.classList.add("table-danger");
+
+    highlightRow(row);
 }
 
 // Collect and prepare stock data for batch update
@@ -122,18 +126,81 @@ function filterStockTable() {
 }
 
 // Open Bootstrap modal
-  function openStockModal(type, sizing, categoryId) {
-    document.getElementById("modal-stock-type").value = type;
-    document.getElementById("modal-stock-sizing").value = sizing;
-    document.getElementById("modal-stock-category-id").value = categoryId;
+function openStockModal(type, sizing, categoryId) {
+    const modalTypeInput = document.getElementById("modal-stock-type");
+    const modalSizingInput = document.getElementById("modal-stock-sizing");
+    const modalCategoryInput = document.getElementById("modal-stock-category-id");
+    const modalAlertInput = document.getElementById("modal-alert-threshold");
+
+    modalTypeInput.value = type;
+    modalSizingInput.value = sizing || "";   // handle null
+    modalCategoryInput.value = categoryId;
 
     // Reset selects each time
     document.getElementById("modal-category-id").value = "";
     document.getElementById("modal-container-id").value = "";
     document.getElementById("modal-transfer-qty").value = "";
 
+    // Find row based on type and sizing
+    const row = Array.from(document.querySelectorAll("tbody tr")).find(r => {
+        const rowType = r.querySelector("td:nth-child(2)")?.textContent.trim();
+        const rowSizing = r.querySelector("td:nth-child(3)")?.textContent.trim() || "";
+        return rowType === type && rowSizing === (sizing || "");
+    });
+
+    if (row) {
+        let alertThreshold = row.getAttribute("data-alert-threshold");
+        if (alertThreshold === "None" || alertThreshold === null) alertThreshold = "";
+        modalAlertInput.value = alertThreshold;
+    } else {
+        modalAlertInput.value = "";
+    }
+
     const modal = new bootstrap.Modal(document.getElementById("stock-modal"));
     modal.show();
+}
+
+function exportStockCSV() {
+    const rows = document.querySelectorAll("table tbody tr");
+    if (!rows.length) {
+        alert("No stock data available to export.");
+        return;
+    }
+
+    // CSV header
+    const csvData = [["Category", "Type", "Sizing", "Quantity"]];
+
+    rows.forEach(row => {
+        const category = row.querySelector("td:nth-child(1)")?.textContent.trim() || "";
+        const type = row.querySelector("td:nth-child(2)")?.textContent.trim() || "";
+        const sizing = row.querySelector("td:nth-child(3)")?.textContent.trim() || "";
+        const quantity = row.querySelector("td:nth-child(4)")?.textContent.trim() || "";
+
+        csvData.push([category, type, sizing, quantity]);
+    });
+
+    // Convert array to CSV string
+    const csvContent = csvData.map(e => e.map(v => `"${v.replace(/"/g, '""')}"`).join(",")).join("\n");
+
+    // Download CSV
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `stock_export_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function highlightRow(row) {
+    const threshold = parseInt(row.getAttribute("data-alert-threshold")) || 0;
+    const input = row.querySelector(".quantity-input");
+    const value = parseInt(input?.value) || 0;
+
+    // Highlight red if below threshold
+    row.classList.toggle("table-danger", threshold > 0 && value <= threshold);
 }
 
 function setQuantity(event, index, parentIndex, type) {
