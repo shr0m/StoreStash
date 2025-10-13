@@ -2,7 +2,7 @@
 
 ![Program Demo](./1.png)
 
-StoreStash is a stock management solution which incorporates stock logging and assignment. The software allows users to view stock amounts, assign items to users and update stock amounts during delivery.
+StoreStash is a stock management solution which incorporates stock logging and assignment. The software allows users to view stock amounts, assign items to users and update stock amounts during delivery. StoreStash has been designed specifically for use within the RAF Air Cadets (UK RAFAC).
 
 ## Features
 StoreStash includes several quality-of-life features such as:
