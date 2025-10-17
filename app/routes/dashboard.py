@@ -153,6 +153,7 @@ def add_stock_type():
         flash("Invalid or missing container. Please select a container.", "danger")
         return redirect_to_dashboard()
 
+    # Get form inputs
     new_type = request.form.get('new_type', '').strip()
     sizing_raw = request.form.get('sizing', '')
     sizing = normalize_sizing(sizing_raw)
@@ -176,37 +177,32 @@ def add_stock_type():
         flash("Please select a category.", "danger")
         return redirect_to_dashboard()
 
-    # Validate category
-    exists_resp = supabase.table('categories').select('id').eq('id', category_id).execute()
-    if not exists_resp.data:
+    # Validate category exists
+    category_resp = supabase.table('categories').select('id').eq('id', category_id).execute()
+    if not category_resp.data:
         flash("Invalid category selected.", "danger")
         return redirect_to_dashboard()
 
-    item_query = supabase.table('items') \
-        .select('id') \
-        .eq('type', new_type) \
-        .eq('category_id', category_id)
-
+    # Find item
+    item_query = supabase.table('items').select('id').eq('type', new_type).eq('category_id', category_id)
     item_query = item_query.is_('sizing', None) if sizing is None else item_query.eq('sizing', sizing)
     item_resp = item_query.execute()
 
     if item_resp.data:
         item_id = item_resp.data[0]['id']
     else:
-        # Insert new item definition
+        # Create new item
         insert_item = supabase.table('items').insert({
             'type': new_type,
             'sizing': sizing,
             'category_id': category_id
         }).execute()
-
         if not insert_item.data:
             flash("Error creating new item type.", "danger")
             return redirect_to_dashboard()
-
         item_id = insert_item.data[0]['id']
 
-    # Check if stock already exists
+    # Find stock
     stock_resp = (
         supabase.table('stock')
         .select('id, quantity')
@@ -216,6 +212,7 @@ def add_stock_type():
     )
 
     if stock_resp.data:
+        # Stock exists, increment quantity
         stock_id = stock_resp.data[0]['id']
         current_qty = stock_resp.data[0].get('quantity', 0)
         new_qty = current_qty + initial_quantity
@@ -225,12 +222,12 @@ def add_stock_type():
             flash("Error updating stock quantity.", "danger")
             return redirect_to_dashboard()
     else:
+        # Stock does not exist, insert new stock row
         insert_stock = supabase.table('stock').insert({
             'item_id': item_id,
             'container_id': container_id,
             'quantity': initial_quantity
         }).execute()
-
         if not insert_stock.data:
             flash("Error inserting stock record.", "danger")
             return redirect_to_dashboard()
@@ -322,11 +319,16 @@ def update_stock_batch():
         if stock_data:
             stock_id = stock_data[0]['id']
             if new_quantity > 0:
+                # Update stock quantity
                 supabase.table('stock').update({'quantity': new_quantity}).eq('id', stock_id).execute()
             else:
+                # Delete stock
                 supabase.table('stock').delete().eq('id', stock_id).execute()
+                remaining_stock_resp = supabase.table('stock').select('id').eq('item_id', item_id).execute()
+                if not remaining_stock_resp.data:
+                    supabase.table('items').delete().eq('id', item_id).execute()
         else:
-            # Insert new stock record if positive quantity
+            # Check positive quantity insert
             if new_quantity > 0:
                 supabase.table('stock').insert({
                     'item_id': item_id,
@@ -336,6 +338,7 @@ def update_stock_batch():
 
     flash("Stock updated successfully.", "success")
     return redirect_to_dashboard()
+
 
 
 @dashboard_bp.route('/add_category', methods=['POST'])
