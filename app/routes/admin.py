@@ -51,36 +51,52 @@ def send_otp_route():
 
     supabase = get_supabase_client()
 
-    # Check user count
+    # Check user count to assign first admin
     user_count_resp = supabase.table('users').select('id').limit(1).execute()
-    user_count = len(user_count_resp.data)
-
+    user_count = len(user_count_resp.data or [])
     if user_count == 0:
         privilege = 'admin'
 
     if user_count > 0 and not is_admin():
         flash("Unauthorized action", "danger")
         return redirect(url_for('auth.login'))
-    
+
     redirect_resp = redirect_if_password_change_required()
     if user_count > 0 and redirect_resp:
         return redirect_resp
 
+    # Send OTP email
     if send_otp_email(email, otp):
         supabase.table('otps').insert({'email': email, 'otp': otp}).execute()
 
+        # Check if user already exists in users table
         user_resp = supabase.table('users').select('id').eq('username', email).limit(1).execute()
-
         if not user_resp.data:
-            supabase.table('users').insert({
-                'username': email,
-                'password_hash': None,
-                'privilege': privilege,
-                'name': name
-            }).execute()
+            # Create Supabase Auth user
+            try:
+                auth_resp = supabase.auth.sign_up({"email": email, "password": otp})
+                new_user = auth_resp.user
+                if not new_user:
+                    flash("Failed to create auth user.", "danger")
+                    return redirect(url_for('admin.admin'))
+
+                # Insert into users table with Supabase UID
+                supabase.table('users').insert({
+                    'id': new_user.id,  # Align UUID
+                    'username': email,
+                    'password_hash': None,
+                    'privilege': privilege,
+                    'name': name,
+                    'requires_password_change': True
+                }).execute()
+
+            except Exception as e:
+                flash(f"Error adding user: {e}", "danger")
+                return redirect(url_for('admin.admin'))
 
         flash("OTP sent to user email.", "success")
 
+        # If this is the first-ever user, redirect to login
         if user_count == 0:
             return redirect(url_for('auth.login'))
     else:
@@ -102,13 +118,17 @@ def update_users():
 
     supabase = get_supabase_client()
 
-    users_resp = supabase.table('users').select('id, privilege').execute()
+    # Fetch all users
+    users_resp = supabase.table('users').select('id, privilege, username').execute()
     existing_users = users_resp.data or []
-    existing_map = {user['id']: user['privilege'] for user in existing_users}
+    existing_map = {user['id']: user for user in existing_users}
 
-    self_deleted = False  # Track if the current logged-in user was deleted
+    self_deleted = False  # Track if current logged-in user is deleted
 
-    for user_id, old_priv in existing_map.items():
+    for user_id, user_data in existing_map.items():
+        old_priv = user_data['privilege']
+        username = user_data['username']
+
         new_priv = request.form.get(f"privilege_{user_id}")
         reset = request.form.get(f"reset_{user_id}")
         delete = request.form.get(f"delete_{user_id}")
@@ -116,55 +136,58 @@ def update_users():
         # Prevent demoting the last admin
         if new_priv and new_priv != old_priv and old_priv == 'admin':
             admin_count_resp = supabase.table('users').select('id').eq('privilege', 'admin').execute()
-            admin_count = len(admin_count_resp.data)
+            admin_count = len(admin_count_resp.data or [])
             if admin_count <= 1:
                 flash("Cannot demote the last admin.", "danger")
                 continue
 
-        # Privilege change
+        # Update privilege
         if new_priv and new_priv != old_priv:
             supabase.table('users').update({'privilege': new_priv}).eq('id', user_id).execute()
-            flash(f"Privilege updated for user {user_id}", "success")
+            flash(f"Privilege updated for {username}", "success")
 
         # Password reset
         if reset:
-            default_hash = generate_password_hash('password')
-            supabase.table('users').update({
-                'password_hash': default_hash,
-                'requires_password_change': True
-            }).eq('id', user_id).execute()
+            default_password = "password"  # Or generate a random secure password
+            try:
+                # Reset in Supabase Auth
+                supabase.auth.admin.update_user_by_id(user_id, {"password": default_password})
+                
+                # Update `users` table
+                supabase.table('users').update({
+                    'password_hash': None,
+                    'requires_password_change': True
+                }).eq('id', user_id).execute()
 
-            response = supabase.table('users').select('username').eq('id', user_id).execute()
-            email = response.data[0]['username']
-            send_reset_email(email)
-            flash(f"Password reset for user {user_id}", "success")
+                flash(f"Password reset for {username}", "success")
+                send_reset_email(username)
+            except Exception as e:
+                flash(f"Failed to reset password for {username}: {e}", "danger")
 
-        # Deletion
+        # Delete user
         if delete:
             if old_priv == 'admin':
                 admin_count_resp = supabase.table('users').select('id').eq('privilege', 'admin').execute()
-                admin_count = len(admin_count_resp.data)
+                admin_count = len(admin_count_resp.data or [])
                 if admin_count <= 1:
                     flash("Cannot delete the last admin.", "danger")
                     continue
 
-            # Get user's email before deletion
-            user_resp = supabase.table('users').select('username').eq('id', user_id).execute()
-            users = user_resp.data or []
-            email = users[0]['username'] if users else None
+            try:
+                # Delete from Supabase Auth
+                supabase.auth.admin.delete_user(user_id)
+            except Exception as e:
+                flash(f"Failed to delete Auth user {username}: {e}", "danger")
 
+            # Delete from `users` table
             supabase.table('users').delete().eq('id', user_id).execute()
+            # Delete OTPs if any
+            supabase.table('otps').delete().eq('email', username).execute()
 
-            # Delete OTPs if email exists
-            if email:
-                supabase.table('otps').delete().eq('email', email).execute()
+            flash(f"Deleted user {username} and associated OTPs", "success")
 
-            flash(f"Deleted user {user_id} and any associated OTPs", "success")
-
-            # Check if the deleted user is the current session user
             if str(user_id) == str(session.get('user_id')):
                 self_deleted = True
-
 
     if self_deleted:
         session.clear()
@@ -172,6 +195,7 @@ def update_users():
         return redirect(url_for('auth.login'))
 
     return redirect(url_for('admin.admin'))
+
 
 @admin_bp.route('/add_container', methods=['POST'])
 @limiter.limit("10 per minute")
