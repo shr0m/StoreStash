@@ -69,7 +69,6 @@ def dashboard(container_id):
     categories_response = supabase.table('categories').select('*').order('category').execute()
     categories = categories_response.data if categories_response else []
 
-    # ✅ Fetch stock joined with items + categories
     stock_items_response = (
         supabase.table('stock')
         .select('id, quantity, container_id, alert_threshold, item_id, items(type, sizing, category_id, categories(category))')
@@ -91,7 +90,7 @@ def dashboard(container_id):
             'quantity': s.get('quantity', 0),
             'category': category_info.get('category', 'Unknown'),
             'category_id': item.get('category_id'),
-            'alert_threshold': s.get('alert_threshold')  # ✅ from stock table
+            'alert_threshold': s.get('alert_threshold')
         })
 
     # Summarize per category
