@@ -122,5 +122,11 @@ def change_password():
         except Exception as e:
             flash(f"Error updating password: {e}", "danger")
 
-    # show set_password page when user doesn't have a password yet / needs to change
-    return render_template('set_password.html')
+    # Show change/set password pages
+    user_resp = supabase.table('users').select('otp_expires_at, requires_password_change').eq('id', user_id).execute()
+    user_data = user_resp.data or []
+
+    if user_data[0] == None and user_data[1] == True:
+        return render_template('set_password.html')
+    else:
+        return render_template('change_password.html')
