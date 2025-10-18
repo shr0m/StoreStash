@@ -98,6 +98,16 @@ def change_password():
     supabase = get_supabase_client()
     user_id = session['user_id']
 
+    # Fetch user metadata
+    user_resp = supabase.table('users').select('requires_password_change').eq('id', user_id).maybe_single().execute()
+    user_meta = user_resp.data if user_resp else None
+
+    if not user_meta:
+        flash("User not found.", "danger")
+        return redirect(url_for('auth.login'))
+
+    requires_change = user_meta.get('requires_password_change', False)
+
     if request.method == 'POST':
         new_password = request.form.get('new_password')
         confirm_password = request.form.get('confirm_password')
@@ -107,10 +117,10 @@ def change_password():
             return redirect(url_for('auth.change_password'))
 
         try:
-            # Update the password in Supabase Auth using admin API (service role)
+            # Update Supabase Auth password
             supabase.auth.admin.update_user_by_id(user_id, {"password": new_password})
 
-            # Clear requires_password_change and otp_expires_at in your users table
+            # Clear requires_password_change and otp_expires_at
             supabase.table('users').update({
                 'requires_password_change': False,
                 'otp_expires_at': None
@@ -121,12 +131,10 @@ def change_password():
 
         except Exception as e:
             flash(f"Error updating password: {e}", "danger")
+            return redirect(url_for('auth.change_password'))
 
-    # Show change/set password pages
-    user_resp = supabase.table('users').select('otp_expires_at, requires_password_change').eq('id', user_id).execute()
-    user_data = user_resp.data or []
-
-    if user_data[0] == None and user_data[1] == True:
+    # Decide which template to render
+    if requires_change:
         return render_template('set_password.html')
     else:
         return render_template('change_password.html')
