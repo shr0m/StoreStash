@@ -58,13 +58,12 @@ def invite_user():
     if not (user_count_resp.data or []):
         privilege = 'admin'
 
-    # Generate OTP and expiry (10 minutes by your original behaviour)
+    # Generate OTP and expiry
     otp = generate_otp()
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
 
     try:
-        # Create Supabase Auth user with OTP as temporary password
-        # Use admin.create_user so we can set the initial password (service role required)
+        # Make auth user with OTP as temp password
         create_resp = supabase.auth.admin.create_user({
             "email": email,
             "password": otp,
@@ -76,19 +75,18 @@ def invite_user():
             flash("Failed to create auth user.", "danger")
             return redirect(url_for('admin.admin'))
 
-        # Insert metadata into your users table (id aligned with auth user's id)
+        # Insert metadata into users
         supabase.table('users').insert({
             'id': auth_user.id,
             'username': email,
             'privilege': privilege,
             'name': name,
             'requires_password_change': True,
-            'otp_expires_at': expires_at.isoformat()  # store ISO timestamp in UTC
+            'otp_expires_at': expires_at.isoformat()
         }).execute()
 
-        # Send OTP via your existing email util (this keeps the same UX as before)
+        # Send OTP
         if not send_otp_email(email, otp):
-            # If sending failed, remove created auth user + users row to avoid dangling account
             try:
                 supabase.auth.admin.delete_user(auth_user.id)
             except Exception:
@@ -133,7 +131,7 @@ def update_users():
             supabase.table('users').update({'privilege': new_priv}).eq('id', user_id).execute()
             flash(f"Privilege updated for {username}", "success")
 
-        # Reset password (admin operation -> set temp password and require change)
+        # Reset password
         if reset:
             try:
                 new_temp = generate_otp()  # reuse OTP generator for a temporary password
@@ -145,7 +143,7 @@ def update_users():
                     'otp_expires_at': expires_at
                 }).eq('id', user_id).execute()
 
-                send_reset_email(username)  # your existing reset email util; could include temp password or a link
+                send_reset_email(username)
                 flash(f"Password reset for {username}", "success")
             except Exception as e:
                 flash(f"Failed to reset password: {e}", "danger")
