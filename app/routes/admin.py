@@ -134,8 +134,7 @@ def update_users():
         # Reset password
         if reset:
             try:
-                new_temp = generate_otp()  # reuse OTP generator for a temporary password
-                supabase.auth.admin.update_user_by_id(user_id, {"password": new_temp})
+                supabase.auth.admin.update_user_by_id(user_id, {"password": "storestash"})
                 # set requires_password_change and an expiry so user must reset
                 expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
                 supabase.table('users').update({
