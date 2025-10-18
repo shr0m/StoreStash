@@ -13,7 +13,6 @@ def normalize_sizing(sizing_str):
     sizing_cleaned = sizing_str.strip().lower()
     return None if sizing_cleaned in ['', 'none', 'n/a'] else sizing_str.strip()
 
-
 @people_bp.route('/people')
 @limiter.limit("100 per minute")
 def people():
@@ -26,17 +25,16 @@ def people():
 
     supabase = get_supabase_client()
 
-    # Load stock with items info
-    response = supabase.table('stock').select("quantity, container_id, item_id, items(type, sizing)").execute()
+    # Load stock
+    response = supabase.table('stock').select("type, sizing, container_id, quantity").execute()
     stock_data = response.data if response.data else []
 
     stock_items = []
     for item in stock_data:
-        item_info = item.get('items', {})
         if item.get('quantity', 0) > 0:
             stock_items.append({
-                'type': item_info.get('type'),
-                'sizing': item_info.get('sizing'),
+                'type': item.get('type'),
+                'sizing': item.get('sizing'),
                 'container_id': item.get('container_id'),
                 'count': item.get('quantity', 0)
             })
@@ -45,15 +43,14 @@ def people():
     people_response = supabase.table('people').select("*").execute()
     people = people_response.data if people_response.data else []
 
-    # Load issued stock with items info
-    issued_resp = supabase.table('issued_stock').select("person_id, quantity, note, item_id, items(type, sizing)").execute()
+    # Load issued stock
+    issued_resp = supabase.table('issued_stock').select("person_id, type, sizing, note, quantity").execute()
     issued_records = issued_resp.data if issued_resp.data else []
 
     issued_by_person = {}
     for record in issued_records:
         pid = record['person_id']
-        item_info = record.get('items', {})
-        key = (item_info.get('type'), item_info.get('sizing'), record.get('note'))
+        key = (record.get('type'), record.get('sizing'), record.get('note'))
         qty = record.get('quantity', 0)
 
         if pid not in issued_by_person:
@@ -79,7 +76,7 @@ def people():
 
     label_lookup = {label['id']: label for label in all_labels}
 
-    # Attach issued stock + labels to each person
+    # Attach stock + labels to each person
     for person in people:
         pid = person.get('id')
 
@@ -129,7 +126,6 @@ def people():
         labels=all_labels,
         containers=containers
     )
-
 
 
 
@@ -334,24 +330,18 @@ def assign_item():
 
         person_id = person_resp.data[0]['id']
 
-        # Get item ID from items table
-        item_query = supabase.table('items').select('id').eq('type', item_type)
-        item_query = item_query.is_('sizing', None) if sizing is None else item_query.eq('sizing', sizing)
-        item_resp = item_query.limit(1).execute()
-        if not item_resp.data:
-            flash(f"Item '{item_type}{f' ({sizing})' if sizing else ''}' not found.", "danger")
-            return redirect(url_for('people.people'))
-
-        item_id = item_resp.data[0]['id']
-
-        # Check available stock for this item and container
-        container_id = request.form.get("container_id")
-        if not container_id:
-            flash("You must select a container.", "danger")
-            return redirect(url_for('people.people'))
-        stock_resp = supabase.table('stock').select('id, quantity').eq('item_id', item_id).eq('container_id', container_id).limit(1).execute()
+        # Check available stock, match container id
+        container_id = session.get("container_id")
+        stock_query = (
+            supabase.table('stock')
+            .select('id, category_id, quantity')
+            .eq('type', item_type)
+            .eq('container_id', container_id)
+        )
+        stock_query = stock_query.is_('sizing', None) if sizing is None else stock_query.eq('sizing', sizing)
+        stock_resp = stock_query.limit(1).execute()
         stock_items = stock_resp.data or []
-        
+
         if not stock_items:
             flash(f"No stock available for {item_type}{f' ({sizing})' if sizing else ''}.", "danger")
             return redirect(url_for('people.people'))
@@ -363,6 +353,8 @@ def assign_item():
             flash(f"Only {available_qty} available for {item_type}{f' ({sizing})' if sizing else ''}.", "warning")
             return redirect(url_for('people.people'))
 
+        category_id = stock_item.get("category_id")
+
         # Decrement stock
         supabase.table('stock').update({
             'quantity': available_qty - quantity
@@ -373,8 +365,9 @@ def assign_item():
             supabase.table('issued_stock')
             .select('id, quantity')
             .eq('person_id', person_id)
-            .eq('item_id', item_id)
+            .eq('type', item_type)
         )
+        issued_query = issued_query.is_('sizing', None) if sizing is None else issued_query.eq('sizing', sizing)
         if note:
             issued_query = issued_query.eq('note', note)
         else:
@@ -392,8 +385,10 @@ def assign_item():
         else:
             supabase.table('issued_stock').insert({
                 'person_id': person_id,
-                'item_id': item_id,
+                'type': item_type,
+                'sizing': sizing,
                 'note': note if note else None,
+                'category_id': category_id,
                 'quantity': quantity
             }).execute()
 
@@ -403,7 +398,6 @@ def assign_item():
         flash(f"Error assigning item: {str(e)}", "danger")
 
     return redirect(url_for('people.people'))
-
 
 
 @people_bp.route('/process_item', methods=['POST'])
@@ -422,6 +416,7 @@ def process_item():
     item_type = request.form.get('item_type')
     sizing_input = request.form.get('sizing')
     sizing = normalize_sizing(sizing_input)
+
     action = request.form.get('action')  # "return" or "lost"
 
     try:
@@ -448,23 +443,18 @@ def process_item():
                 return redirect(request.referrer)
             person_id = person_resp.data[0]['id']
 
-        # Lookup item_id from items
-        item_query = supabase.table('items').select('id').eq('type', item_type)
-        item_query = item_query.is_('sizing', None) if sizing is None else item_query.eq('sizing', sizing)
-        item_resp = item_query.limit(1).execute()
-        if not item_resp.data:
-            flash(f"Item '{item_type}{f' ({sizing})' if sizing else ''}' not found.", "danger")
-            return redirect(request.referrer)
-
-        item_id = item_resp.data[0]['id']
-
         # Find matching issued_stock entry
         issued_query = (
             supabase.table('issued_stock')
-            .select('id, quantity')
+            .select('id, quantity, category_id')
             .eq('person_id', person_id)
-            .eq('item_id', item_id)
+            .eq('type', item_type)
         )
+        if sizing is None:
+            issued_query = issued_query.is_('sizing', None)
+        else:
+            issued_query = issued_query.eq('sizing', sizing)
+
         issued_resp = issued_query.execute()
         issued_records = issued_resp.data or []
 
@@ -494,7 +484,18 @@ def process_item():
                 supabase.table('issued_stock').delete().eq('id', issued_id).execute()
 
             # Add back to stock (merge quantities)
-            stock_resp = supabase.table('stock').select('id, quantity').eq('item_id', item_id).eq('container_id', container_id).limit(1).execute()
+            stock_query = (
+                supabase.table('stock')
+                .select('id, quantity')
+                .eq('type', item_type)
+                .eq('category_id', issued['category_id'])
+                .eq('container_id', container_id)
+            )
+            if sizing is None:
+                stock_query = stock_query.is_('sizing', None)
+            else:
+                stock_query = stock_query.eq('sizing', sizing)
+            stock_resp = stock_query.execute()
             stock_records = stock_resp.data or []
 
             if stock_records:
@@ -503,22 +504,23 @@ def process_item():
                 supabase.table('stock').update({'quantity': stock_qty + quantity}).eq('id', stock_id).execute()
             else:
                 supabase.table('stock').insert({
-                    'item_id': item_id,
+                    'type': item_type,
+                    'sizing': sizing,
+                    'category_id': issued['category_id'],
                     'container_id': container_id,
                     'quantity': quantity
                 }).execute()
 
-            flash(f"Returned {quantity} x {item_type}{f' ({sizing})' if sizing else ''} to stock.", "success")
+            flash(f"Returned {quantity} {item_type}(s) to stock.", "success")
 
         elif action == "lost":
-            # Decrease issued quantity (or delete row if 0 left)
             new_quantity = current_quantity - quantity
             if new_quantity > 0:
                 supabase.table('issued_stock').update({'quantity': new_quantity}).eq('id', issued_id).execute()
             else:
                 supabase.table('issued_stock').delete().eq('id', issued_id).execute()
 
-            flash(f"Marked {quantity} x {item_type}{f' ({sizing})' if sizing else ''} as lost.", "success")
+            flash(f"Marked {quantity} {item_type}(s) as lost.", "success")
 
         else:
             flash("Invalid action.", "danger")
@@ -527,7 +529,6 @@ def process_item():
         flash(f"Error processing request: {str(e)}", "danger")
 
     return redirect('/people')
-
 
 
 @people_bp.route('/create_label', methods=['POST'])
