@@ -1,9 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
-from werkzeug.security import check_password_hash
 from app.db import get_supabase_client
-from app.utils.otp_utils import generate_password_hash, redirect_if_password_change_required
 from app import limiter
-from postgrest import APIError
 from datetime import datetime, timezone
 
 auth_bp = Blueprint('auth', __name__)
@@ -24,20 +21,41 @@ def login():
             flash("Email and password/OTP are required.", "danger")
             return redirect(url_for('auth.login'))
 
-        try:
-            # Fetch user profile info
-            user_meta_resp = supabase.table('users').select('*').eq('username', email).maybe_single().execute()
-            user_meta = user_meta_resp.data if user_meta_resp else None
+        # Fetch user metadata before authentication
+        user_meta_resp = supabase.table('users').select('*').eq('username', email).maybe_single().execute()
+        user_meta = user_meta_resp.data if user_meta_resp else None
 
-            # Supabase auth authenticate
+        if user_meta and user_meta.get('requires_password_change'):
+            otp_expires = user_meta.get('otp_expires_at')
+            if otp_expires:
+                try:
+                    expires_dt = datetime.fromisoformat(otp_expires)
+                    if expires_dt.tzinfo is None:
+                        expires_dt = expires_dt.replace(tzinfo=timezone.utc)
+                except Exception:
+                    expires_dt = None
+
+                if expires_dt and datetime.now(timezone.utc) > expires_dt:
+                    # Delete from users + Supabase Auth
+                    try:
+                        supabase.auth.admin.delete_user(user_meta['id'])
+                    except Exception as e:
+                        print(f"Error deleting auth user: {e}")
+
+                    supabase.table('users').delete().eq('id', user_meta['id']).execute()
+                    flash("OTP expired. Your account has been removed. Please contact an admin.", "danger")
+                    return redirect(url_for('auth.login'))
+
+        try:
             auth_resp = supabase.auth.sign_in_with_password({"email": email, "password": password_or_otp})
-            auth_user = getattr(auth_resp, "user", None) or (auth_resp.get("user") if isinstance(auth_resp, dict) else None)
+            auth_user = getattr(auth_resp, "user", None) or (
+                auth_resp.get("user") if isinstance(auth_resp, dict) else None
+            )
 
             if not auth_user:
                 flash("Invalid credentials.", "danger")
                 return redirect(url_for('auth.login'))
 
-            # Success, edit session
             session['user_id'] = auth_user.id
             session['username'] = email
 
@@ -45,38 +63,11 @@ def login():
                 session['privilege'] = user_meta.get('privilege')
 
                 if user_meta.get('requires_password_change'):
-                    otp_expires = user_meta.get('otp_expires_at')
-                    if otp_expires:
-                        try:
-                            expires_dt = datetime.fromisoformat(otp_expires)
-                            if expires_dt.tzinfo is None:
-                                # assume UTC if naive
-                                expires_dt = expires_dt.replace(tzinfo=timezone.utc)
-                        except Exception:
-                            expires_dt = None
-
-                        if expires_dt and datetime.now(timezone.utc) > expires_dt:
-                            # OTP expired, remove user
-                            try:
-                                supabase.auth.admin.delete_user(auth_user.id)
-                            except Exception:
-                                pass
-                            supabase.table('users').delete().eq('id', auth_user.id).execute()
-                            session.clear()
-                            flash("OTP expired. Your account has been removed. Please contact an admin.", "danger")
-                            return redirect(url_for('auth.login'))
-
-                    # Redirect to change pass
                     return redirect(url_for('auth.change_password'))
 
-            # Normal successful login
             flash("Login successful!", "success")
             return redirect(url_for('home.home'))
 
-        except APIError as e:
-            flash("Error during login. Please try again.", "danger")
-            print(e)
-            return redirect(url_for('auth.login'))
         except Exception as e:
             flash("Invalid credentials.", "danger")
             print(e)

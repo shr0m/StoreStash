@@ -1,5 +1,4 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
-from werkzeug.security import generate_password_hash
 from app.db import get_supabase_client
 from app import limiter
 from app.utils.otp_utils import generate_otp, send_otp_email, redirect_if_password_change_required

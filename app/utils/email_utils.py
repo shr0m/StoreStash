@@ -1,8 +1,5 @@
 import os, smtplib, requests
 from email.message import EmailMessage
-from itsdangerous import URLSafeTimedSerializer
-from flask import current_app
-from email.mime.text import MIMEText
 
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL")
 SUPPORT_EMAIL_PASSWORD = os.getenv("SUPPORT_EMAIL_PASSWORD")

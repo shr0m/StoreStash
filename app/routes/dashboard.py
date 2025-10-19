@@ -3,7 +3,6 @@ from app.db import get_supabase_client
 import json, re, uuid
 from app.utils.otp_utils import redirect_if_password_change_required
 from app import limiter
-from collections import defaultdict
 
 dashboard_bp = Blueprint('dashboard', __name__)
 

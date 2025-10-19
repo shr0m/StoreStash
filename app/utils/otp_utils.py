@@ -2,9 +2,7 @@ import os
 import smtplib
 import random
 import string
-import datetime
 from email.message import EmailMessage
-from werkzeug.security import generate_password_hash
 from app.db import get_supabase_client
 from flask import session, url_for, redirect
 
