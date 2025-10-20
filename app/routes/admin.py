@@ -26,7 +26,7 @@ def admin():
 
     # Get app-level user info (users table)
     users_resp = supabase.table('users').select(
-        'id, requires_password_change, support_allowed, privilege'
+        'id, requires_password_change, support_allowed'
     ).execute()
     users = users_resp.data or []
 
@@ -49,10 +49,14 @@ def admin():
         if auth_user:
             metadata = getattr(auth_user, "user_metadata", {}) or {}
             user['name'] = metadata.get('full_name', "Unknown")
-            user['username'] = auth_user.email  # email = login username
+            user['username'] = auth_user.email
+            user['theme'] = metadata.get('theme', 'light')
+            user['privilege'] = metadata.get('privilege', 'view')
         else:
             user['name'] = "Unknown"
             user['username'] = "Unknown"
+            user['theme'] = 'light'
+            user['privilege'] = 'view'
 
     # Sort users by privilege for display
     privilege_order = {'admin': 0, 'edit': 1, 'view': 2}
@@ -63,6 +67,7 @@ def admin():
     containers = containers_resp.data or []
 
     return render_template('admin.html', users=sorted_users, containers=containers)
+
 
 
 @admin_bp.route('/invite_user', methods=['POST'])
