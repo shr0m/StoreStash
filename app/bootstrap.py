@@ -8,28 +8,36 @@ def ensure_root_user():
         if not response.data:
             print("No users found. Creating temporary root user...")
 
-            # Create auth user
-            auth_user = supabase.auth.admin.create_user({
+            # Create auth user with metadata
+            user_metadata = {
+                "full_name": "Root User",
+                "privilege": "admin",
+                "theme": "light",
+                "otp_expires_at": None,
+                "created_by": "system"
+            }
+
+            create_resp = supabase.auth.admin.create_user({
                 "email": "root@local",
                 "password": "root",
-                "email_confirm": True
-            }).user
+                "email_confirm": True,
+                "user_metadata": user_metadata
+            })
 
+            auth_user = getattr(create_resp, "user", None) or (create_resp.get("user") if isinstance(create_resp, dict) else None)
             if not auth_user:
                 print("Failed to create root user in Supabase Auth.")
                 return
 
-            # Insert user data
+            # Insert flags into users table
             supabase.table('users').insert({
                 "id": auth_user.id,
-                "username": "root@local",
-                "privilege": "admin",
                 "requires_password_change": True,
-                "name": "Root User",
-                "support_allowed": False
+                "support_allowed": False,
+                "privilege": "admin"
             }).execute()
 
-            print("✅ Temporary 'root' user added (admin, requires password change).")
+            print("Temporary 'root' user added (admin, requires password change).")
 
     except Exception as e:
-        print(f"❌ Error ensuring root user exists: {e}")
+        print(f"Error ensuring root user exists: {e}")

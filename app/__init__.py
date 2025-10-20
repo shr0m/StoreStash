@@ -51,17 +51,12 @@ def create_app():
         if 'user_id' in session:
             try:
                 supabase = get_supabase_client()
-                response = supabase.table('users').select('theme').eq('id', session['user_id']).single().execute()
-                data = response.data
-                if data and 'theme' in data:
-                    theme = data['theme']
+                auth_resp = supabase.auth.admin.get_user_by_id(session['user_id'])
+                auth_user = getattr(auth_resp, "user", None) or (auth_resp.get("user") if isinstance(auth_resp, dict) else None)
+                metadata = getattr(auth_user, "user_metadata", {}) or {}
+                theme = metadata.get('theme', 'light')
             except Exception as e:
                 print(f"Theme injection error (Supabase): {e}")
         return {'current_theme': theme}
-    
-    @app.errorhandler(RateLimitExceeded)
-    def redirect_to_login(e):
-        app.logger.warning(f"Rate limit exceeded: {e}")
-        return redirect(url_for("auth.login"))
 
     return app

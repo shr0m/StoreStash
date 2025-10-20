@@ -24,11 +24,13 @@ def admin():
 
     supabase = get_supabase_client()
 
-    # Get app-level user info
-    users_resp = supabase.table('users').select('id, username, privilege').execute()
+    # Get app-level user info (users table)
+    users_resp = supabase.table('users').select(
+        'id, requires_password_change, support_allowed, privilege'
+    ).execute()
     users = users_resp.data or []
 
-    # Get auth users
+    # Get all auth users
     try:
         auth_users_resp = supabase.auth.admin.list_users()
         users_list = (
@@ -41,18 +43,22 @@ def admin():
         auth_users = {}
         print(f"Warning: Could not fetch Auth users: {e}")
 
-    # Merge names from metadata
+    # Merge metadata from auth users
     for user in users:
         auth_user = auth_users.get(user['id'])
-        if auth_user and getattr(auth_user, "user_metadata", None):
-            user['name'] = auth_user.user_metadata.get('full_name')
+        if auth_user:
+            metadata = getattr(auth_user, "user_metadata", {}) or {}
+            user['name'] = metadata.get('full_name', "Unknown")
+            user['username'] = auth_user.email  # email = login username
         else:
-            user['name'] = user.get('username')  # fallback
+            user['name'] = "Unknown"
+            user['username'] = "Unknown"
 
-    # Sort users by privilege
+    # Sort users by privilege for display
     privilege_order = {'admin': 0, 'edit': 1, 'view': 2}
-    sorted_users = sorted(users, key=lambda u: privilege_order.get(u.get('privilege'), 99))
+    sorted_users = sorted(users, key=lambda u: privilege_order.get(u.get('privilege', ''), 99))
 
+    # Fetch containers for display
     containers_resp = supabase.table('containers').select('name').execute()
     containers = containers_resp.data or []
 
@@ -81,17 +87,34 @@ def invite_user():
     if not (user_count_resp.data or []):
         privilege = 'admin'
 
+    # Check if user exists already
+    auth_users_resp = supabase.auth.admin.list_users()
+    users_list = auth_users_resp.get("users") if isinstance(auth_users_resp, dict) else auth_users_resp
+
+    if any(u.email == email for u in users_list):
+        flash(f"User {email} already exists.", "warning")
+        return redirect(url_for('admin.admin'))
+
     # Generate OTP and expiry
     otp = generate_otp()
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
 
     try:
+
+        user_data = {
+            "full_name": name,
+            "privilege": privilege,
+            "theme": "light",
+            "otp_expires_at": expires_at.isoformat(),
+            "created_by": session.get("username")
+        }
+
         # Make auth user with OTP as temp password
         create_resp = supabase.auth.admin.create_user({
             "email": email,
             "password": otp,
             "email_confirm": True,
-            "user_metadata": {"full_name": name}
+            "user_metadata": user_data
         })
 
         auth_user = getattr(create_resp, "user", None) or (create_resp.get("user") if isinstance(create_resp, dict) else None)
@@ -102,10 +125,8 @@ def invite_user():
         # Insert metadata into users
         supabase.table('users').insert({
             'id': auth_user.id,
-            'username': email,
-            'privilege': privilege,
             'requires_password_change': True,
-            'otp_expires_at': expires_at.isoformat()
+            'support_allowed': True
         }).execute()
 
         # Send OTP
@@ -138,44 +159,68 @@ def update_users():
         return redirect_resp
 
     supabase = get_supabase_client()
-    users_resp = supabase.table('users').select('id, privilege, username').execute()
+    users_resp = supabase.table('users').select('id, privilege').execute()
     users = users_resp.data or []
 
     for user in users:
         user_id = user['id']
-        username = user['username']
-        old_priv = user['privilege']
+        old_priv = user.get('privilege')
         new_priv = request.form.get(f"privilege_{user_id}")
         reset = request.form.get(f"reset_{user_id}")
         delete = request.form.get(f"delete_{user_id}")
 
+        # Fetch Auth user for metadata
+        try:
+            auth_user_resp = supabase.auth.admin.get_user_by_id(user_id)
+            auth_user = getattr(auth_user_resp, "user", None) or (auth_user_resp.get("user") if isinstance(auth_user_resp, dict) else None)
+            username = auth_user.email if auth_user else "Unknown"
+        except Exception:
+            username = "Unknown"
+
         # Update privilege
         if new_priv and new_priv != old_priv:
-            supabase.table('users').update({'privilege': new_priv}).eq('id', user_id).execute()
-            flash(f"Privilege updated for {username}", "success")
+            # Update both metadata and users table
+            try:
+                # Update users table
+                supabase.table('users').update({'privilege': new_priv}).eq('id', user_id).execute()
+
+                # Update Auth metadata
+                metadata = getattr(auth_user, "user_metadata", {}) or {}
+                metadata['privilege'] = new_priv
+                supabase.auth.admin.update_user_by_id(user_id, {"user_metadata": metadata})
+
+                flash(f"Privilege updated for {username}", "success")
+            except Exception as e:
+                flash(f"Failed to update privilege for {username}: {e}", "danger")
 
         # Reset password
         if reset:
             try:
-                supabase.auth.admin.update_user_by_id(user_id, {"password": "storestash"})
-                # set requires_password_change and an expiry so user must reset
+                otp = "storestash"  # Temporary password
                 expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
-                supabase.table('users').update({
-                    'requires_password_change': True,
-                    'otp_expires_at': expires_at
-                }).eq('id', user_id).execute()
+
+                # Update Auth user password and metadata
+                metadata = getattr(auth_user, "user_metadata", {}) or {}
+                metadata['otp_expires_at'] = expires_at
+                supabase.auth.admin.update_user_by_id(user_id, {
+                    "password": otp,
+                    "user_metadata": metadata
+                })
+
+                # Update requires_password_change flag in users table
+                supabase.table('users').update({'requires_password_change': True}).eq('id', user_id).execute()
 
                 send_reset_email(username)
                 flash(f"Password reset for {username}", "success")
             except Exception as e:
-                flash(f"Failed to reset password: {e}", "danger")
+                flash(f"Failed to reset password for {username}: {e}", "danger")
 
         # Delete user
         if delete:
             try:
                 supabase.auth.admin.delete_user(user_id)
             except Exception as e:
-                flash(f"Failed to delete Auth user: {username}: {e}", "danger")
+                flash(f"Failed to delete Auth user {username}: {e}", "danger")
 
             supabase.table('users').delete().eq('id', user_id).execute()
             flash(f"Deleted {username}", "success")

@@ -21,33 +21,13 @@ def login():
             flash("Email and password/OTP are required.", "danger")
             return redirect(url_for('auth.login'))
 
-        # Fetch user metadata before authentication
-        user_meta_resp = supabase.table('users').select('*').eq('username', email).maybe_single().execute()
-        user_meta = user_meta_resp.data if user_meta_resp else None
-
-        if user_meta and user_meta.get('requires_password_change'):
-            otp_expires = user_meta.get('otp_expires_at')
-            if otp_expires:
-                try:
-                    expires_dt = datetime.fromisoformat(otp_expires)
-                    if expires_dt.tzinfo is None:
-                        expires_dt = expires_dt.replace(tzinfo=timezone.utc)
-                except Exception:
-                    expires_dt = None
-
-                if expires_dt and datetime.now(timezone.utc) > expires_dt:
-                    # Delete from users + Supabase Auth
-                    try:
-                        supabase.auth.admin.delete_user(user_meta['id'])
-                    except Exception as e:
-                        print(f"Error deleting auth user: {e}")
-
-                    supabase.table('users').delete().eq('id', user_meta['id']).execute()
-                    flash("OTP expired. Your account has been removed. Please contact an admin.", "danger")
-                    return redirect(url_for('auth.login'))
-
         try:
-            auth_resp = supabase.auth.sign_in_with_password({"email": email, "password": password_or_otp})
+            # Authenticate user
+            auth_resp = supabase.auth.sign_in_with_password({
+                "email": email,
+                "password": password_or_otp
+            })
+
             auth_user = getattr(auth_resp, "user", None) or (
                 auth_resp.get("user") if isinstance(auth_resp, dict) else None
             )
@@ -56,21 +36,50 @@ def login():
                 flash("Invalid credentials.", "danger")
                 return redirect(url_for('auth.login'))
 
-            session['user_id'] = auth_user.id
+            user_id = auth_user.id
+            auth_metadata = getattr(auth_user, "user_metadata", {}) or {}
+
+            # Fetch user record from users table
+            user_resp = supabase.table('users').select('*').eq('id', user_id).maybe_single().execute()
+            user_record = user_resp.data if user_resp else None
+
+            requires_password_change = user_record.get('requires_password_change') if user_record else False
+            otp_expires = auth_metadata.get('otp_expires_at') if requires_password_change else None
+
+            # Check OTP expiry
+            if requires_password_change and otp_expires:
+                try:
+                    expires_dt = datetime.fromisoformat(otp_expires)
+                    if expires_dt.tzinfo is None:
+                        expires_dt = expires_dt.replace(tzinfo=timezone.utc)
+                    if datetime.now(timezone.utc) > expires_dt:
+                        # OTP expired, delete user
+                        try:
+                            supabase.auth.admin.delete_user(user_id)
+                        except Exception as e:
+                            print(f"Error deleting auth user: {e}")
+
+                        supabase.table('users').delete().eq('id', user_id).execute()
+                        flash("OTP expired. Your account has been removed. Please contact an admin.", "danger")
+                        return redirect(url_for('auth.login'))
+                except Exception:
+                    pass
+
+            # Save session info
+            session['user_id'] = user_id
             session['username'] = email
+            session['privilege'] = user_record.get('privilege') if user_record else auth_metadata.get('privilege')
 
-            if user_meta:
-                session['privilege'] = user_meta.get('privilege')
+            # Redirect if change pass required
+            if requires_password_change:
+                return redirect(url_for('auth.change_password'))
 
-                if user_meta.get('requires_password_change'):
-                    return redirect(url_for('auth.change_password'))
-
-            flash("Login successful!", "success")
+            # Login successful
             return redirect(url_for('home.home'))
 
         except Exception as e:
-            flash("Invalid credentials.", "danger")
             print(e)
+            flash("Invalid credentials.", "danger")
             return redirect(url_for('auth.login'))
 
     return render_template("login.html")
@@ -89,33 +98,47 @@ def change_password():
     supabase = get_supabase_client()
     user_id = session['user_id']
 
-    # Fetch user metadata
+    # Fetch user record from users table
     user_resp = supabase.table('users').select('requires_password_change').eq('id', user_id).maybe_single().execute()
-    user_meta = user_resp.data if user_resp else None
+    user_record = user_resp.data if user_resp else None
 
-    if not user_meta:
+    if not user_record:
         flash("User not found.", "danger")
         return redirect(url_for('auth.login'))
 
-    requires_change = user_meta.get('requires_password_change', False)
+    requires_change = user_record.get('requires_password_change', False)
 
     if request.method == 'POST':
-        new_password = request.form.get('new_password')
-        confirm_password = request.form.get('confirm_password')
+        new_password = request.form.get('new_password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+
+        if not new_password or not confirm_password:
+            flash("Both password fields are required.", "danger")
+            return redirect(url_for('auth.change_password'))
 
         if new_password != confirm_password:
             flash("Passwords do not match.", "danger")
             return redirect(url_for('auth.change_password'))
 
         try:
-            # Update Supabase Auth password
-            supabase.auth.admin.update_user_by_id(user_id, {"password": new_password})
+            # Fetch Auth user to update metadata
+            auth_user_resp = supabase.auth.admin.get_user_by_id(user_id)
+            auth_user = getattr(auth_user_resp, "user", None) or (
+                auth_user_resp.get("user") if isinstance(auth_user_resp, dict) else None
+            )
+            metadata = getattr(auth_user, "user_metadata", {}) or {}
 
-            # Clear requires_password_change and otp_expires_at
-            supabase.table('users').update({
-                'requires_password_change': False,
-                'otp_expires_at': None
-            }).eq('id', user_id).execute()
+            # Clear OTP expiry in Auth metadata
+            metadata.pop('otp_expires_at', None)
+
+            # Update password and metadata
+            supabase.auth.admin.update_user_by_id(user_id, {
+                "password": new_password,
+                "user_metadata": metadata
+            })
+
+            # Clear requires_password_change in users table
+            supabase.table('users').update({'requires_password_change': False}).eq('id', user_id).execute()
 
             flash("Password set successfully!", "success")
             return redirect(url_for('home.home'))
@@ -125,7 +148,5 @@ def change_password():
             return redirect(url_for('auth.change_password'))
 
     # Decide which template to render
-    if requires_change:
-        return render_template('set_password.html')
-    else:
-        return render_template('change_password.html')
+    template = 'set_password.html' if requires_change else 'change_password.html'
+    return render_template(template)
