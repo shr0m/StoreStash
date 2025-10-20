@@ -23,9 +23,33 @@ def admin():
         return redirect_resp
 
     supabase = get_supabase_client()
-    users_resp = supabase.table('users').select('id, username, privilege, name').execute()
+
+    # Get app-level user info
+    users_resp = supabase.table('users').select('id, username, privilege').execute()
     users = users_resp.data or []
 
+    # Get auth users
+    try:
+        auth_users_resp = supabase.auth.admin.list_users()
+        users_list = (
+            auth_users_resp.get("users")
+            if isinstance(auth_users_resp, dict)
+            else auth_users_resp
+        )
+        auth_users = {u.id: u for u in users_list}
+    except Exception as e:
+        auth_users = {}
+        print(f"Warning: Could not fetch Auth users: {e}")
+
+    # Merge names from metadata
+    for user in users:
+        auth_user = auth_users.get(user['id'])
+        if auth_user and getattr(auth_user, "user_metadata", None):
+            user['name'] = auth_user.user_metadata.get('full_name')
+        else:
+            user['name'] = user.get('username')  # fallback
+
+    # Sort users by privilege
     privilege_order = {'admin': 0, 'edit': 1, 'view': 2}
     sorted_users = sorted(users, key=lambda u: privilege_order.get(u.get('privilege'), 99))
 
@@ -66,7 +90,8 @@ def invite_user():
         create_resp = supabase.auth.admin.create_user({
             "email": email,
             "password": otp,
-            "email_confirm": True
+            "email_confirm": True,
+            "user_metadata": {"full_name": name}
         })
 
         auth_user = getattr(create_resp, "user", None) or (create_resp.get("user") if isinstance(create_resp, dict) else None)
@@ -79,7 +104,6 @@ def invite_user():
             'id': auth_user.id,
             'username': email,
             'privilege': privilege,
-            'name': name,
             'requires_password_change': True,
             'otp_expires_at': expires_at.isoformat()
         }).execute()
