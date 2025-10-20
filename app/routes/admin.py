@@ -164,36 +164,33 @@ def update_users():
         return redirect_resp
 
     supabase = get_supabase_client()
-    users_resp = supabase.table('users').select('id, privilege').execute()
+    users_resp = supabase.table('users').select('id').execute()
     users = users_resp.data or []
 
     for user in users:
         user_id = user['id']
-        old_priv = user.get('privilege')
-        new_priv = request.form.get(f"privilege_{user_id}")
         reset = request.form.get(f"reset_{user_id}")
         delete = request.form.get(f"delete_{user_id}")
+        new_priv = request.form.get(f"privilege_{user_id}")
 
         # Fetch Auth user for metadata
         try:
             auth_user_resp = supabase.auth.admin.get_user_by_id(user_id)
             auth_user = getattr(auth_user_resp, "user", None) or (auth_user_resp.get("user") if isinstance(auth_user_resp, dict) else None)
             username = auth_user.email if auth_user else "Unknown"
+            metadata = getattr(auth_user, "user_metadata", {}) or {}
+            old_priv = metadata.get('privilege', 'view')
         except Exception:
             username = "Unknown"
+            old_priv = 'view'
+            metadata = {}
 
         # Update privilege
         if new_priv and new_priv != old_priv:
-            # Update both metadata and users table
             try:
-                # Update users table
-                supabase.table('users').update({'privilege': new_priv}).eq('id', user_id).execute()
-
-                # Update Auth metadata
-                metadata = getattr(auth_user, "user_metadata", {}) or {}
+                # Update Auth metadata only
                 metadata['privilege'] = new_priv
                 supabase.auth.admin.update_user_by_id(user_id, {"user_metadata": metadata})
-
                 flash(f"Privilege updated for {username}", "success")
             except Exception as e:
                 flash(f"Failed to update privilege for {username}: {e}", "danger")
@@ -201,20 +198,14 @@ def update_users():
         # Reset password
         if reset:
             try:
-                otp = "storestash"  # Temporary password
+                otp = "storestash"
                 expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
-
-                # Update Auth user password and metadata
-                metadata = getattr(auth_user, "user_metadata", {}) or {}
                 metadata['otp_expires_at'] = expires_at
                 supabase.auth.admin.update_user_by_id(user_id, {
                     "password": otp,
                     "user_metadata": metadata
                 })
-
-                # Update requires_password_change flag in users table
                 supabase.table('users').update({'requires_password_change': True}).eq('id', user_id).execute()
-
                 send_reset_email(username)
                 flash(f"Password reset for {username}", "success")
             except Exception as e:
@@ -226,11 +217,11 @@ def update_users():
                 supabase.auth.admin.delete_user(user_id)
             except Exception as e:
                 flash(f"Failed to delete Auth user {username}: {e}", "danger")
-
             supabase.table('users').delete().eq('id', user_id).execute()
             flash(f"Deleted {username}", "success")
 
     return redirect(url_for('admin.admin'))
+
 
 
 @admin_bp.route('/add_container', methods=['POST'])
