@@ -33,8 +33,7 @@ def ensure_root_user():
             supabase.table('users').insert({
                 "id": auth_user.id,
                 "requires_password_change": True,
-                "support_allowed": False,
-                "privilege": "admin"
+                "support_allowed": False
             }).execute()
 
             print("Temporary 'root' user added (admin, requires password change).")
