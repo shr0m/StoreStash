@@ -1,11 +1,10 @@
-from flask import Blueprint, render_template, redirect, url_for, session
+from flask import Blueprint, render_template, redirect, url_for, session, flash
 from app.db import get_supabase_client
-from app.utils.otp_utils import redirect_if_password_change_required
+from app.utils.otp_utils import redirect_if_password_change_required, get_client_id
 from app import limiter
 import os
 
 home_bp = Blueprint('home', __name__)
-CLIENT_ID = os.getenv("CLIENT_ID")
 
 
 @home_bp.route('/')
@@ -24,6 +23,12 @@ def home():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
+    # Check client_id valid
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id")
+        return redirect(url_for('auth.login'))
+
     redirect_resp = redirect_if_password_change_required()
     if redirect_resp:
         return redirect_resp
@@ -33,7 +38,7 @@ def home():
     # Fetch all containers for this client
     containers_response = supabase.table('containers') \
         .select('id, name') \
-        .eq('client_id', CLIENT_ID) \
+        .eq('client_id', client_id) \
         .execute()
     containers = containers_response.data or []
 
@@ -49,7 +54,7 @@ def home():
     while True:
         resp = supabase.table('stock') \
             .select('id, container_id, quantity') \
-            .eq('client_id', CLIENT_ID) \
+            .eq('client_id', client_id) \
             .range(start, start + batch_size - 1) \
             .execute()
 

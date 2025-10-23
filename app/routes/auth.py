@@ -69,6 +69,7 @@ def login():
             session['user_id'] = user_id
             session['username'] = email
             session['privilege'] = user_record.get('privilege') if user_record else auth_metadata.get('privilege')
+            session['client_id'] = auth_metadata.get('client_id')
 
             # Redirect if change pass required
             if requires_password_change:

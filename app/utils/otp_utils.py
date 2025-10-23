@@ -50,3 +50,10 @@ def redirect_if_password_change_required():
         return redirect(url_for('auth.change_password'))
 
     return None
+
+# Return client_id for user
+def get_client_id():
+    client_id = session.get("client_id")
+    if not client_id:
+        return None
+    return client_id

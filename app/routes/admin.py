@@ -1,13 +1,14 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from app.db import get_supabase_client
 from app import limiter
-from app.utils.otp_utils import generate_otp, send_otp_email, redirect_if_password_change_required
+from app.utils.otp_utils import generate_otp, send_otp_email, redirect_if_password_change_required, get_client_id
 from app.utils.email_utils import send_reset_email
 from datetime import datetime, timezone, timedelta
-import re
+import re, os
 
 admin_bp = Blueprint('admin', __name__)
 EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]{3,}@[a-zA-Z0-9.-]{3,}\.[a-zA-Z]{2,}$')
+CREATE_ID = os.getenv("CLIENT_ID")
 
 def is_admin():
     return 'user_id' in session and session.get('privilege') == 'admin'
@@ -18,55 +19,90 @@ def admin():
     if not is_admin():
         return redirect(url_for('auth.login'))
 
+    # Get client_id
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id")
+        return redirect(url_for('auth.login'))
+
     redirect_resp = redirect_if_password_change_required()
     if redirect_resp:
         return redirect_resp
 
     supabase = get_supabase_client()
 
-    # Get app-level user info (users table)
-    users_resp = supabase.table('users').select(
-        'id, requires_password_change, support_allowed'
-    ).execute()
-    users = users_resp.data or []
-
     # Get all auth users
     try:
         auth_users_resp = supabase.auth.admin.list_users()
-        users_list = (
-            auth_users_resp.get("users")
-            if isinstance(auth_users_resp, dict)
-            else auth_users_resp
-        )
-        auth_users = {u.id: u for u in users_list}
-    except Exception as e:
-        auth_users = {}
-        print(f"Warning: Could not fetch Auth users: {e}")
 
-    # Merge metadata from auth users
+        if isinstance(auth_users_resp, list):
+            all_auth_users = auth_users_resp
+        elif hasattr(auth_users_resp, "users"):
+            all_auth_users = auth_users_resp.users
+        elif hasattr(auth_users_resp, "data"):
+            all_auth_users = auth_users_resp.data
+        elif isinstance(auth_users_resp, dict):
+            all_auth_users = auth_users_resp.get("users") or auth_users_resp.get("data") or []
+        else:
+            all_auth_users = []
+    except Exception as e:
+        print(f"Warning: Could not fetch Auth users: {e}")
+        all_auth_users = []
+
+    # Filter Auth users
+    client_auth_users = [
+        u for u in all_auth_users
+        if getattr(u, "user_metadata", None)
+        and u.user_metadata.get("client_id") == client_id
+    ]
+
+    # Build a lookup by user ID
+    auth_users = {u.id: u for u in client_auth_users}
+
+    # Fetch matching IDs
+    user_ids = list(auth_users.keys())
+    users = []
+
+    if user_ids:
+        users_resp = (
+            supabase.table("users")
+            .select("id, requires_password_change, support_allowed")
+            .in_("id", user_ids)
+            .execute()
+        )
+        users = users_resp.data or []
+
+    # Merge in metadata from Auth users
     for user in users:
-        auth_user = auth_users.get(user['id'])
+        auth_user = auth_users.get(user["id"])
         if auth_user:
             metadata = getattr(auth_user, "user_metadata", {}) or {}
-            user['name'] = metadata.get('full_name', "Unknown")
-            user['username'] = auth_user.email
-            user['theme'] = metadata.get('theme', 'light')
-            user['privilege'] = metadata.get('privilege', 'view')
+            user["name"] = metadata.get("full_name", "Unknown")
+            user["username"] = getattr(auth_user, "email", "Unknown")
+            user["theme"] = metadata.get("theme", "light")
+            user["privilege"] = metadata.get("privilege", "view")
         else:
-            user['name'] = "Unknown"
-            user['username'] = "Unknown"
-            user['theme'] = 'light'
-            user['privilege'] = 'view'
+            user.update({
+                "name": "Unknown",
+                "username": "Unknown",
+                "theme": "light",
+                "privilege": "view",
+            })
 
-    # Sort users by privilege for display
-    privilege_order = {'admin': 0, 'edit': 1, 'view': 2}
-    sorted_users = sorted(users, key=lambda u: privilege_order.get(u.get('privilege', ''), 99))
+    # Sort by privilege
+    privilege_order = {"admin": 0, "edit": 1, "view": 2}
+    sorted_users = sorted(users, key=lambda u: privilege_order.get(u.get("privilege", ""), 99))
 
-    # Fetch containers for display
-    containers_resp = supabase.table('containers').select('name').execute()
+    # Fetch containers
+    containers_resp = (
+        supabase.table("containers")
+        .select("name")
+        .eq("client_id", client_id)
+        .execute()
+    )
     containers = containers_resp.data or []
 
-    return render_template('admin.html', users=sorted_users, containers=containers)
+    return render_template("admin.html", users=sorted_users, containers=containers)
 
 
 
@@ -111,7 +147,8 @@ def invite_user():
             "privilege": privilege,
             "theme": "light",
             "otp_expires_at": expires_at.isoformat(),
-            "created_by": session.get("username")
+            "created_by": session.get("username"),
+            "client_id": CREATE_ID
         }
 
         # Make auth user with OTP as temp password
