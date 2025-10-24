@@ -5,6 +5,11 @@ CLIENT_ID = os.getenv("CLIENT_ID")
 
 def ensure_root_user():
     supabase = get_supabase_client()
+
+    if not CLIENT_ID:
+        print("No client ID found. Skipping root user creation.")
+        return
+
     try:
         #Get all auth users
         users_resp = supabase.auth.admin.list_users()
