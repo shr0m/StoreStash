@@ -26,7 +26,7 @@ def home():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()

@@ -48,7 +48,7 @@ def dashboard(container_id):
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -163,7 +163,7 @@ def add_stock_type():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -276,7 +276,7 @@ def update_stock_batch():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))    
     
     redirect_resp = redirect_if_password_change_required()
@@ -396,7 +396,7 @@ def add_category():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     if session.get('privilege') not in ['admin', 'edit']:
@@ -480,7 +480,7 @@ def update_stock_settings():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -607,7 +607,7 @@ def delete_category(category_id):
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     supabase = get_supabase_client()
@@ -648,7 +648,7 @@ def dash_default():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     # Get first container for this client

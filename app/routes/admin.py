@@ -21,7 +21,7 @@ def admin():
     # Get client_id
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -115,7 +115,7 @@ def invite_user():
     # Get client_id
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     name = request.form['name']
@@ -255,11 +255,18 @@ def update_users():
 
         # Delete user
         if delete:
+
             try:
                 supabase.auth.admin.delete_user(user_id)
             except Exception as e:
                 flash(f"Failed to delete Auth user {username}: {e}", "danger")
             supabase.table('users').delete().eq('id', user_id).execute()
+
+            # Self-delete
+            if user_id == session.get('user_id'):
+                session.clear()
+                return redirect(url_for('auth.login'))
+
             flash(f"Deleted {username}", "success")
 
     return redirect(url_for('admin.admin'))

@@ -42,12 +42,14 @@ def redirect_if_password_change_required():
             .eq('id', user_id)\
             .single()\
             .execute()
+        
+        user_data = response.data
+        if user_data and user_data.get('requires_password_change'):
+            return redirect(url_for('auth.change_password'))
     except Exception:
         redirect(url_for('auth.login'))
 
-    user_data = response.data
-    if user_data and user_data.get('requires_password_change'):
-        return redirect(url_for('auth.change_password'))
+
 
     return None
 

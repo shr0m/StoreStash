@@ -22,7 +22,7 @@ def people():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -160,7 +160,7 @@ def add_person():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -232,7 +232,7 @@ def delete_person():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -283,7 +283,7 @@ def edit_person():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -372,7 +372,7 @@ def assign_item():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -514,7 +514,7 @@ def process_item():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -666,7 +666,7 @@ def add_label():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     label_name = request.form.get('label_name', '').strip()
@@ -732,7 +732,7 @@ def delete_label(label_id):
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     supabase = get_supabase_client()
@@ -782,7 +782,7 @@ def assign_label():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     person_id = request.form.get('person_id')
@@ -830,7 +830,7 @@ def unassign_label():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     person_id = request.form.get('person_id')
@@ -865,7 +865,7 @@ def toggle_label():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id")
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     data = request.get_json()
