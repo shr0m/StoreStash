@@ -8,7 +8,6 @@ import re, os
 
 admin_bp = Blueprint('admin', __name__)
 EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]{3,}@[a-zA-Z0-9.-]{3,}\.[a-zA-Z]{2,}$')
-CREATE_ID = os.getenv("CLIENT_ID")
 
 def is_admin():
     return 'user_id' in session and session.get('privilege') == 'admin'
@@ -113,6 +112,12 @@ def invite_user():
         flash("Unauthorized action.", "danger")
         return redirect(url_for('auth.login'))
 
+    # Get client_id
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id")
+        return redirect(url_for('auth.login'))
+
     name = request.form['name']
     email = request.form['email']
     privilege = request.form['privilege']
@@ -138,7 +143,7 @@ def invite_user():
 
     # Generate OTP and expiry
     otp = generate_otp()
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=12)
 
     try:
 
@@ -148,7 +153,7 @@ def invite_user():
             "theme": "light",
             "otp_expires_at": expires_at.isoformat(),
             "created_by": session.get("username"),
-            "client_id": CREATE_ID
+            "client_id": client_id
         }
 
         # Make auth user with OTP as temp password
