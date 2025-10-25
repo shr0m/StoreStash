@@ -333,6 +333,12 @@ def add_container():
         flash("Unauthorized action.", "danger")
         return redirect(url_for('home.home'))
 
+    # Get client_id
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id", "danger")
+        return redirect(url_for('auth.login'))
+
     redirect_resp = redirect_if_password_change_required()
     if redirect_resp:
         return redirect_resp
@@ -343,7 +349,7 @@ def add_container():
         return redirect(url_for('admin.admin'))
 
     supabase = get_supabase_client()
-    supabase.table('containers').insert({'name': name}).execute()
+    supabase.table('containers').insert({'name': name, 'client_id': client_id}).execute()
 
     flash(f"Container '{name}' added successfully!", "success")
     return redirect(url_for('admin.admin'))
@@ -354,7 +360,13 @@ def delete_container():
     if not is_admin():
         flash("Unauthorized action.", "danger")
         return redirect(url_for('home.home'))
-    
+
+    # Get client_id
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id", "danger")
+        return redirect(url_for('auth.login'))
+
     redirect_resp = redirect_if_password_change_required()
     if redirect_resp:
         return redirect_resp
@@ -367,7 +379,7 @@ def delete_container():
     supabase = get_supabase_client()
     
     try:
-        container_data = supabase.table('containers').select('id').eq('name', name).execute()
+        container_data = supabase.table('containers').select('id').eq('name', name).eq('client_id', client_id).execute()
         if not container_data.data:
             flash(f"No container found with name '{name}'.", "danger")
             return redirect(url_for('admin.admin'))
@@ -390,7 +402,13 @@ def edit_container():
     if not is_admin():
         flash("Unauthorized action.", "danger")
         return redirect(url_for('home.home'))
-    
+
+    # Get client_id
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id", "danger")
+        return redirect(url_for('auth.login'))
+
     redirect_resp = redirect_if_password_change_required()
     if redirect_resp:
         return redirect_resp
@@ -411,6 +429,7 @@ def edit_container():
             supabase.table('containers')
             .select('id')
             .eq('name', current_name)
+            .eq('client_id', client_id)
             .execute()
         )
 
@@ -425,6 +444,7 @@ def edit_container():
             supabase.table('containers')
             .select('id')
             .eq('name', new_name)
+            .eq('client_id', client_id)
             .execute()
         )
         if existing.data:
