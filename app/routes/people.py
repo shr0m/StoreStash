@@ -1,8 +1,8 @@
 from app.extensions import limiter
 from app.db import get_supabase_client
-from app.utils.otp_utils import redirect_if_password_change_required
+from app.utils.otp_utils import redirect_if_password_change_required, get_client_id
 from flask import redirect, url_for, flash, render_template, session, request, Blueprint, jsonify
-import re
+import re, os
 
 people_bp = Blueprint('people', __name__)
 
@@ -19,16 +19,23 @@ def people():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
+    # Check client_id valid
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id", "danger")
+        return redirect(url_for('auth.login'))
+
     redirect_resp = redirect_if_password_change_required()
     if redirect_resp:
         return redirect_resp
 
     supabase = get_supabase_client()
 
-    # Load stock and items
+    # Load stock and items for this client
     response = (
         supabase.table('stock')
         .select("id, quantity, container_id, item_id, items(type, sizing)")
+        .eq('client_id', client_id)
         .execute()
     )
     stock_data = response.data if response.data else []
@@ -44,14 +51,15 @@ def people():
                 'count': item.get('quantity', 0)
             })
 
-    # Load people
-    people_response = supabase.table('people').select("*").execute()
+    # Load people for this client
+    people_response = supabase.table('people').select("*").eq('client_id', client_id).execute()
     people = people_response.data if people_response.data else []
 
-    # Load issued_stock joined with items
+    # Load issued_stock joined with items for this client
     issued_resp = (
         supabase.table('issued_stock')
         .select("person_id, quantity, note, items(type, sizing)")
+        .eq('client_id', client_id)
         .execute()
     )
     issued_records = issued_resp.data if issued_resp.data else []
@@ -72,8 +80,8 @@ def people():
 
         issued_by_person[pid][key] = issued_by_person[pid].get(key, 0) + qty
 
-    # Load label issues
-    label_issues_resp = supabase.table('label_issue').select('person_id, label_id').execute()
+    # Load label issues for this client
+    label_issues_resp = supabase.table('label_issue').select('person_id, label_id').eq('client_id', client_id).execute()
     label_issues = label_issues_resp.data if label_issues_resp.data else []
 
     labels_by_person = {}
@@ -82,8 +90,8 @@ def people():
         lid = record['label_id']
         labels_by_person.setdefault(pid, []).append(lid)
 
-    # Load labels
-    labels_resp = supabase.table('labels').select('*').order('name').execute()
+    # Load labels for this client
+    labels_resp = supabase.table('labels').select('*').eq('client_id', client_id).order('name').execute()
     all_labels = labels_resp.data if labels_resp.data else []
     label_lookup = {label['id']: label for label in all_labels}
 
@@ -129,8 +137,8 @@ def people():
         get_surname(p.get('name'))
     ))
 
-    # Load containers
-    containers_resp = supabase.table('containers').select('*').order('name').execute()
+    # Load containers for this client
+    containers_resp = supabase.table('containers').select('*').eq('client_id', client_id).order('name').execute()
     containers = containers_resp.data if containers_resp.data else []
 
     return render_template(
@@ -147,6 +155,12 @@ def people():
 @limiter.limit("2 per second")
 def add_person():
     if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+
+    # Check client_id valid
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -178,16 +192,23 @@ def add_person():
     name_upper = name.upper()
 
     try:
-        # Check for existing person with same name
-        existing = supabase.table('people').select('name').eq('name', name_upper).execute()
+        # Check for existing person with same name and client
+        existing = (
+            supabase.table('people')
+            .select('name')
+            .eq('name', name_upper)
+            .eq('client_id', client_id)
+            .execute()
+        )
         if existing.data and len(existing.data) > 0:
-            flash("A person with this name already exists.", "danger")
+            flash("A person with this name already exists for this client.", "danger")
             return redirect(url_for('people.people'))
 
-        # Insert new person
+        # Insert new person with client_id
         response = supabase.table('people').insert({
             'name': name_upper,
-            'rank': rank
+            'rank': rank,
+            'client_id': client_id
         }).execute()
 
         if not response.data:
@@ -201,10 +222,17 @@ def add_person():
     return redirect(url_for('people.people'))
 
 
+
 @people_bp.route('/delete_person', methods=['POST'])
 @limiter.limit("2 per second")
 def delete_person():
     if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+
+    # Check client_id valid
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -219,18 +247,26 @@ def delete_person():
     supabase = get_supabase_client()
 
     try:
-        person_data = supabase.table('people').select('id').eq('name', name).execute()
+        # Select person within this client
+        person_data = (
+            supabase.table('people')
+            .select('id')
+            .eq('name', name)
+            .eq('client_id', client_id)
+            .execute()
+        )
         if not person_data.data:
-            flash(f"No person found with name '{name}'.", "danger")
+            flash(f"No person found with name '{name}' for this client.", "danger")
             return redirect(url_for('people.people'))
 
         person_id = person_data.data[0]['id']
 
-        supabase.table('label_issue').delete().eq('person_id', person_id).execute()
-        supabase.table('issued_stock').delete().eq('person_id', person_id).execute()
-        supabase.table('people').delete().eq('id', person_id).execute()
+        # Delete related label issues and issued stock for this client
+        supabase.table('label_issue').delete().eq('person_id', person_id).eq('client_id', client_id).execute()
+        supabase.table('issued_stock').delete().eq('person_id', person_id).eq('client_id', client_id).execute()
+        supabase.table('people').delete().eq('id', person_id).eq('client_id', client_id).execute()
 
-        flash(f"{name} and related issues were deleted.", "success")
+        flash(f"{name} and related records were deleted.", "success")
 
     except Exception as e:
         flash(f"Error deleting {name}: {str(e)}", "danger")
@@ -243,7 +279,13 @@ def delete_person():
 def edit_person():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
-    
+
+    # Check client_id valid
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id", "danger")
+        return redirect(url_for('auth.login'))
+
     redirect_resp = redirect_if_password_change_required()
     if redirect_resp:
         return redirect_resp
@@ -276,24 +318,39 @@ def edit_person():
     new_name_upper = new_name.upper()
 
     try:
-        # Check if the original person exists
-        existing_person = supabase.table('people').select('name').eq('name', original_name_upper).execute()
+        # Check if the original person exists for this client
+        existing_person = (
+            supabase.table('people')
+            .select('name')
+            .eq('name', original_name_upper)
+            .eq('client_id', client_id)
+            .execute()
+        )
         if not existing_person.data or len(existing_person.data) == 0:
-            flash("Original person not found.", "danger")
+            flash("Original person not found for this client.", "danger")
             return redirect(url_for('people.people'))
 
-        # Check if name exists
+        # Check for duplicate name within this client
         if new_name_upper != original_name_upper:
-            duplicate_check = supabase.table('people').select('name').eq('name', new_name_upper).execute()
+            duplicate_check = (
+                supabase.table('people')
+                .select('name')
+                .eq('name', new_name_upper)
+                .eq('client_id', client_id)
+                .execute()
+            )
             if duplicate_check.data and len(duplicate_check.data) > 0:
-                flash("A person with the new name already exists.", "danger")
+                flash("A person with the new name already exists for this client.", "danger")
                 return redirect(url_for('people.people'))
 
         # Update the person record
-        response = supabase.table('people')\
-            .update({'name': new_name_upper, 'rank': new_rank})\
-            .eq('name', original_name_upper)\
+        response = (
+            supabase.table('people')
+            .update({'name': new_name_upper, 'rank': new_rank})
+            .eq('name', original_name_upper)
+            .eq('client_id', client_id)
             .execute()
+        )
 
         if not response.data:
             flash("Failed to update person. Please try again.", "danger")
@@ -312,6 +369,12 @@ def assign_item():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
+    # Check client_id valid
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id", "danger")
+        return redirect(url_for('auth.login'))
+
     redirect_resp = redirect_if_password_change_required()
     if redirect_resp:
         return redirect_resp
@@ -323,9 +386,7 @@ def assign_item():
     quantity_str = request.form.get('quantity', '1').strip()
 
     try:
-        quantity = int(quantity_str)
-        if quantity < 1:
-            quantity = 1
+        quantity = max(1, int(quantity_str))
     except ValueError:
         quantity = 1
 
@@ -336,29 +397,37 @@ def assign_item():
     supabase = get_supabase_client()
 
     try:
-        # Get person
-        person_resp = supabase.table('people').select('id').eq('name', name).limit(1).execute()
+        # Get person for this client
+        person_resp = (
+            supabase.table('people')
+            .select('id')
+            .eq('name', name)
+            .eq('client_id', client_id)
+            .limit(1)
+            .execute()
+        )
         if not person_resp.data:
-            flash(f"Person '{name}' not found.", "danger")
+            flash(f"Person '{name}' not found for this client.", "danger")
             return redirect(url_for('people.people'))
         person_id = person_resp.data[0]['id']
 
-        # Find item record
+        # Find item record for this client
         item_query = (
             supabase.table('items')
             .select('id, category_id')
             .eq('type', item_type)
+            .eq('client_id', client_id)
         )
         item_query = item_query.is_('sizing', None) if sizing is None else item_query.eq('sizing', sizing)
         item_resp = item_query.limit(1).execute()
         if not item_resp.data:
-            flash(f"Item '{item_type}' ({sizing or 'N/A'}) not found in items table.", "danger")
+            flash(f"Item '{item_type}' ({sizing or 'N/A'}) not found for this client.", "danger")
             return redirect(url_for('people.people'))
 
         item_id = item_resp.data[0]['id']
         category_id = item_resp.data[0]['category_id']
 
-        # Check stock in current contianer
+        # Check stock in current container
         container_id = session.get("container_id")
         if not container_id:
             flash("No container selected.", "danger")
@@ -369,6 +438,7 @@ def assign_item():
             .select('id, quantity')
             .eq('item_id', item_id)
             .eq('container_id', container_id)
+            .eq('client_id', client_id)
             .limit(1)
             .execute()
         )
@@ -384,16 +454,25 @@ def assign_item():
             return redirect(url_for('people.people'))
 
         # Decrement stock
+        new_quantity = available_qty - quantity
         supabase.table('stock').update({
-            'quantity': available_qty - quantity
-        }).eq('id', stock_item['id']).execute()
+            'quantity': new_quantity
+        }).eq('id', stock_item['id']).eq('client_id', client_id).execute()
 
-        # Check issued_stock for existing records
+        # Delete stock record if it’s now empty
+        if new_quantity <= 0:
+            supabase.table('stock').delete() \
+                .eq('id', stock_item['id']) \
+                .eq('client_id', client_id) \
+                .execute()
+
+        # Check issued_stock for existing records for this client
         issued_query = (
             supabase.table('issued_stock')
             .select('id, quantity')
             .eq('person_id', person_id)
             .eq('item_id', item_id)
+            .eq('client_id', client_id)
         )
         if note:
             issued_query = issued_query.eq('note', note)
@@ -405,16 +484,17 @@ def assign_item():
 
         if existing_issued:
             issued_id = existing_issued[0]['id']
-            current_qty = existing_issued[0]['quantity'] or 0
+            current_qty = existing_issued[0].get('quantity', 0)
             supabase.table('issued_stock').update({
                 'quantity': current_qty + quantity
-            }).eq('id', issued_id).execute()
+            }).eq('id', issued_id).eq('client_id', client_id).execute()
         else:
             supabase.table('issued_stock').insert({
                 'person_id': person_id,
                 'item_id': item_id,
                 'quantity': quantity,
-                'note': note if note else None
+                'note': note if note else None,
+                'client_id': client_id
             }).execute()
 
         flash(f"Assigned {quantity} × {item_type}{f' ({sizing})' if sizing else ''} to {name}.", "success")
@@ -431,14 +511,20 @@ def process_item():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
+    # Check client_id valid
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id", "danger")
+        return redirect(url_for('auth.login'))
+
     redirect_resp = redirect_if_password_change_required()
     if redirect_resp:
         return redirect_resp
 
     supabase = get_supabase_client()
 
-    person_name = request.form.get('person_name')
-    item_type = request.form.get('item_type')
+    person_name = request.form.get('person_name', '').strip().upper()
+    item_type = request.form.get('item_type', '').strip()
     sizing_input = request.form.get('sizing')
     sizing = normalize_sizing(sizing_input)
     action = request.form.get('action')  # "return" or "lost"
@@ -458,36 +544,45 @@ def process_item():
         return redirect(request.referrer)
 
     try:
-        # Resolve person
-        person_resp = supabase.table('people').select('id').eq('name', person_name).limit(1).execute()
+        # Resolve person for this client
+        person_resp = (
+            supabase.table('people')
+            .select('id')
+            .eq('name', person_name)
+            .eq('client_id', client_id)
+            .limit(1)
+            .execute()
+        )
         if not person_resp.data:
-            flash("Person not found.", "danger")
+            flash("Person not found for this client.", "danger")
             return redirect(request.referrer)
         person_id = person_resp.data[0]['id']
 
-        # Resolve item
+        # Resolve item for this client
         item_query = (
             supabase.table('items')
             .select('id, category_id')
             .eq('type', item_type)
+            .eq('client_id', client_id)
         )
         item_query = item_query.is_('sizing', None) if sizing is None else item_query.eq('sizing', sizing)
         item_resp = item_query.limit(1).execute()
         if not item_resp.data:
-            flash(f"Item '{item_type}' ({sizing or 'N/A'}) not found.", "danger")
+            flash(f"Item '{item_type}' ({sizing or 'N/A'}) not found for this client.", "danger")
             return redirect(request.referrer)
-
         item_id = item_resp.data[0]['id']
 
-        # Find matching issued entry
-        issued_resp = (
+        # Find matching issued entry for this client
+        issued_query = (
             supabase.table('issued_stock')
             .select('id, quantity')
             .eq('person_id', person_id)
             .eq('item_id', item_id)
+            .eq('client_id', client_id)
             .limit(1)
-            .execute()
         )
+        issued_query = issued_query.eq('note', request.form.get('note')) if request.form.get('note') else issued_query.is_('note', None)
+        issued_resp = issued_query.execute()
         if not issued_resp.data:
             flash("No matching issued items found.", "warning")
             return redirect(request.referrer)
@@ -500,51 +595,58 @@ def process_item():
             flash("Not enough issued items to process.", "warning")
             return redirect(request.referrer)
 
-        # Action handling
+        # Handle return
         if action == "return":
             container_id = request.form.get('container_id')
             if not container_id:
                 flash("You must select a container to return items.", "warning")
                 return redirect(request.referrer)
 
-            # Decrease issued quant
+            # Update issued quantity
             new_quantity = current_quantity - quantity
             if new_quantity > 0:
-                supabase.table('issued_stock').update({'quantity': new_quantity}).eq('id', issued_id).execute()
+                supabase.table('issued_stock').update({'quantity': new_quantity}) \
+                    .eq('id', issued_id).eq('client_id', client_id).execute()
             else:
-                supabase.table('issued_stock').delete().eq('id', issued_id).execute()
+                supabase.table('issued_stock').delete().eq('id', issued_id).eq('client_id', client_id).execute()
 
-            # Add back to stock
+            # Update stock for this client
             stock_resp = (
                 supabase.table('stock')
                 .select('id, quantity')
                 .eq('item_id', item_id)
                 .eq('container_id', container_id)
+                .eq('client_id', client_id)
+                .limit(1)
                 .execute()
             )
             stock_records = stock_resp.data or []
 
             if stock_records:
                 stock_id = stock_records[0]['id']
-                stock_qty = stock_records[0]['quantity']
-                supabase.table('stock').update({'quantity': stock_qty + quantity}).eq('id', stock_id).execute()
+                stock_qty = stock_records[0].get('quantity', 0)
+                supabase.table('stock').update({'quantity': stock_qty + quantity}) \
+                    .eq('id', stock_id).eq('client_id', client_id).execute()
             else:
                 supabase.table('stock').insert({
                     'item_id': item_id,
                     'container_id': container_id,
-                    'quantity': quantity
+                    'quantity': quantity,
+                    'client_id': client_id
                 }).execute()
 
-            flash(f"Returned {quantity} {item_type}(s) to stock.", "success")
+            flash(f"Returned {quantity} × {item_type}{f' ({sizing})' if sizing else ''} to stock.", "success")
 
+        # Handle lost items
         elif action == "lost":
             new_quantity = current_quantity - quantity
             if new_quantity > 0:
-                supabase.table('issued_stock').update({'quantity': new_quantity}).eq('id', issued_id).execute()
+                supabase.table('issued_stock').update({'quantity': new_quantity}) \
+                    .eq('id', issued_id).eq('client_id', client_id).execute()
             else:
-                supabase.table('issued_stock').delete().eq('id', issued_id).execute()
+                supabase.table('issued_stock').delete().eq('id', issued_id).eq('client_id', client_id).execute()
 
-            flash(f"Marked {quantity} {item_type}(s) as lost.", "success")
+            flash(f"Marked {quantity} × {item_type}{f' ({sizing})' if sizing else ''} as lost.", "success")
 
         else:
             flash("Invalid action.", "danger")
@@ -561,6 +663,12 @@ def add_label():
     if session.get('privilege') not in ['admin', 'edit']:
         return "Unauthorized", 403
 
+    # Check client_id valid
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id", "danger")
+        return redirect(url_for('auth.login'))
+
     label_name = request.form.get('label_name', '').strip()
     label_colour = request.form.get('label_color', '').strip()
 
@@ -572,28 +680,36 @@ def add_label():
         flash("Invalid label colour selected.", "danger")
         return redirect(url_for('people.people'))
 
-    # Validate name format
+    # Validate name format and length
     if not re.match(r'^[A-Za-z0-9\-\(\)\s]+$', label_name):
         flash("Label names cannot contain forbidden characters.", "danger")
         return redirect(url_for('people.people'))
     
     if len(label_name) > 25:
-        flash("Label name cannot exceed 25 characters")
+        flash("Label name cannot exceed 25 characters", "danger")
         return redirect(url_for('people.people'))
 
     supabase = get_supabase_client()
 
     try:
-        existing = supabase.table('labels').select("id", count='exact')\
-            .ilike('name', label_name).execute()
+        # Check for existing label for this client (case-insensitive)
+        existing = (
+            supabase.table('labels')
+            .select("id", count='exact')
+            .eq('client_id', client_id)
+            .ilike('name', label_name)
+            .execute()
+        )
 
         if existing.count and existing.count > 0:
-            flash("A label with that name already exists.", "warning")
+            flash("A label with that name already exists for this client.", "warning")
             return redirect(url_for('people.people'))
 
+        # Insert new label
         insert_result = supabase.table('labels').insert({
             'name': label_name,
-            'colour': label_colour
+            'colour': label_colour,
+            'client_id': client_id
         }).execute()
 
         if insert_result.data:
@@ -613,18 +729,38 @@ def delete_label(label_id):
     if session.get('privilege') not in ['admin', 'edit']:
         return "Unauthorized", 403
 
+    # Check client_id valid
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id", "danger")
+        return redirect(url_for('auth.login'))
+
     supabase = get_supabase_client()
 
     try:
-        # Check if label exists
-        existing = supabase.table('labels').select('id').eq('id', label_id).execute()
+        # Check if label exists for this client
+        existing = (
+            supabase.table('labels')
+            .select('id')
+            .eq('id', label_id)
+            .eq('client_id', client_id)
+            .execute()
+        )
 
         if existing.data and len(existing.data) > 0:
-            # Delete related entries in label_issue first
-            supabase.table('label_issue').delete().eq('label_id', label_id).execute()
+            # Delete related entries in label_issue for this client
+            supabase.table('label_issue')\
+                .delete()\
+                .eq('label_id', label_id)\
+                .eq('client_id', client_id)\
+                .execute()
 
-            # Now delete from labels
-            supabase.table('labels').delete().eq('id', label_id).execute()
+            # Delete label itself
+            supabase.table('labels')\
+                .delete()\
+                .eq('id', label_id)\
+                .eq('client_id', client_id)\
+                .execute()
 
             flash("Label and related assignments deleted successfully.", "success")
         else:
@@ -643,6 +779,12 @@ def assign_label():
     if session.get('privilege') not in ['admin', 'edit']:
         return "Unauthorized", 403
 
+    # Check client_id valid
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id", "danger")
+        return redirect(url_for('auth.login'))
+
     person_id = request.form.get('person_id')
     label_id = request.form.get('label_id')
 
@@ -652,16 +794,24 @@ def assign_label():
     supabase = get_supabase_client()
 
     try:
-        # Check if already exists
-        existing = supabase.table('label_issue').select('id', count='exact')\
-            .eq('person_id', person_id).eq('label_id', label_id).execute()
+        # Check if label_issue already exists for this client
+        existing = (
+            supabase.table('label_issue')
+            .select('id', count='exact')
+            .eq('person_id', person_id)
+            .eq('label_id', label_id)
+            .eq('client_id', client_id)
+            .execute()
+        )
 
         if existing.count > 0:
             return "Already assigned", 200
 
+        # Insert new assignment with client_id
         supabase.table('label_issue').insert({
             'person_id': person_id,
-            'label_id': label_id
+            'label_id': label_id,
+            'client_id': client_id
         }).execute()
 
         return "Label assigned", 200
@@ -677,6 +827,12 @@ def unassign_label():
     if session.get('privilege') not in ['admin', 'edit']:
         return "Unauthorized", 403
 
+    # Check client_id valid
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id", "danger")
+        return redirect(url_for('auth.login'))
+
     person_id = request.form.get('person_id')
     label_id = request.form.get('label_id')
 
@@ -686,8 +842,12 @@ def unassign_label():
     supabase = get_supabase_client()
 
     try:
+        # Delete only for this client
         supabase.table('label_issue').delete()\
-            .eq('person_id', person_id).eq('label_id', label_id).execute()
+            .eq('person_id', person_id)\
+            .eq('label_id', label_id)\
+            .eq('client_id', client_id)\
+            .execute()
 
         return "Label unassigned", 200
 
@@ -702,6 +862,12 @@ def toggle_label():
     if session.get('privilege') not in ['admin', 'edit']:
         return jsonify({'error': 'Unauthorized'}), 403
 
+    # Check client_id valid
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id", "danger")
+        return redirect(url_for('auth.login'))
+
     data = request.get_json()
     person_id = data.get('person_id')
     label_id = data.get('label_id')
@@ -712,11 +878,12 @@ def toggle_label():
     supabase = get_supabase_client()
 
     try:
-        # Check if label already assigned
+        # Check if label already assigned for this client
         existing = supabase.table('label_issue')\
             .select('id')\
             .eq('person_id', person_id)\
             .eq('label_id', label_id)\
+            .eq('client_id', client_id)\
             .execute()
 
         if existing.data:
@@ -725,22 +892,23 @@ def toggle_label():
                 .delete()\
                 .eq('person_id', person_id)\
                 .eq('label_id', label_id)\
+                .eq('client_id', client_id)\
                 .execute()
-            
             status = 'removed'
         else:
             # Label not assigned — insert it
             supabase.table('label_issue').insert({
                 'person_id': person_id,
-                'label_id': label_id
+                'label_id': label_id,
+                'client_id': client_id
             }).execute()
-
             status = 'added'
 
-        # Fetch updated list of assigned labels with name + colour
+        # Fetch updated list of assigned labels for this client
         updated_labels_resp = supabase.table('label_issue')\
             .select('label_id, labels(name, colour)')\
             .eq('person_id', person_id)\
+            .eq('client_id', client_id)\
             .execute()
 
         assigned_labels = [
@@ -749,7 +917,7 @@ def toggle_label():
                 'name': row['labels']['name'],
                 'colour': row['labels']['colour']
             }
-            for row in updated_labels_resp.data
+            for row in updated_labels_resp.data or []
         ]
 
         return jsonify({
