@@ -4,7 +4,7 @@ from app import limiter
 from app.utils.otp_utils import generate_otp, send_otp_email, redirect_if_password_change_required, get_client_id
 from app.utils.email_utils import send_reset_email
 from datetime import datetime, timezone, timedelta
-import re, os
+import re
 
 admin_bp = Blueprint('admin', __name__)
 EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]{3,}@[a-zA-Z0-9.-]{3,}\.[a-zA-Z]{2,}$')
