@@ -206,70 +206,123 @@ def update_users():
         return redirect_resp
 
     supabase = get_supabase_client()
-    users_resp = supabase.table('users').select('id').execute()
+
+    # Get client_id
+    client_id = get_client_id()
+    if not client_id:
+        flash("Invalid client_id", "danger")
+        return redirect(url_for('auth.login'))
+
+    # Fetch all Auth users
+    try:
+        auth_users_resp = supabase.auth.admin.list_users()
+        if isinstance(auth_users_resp, list):
+            all_auth_users = auth_users_resp
+        elif hasattr(auth_users_resp, "users"):
+            all_auth_users = auth_users_resp.users
+        elif hasattr(auth_users_resp, "data"):
+            all_auth_users = auth_users_resp.data
+        elif isinstance(auth_users_resp, dict):
+            all_auth_users = auth_users_resp.get("users") or auth_users_resp.get("data") or []
+        else:
+            all_auth_users = []
+    except Exception as e:
+        flash(f"Failed to fetch Auth users: {e}", "danger")
+        return redirect(url_for('admin.admin'))
+
+    # Filter users
+    client_auth_users = [
+        u for u in all_auth_users
+        if getattr(u, "user_metadata", None)
+        and u.user_metadata.get("client_id") == client_id
+    ]
+
+    # Build convenience lookup
+    auth_users_by_id = {u.id: u for u in client_auth_users}
+    admin_users = [
+        u for u in client_auth_users
+        if u.user_metadata.get("privilege") == "admin"
+    ]
+    admin_count = len(admin_users)
+
+    # Fetch internal user table data for reference
+    users_resp = supabase.table("users").select("id").execute()
     users = users_resp.data or []
 
+    # Iterate through users of client
     for user in users:
-        user_id = user['id']
+        user_id = user["id"]
+        auth_user = auth_users_by_id.get(user_id)
+
+        if not auth_user:
+            continue
+
+        username = getattr(auth_user, "email", "Unknown")
+        metadata = getattr(auth_user, "user_metadata", {}) or {}
+        old_priv = metadata.get("privilege", "view")
+
         reset = request.form.get(f"reset_{user_id}")
         delete = request.form.get(f"delete_{user_id}")
         new_priv = request.form.get(f"privilege_{user_id}")
 
-        # Fetch Auth user for metadata
-        try:
-            auth_user_resp = supabase.auth.admin.get_user_by_id(user_id)
-            auth_user = getattr(auth_user_resp, "user", None) or (auth_user_resp.get("user") if isinstance(auth_user_resp, dict) else None)
-            username = auth_user.email if auth_user else "Unknown"
-            metadata = getattr(auth_user, "user_metadata", {}) or {}
-            old_priv = metadata.get('privilege', 'view')
-        except Exception:
-            username = "Unknown"
-            old_priv = 'view'
-            metadata = {}
+        # Prevent demoting or deleting the last admin
+        if old_priv == "admin" and admin_count == 1:
+            if delete:
+                flash(f"Cannot delete {username}: at least one admin is required.", "danger")
+                continue
+            if new_priv and new_priv != "admin":
+                flash(f"Cannot demote {username}: at least one admin is required.", "danger")
+                continue
 
-        # Update privilege
+        # Handle privilege updates
         if new_priv and new_priv != old_priv:
             try:
-                # Update Auth metadata only
-                metadata['privilege'] = new_priv
+                metadata["privilege"] = new_priv
                 supabase.auth.admin.update_user_by_id(user_id, {"user_metadata": metadata})
                 flash(f"Privilege updated for {username}", "success")
+
+                # Adjust local count for subsequent users in loop
+                if old_priv == "admin":
+                    admin_count -= 1
+                if new_priv == "admin":
+                    admin_count += 1
             except Exception as e:
                 flash(f"Failed to update privilege for {username}: {e}", "danger")
 
-        # Reset password
+        # Handle password reset
         if reset:
             try:
                 otp = "storestash"
                 expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
-                metadata['otp_expires_at'] = expires_at
+                metadata["otp_expires_at"] = expires_at
+
                 supabase.auth.admin.update_user_by_id(user_id, {
                     "password": otp,
-                    "user_metadata": metadata
+                    "user_metadata": metadata,
                 })
-                supabase.table('users').update({'requires_password_change': True}).eq('id', user_id).execute()
+                supabase.table("users").update({"requires_password_change": True}).eq("id", user_id).execute()
                 send_reset_email(username)
                 flash(f"Password reset for {username}", "success")
             except Exception as e:
                 flash(f"Failed to reset password for {username}: {e}", "danger")
 
-        # Delete user
+        # Handle deletion
         if delete:
-
             try:
                 supabase.auth.admin.delete_user(user_id)
             except Exception as e:
                 flash(f"Failed to delete Auth user {username}: {e}", "danger")
-            supabase.table('users').delete().eq('id', user_id).execute()
+            supabase.table("users").delete().eq("id", user_id).execute()
 
-            # Self-delete
-            if user_id == session.get('user_id'):
+            # Self deletion
+            if user_id == session.get("user_id"):
                 session.clear()
-                return redirect(url_for('auth.login'))
+                flash("Your account was deleted.", "info")
+                return redirect(url_for("auth.login"))
 
             flash(f"Deleted {username}", "success")
 
-    return redirect(url_for('admin.admin'))
+    return redirect(url_for("admin.admin"))
 
 
 
