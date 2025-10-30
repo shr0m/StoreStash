@@ -19,7 +19,7 @@ def send_otp_email(to_email, otp):
         msg["Subject"] = "Your StoreStash OTP"
         msg["From"] = SUPPORT_EMAIL
         msg["To"] = to_email
-        msg.set_content(f"Your OTP is: {otp}")
+        msg.set_content(f"Your OTP is: {otp}\n\nPlease log in within 12 hours of receiving this email and change your password. Failure to do so will result in your account being removed.")
 
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(SUPPORT_EMAIL, SUPPORT_EMAIL_PASSWORD)
