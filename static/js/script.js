@@ -126,39 +126,30 @@ function filterStockTable() {
 }
 
 // Open Bootstrap modal
-function openStockModal(type, sizing, categoryId) {
+function openStockModal(stockId, type, sizing, categoryId, alertThreshold) {
     const modalTypeInput = document.getElementById("modal-stock-type");
     const modalSizingInput = document.getElementById("modal-stock-sizing");
     const modalCategoryInput = document.getElementById("modal-stock-category-id");
     const modalAlertInput = document.getElementById("modal-alert-threshold");
+    const modalStockIdInput = document.getElementById("modal-stock-id");
 
+    // Populate modal fields
+    modalStockIdInput.value = stockId;
     modalTypeInput.value = type;
-    modalSizingInput.value = sizing || "";   // handle null
+    modalSizingInput.value = sizing || "";
     modalCategoryInput.value = categoryId;
+    modalAlertInput.value = (alertThreshold !== null && alertThreshold !== "None") ? alertThreshold : "";
 
     // Reset selects each time
     document.getElementById("modal-category-id").value = "";
     document.getElementById("modal-container-id").value = "";
     document.getElementById("modal-transfer-qty").value = "";
 
-    // Find row based on type and sizing
-    const row = Array.from(document.querySelectorAll("tbody tr")).find(r => {
-        const rowType = r.querySelector("td:nth-child(2)")?.textContent.trim();
-        const rowSizing = r.querySelector("td:nth-child(3)")?.textContent.trim() || "";
-        return rowType === type && rowSizing === (sizing || "");
-    });
-
-    if (row) {
-        let alertThreshold = row.getAttribute("data-alert-threshold");
-        if (alertThreshold === "None" || alertThreshold === null) alertThreshold = "";
-        modalAlertInput.value = alertThreshold;
-    } else {
-        modalAlertInput.value = "";
-    }
-
+    // Show the modal
     const modal = new bootstrap.Modal(document.getElementById("stock-modal"));
     modal.show();
 }
+
 
 function exportStockCSV() {
     const rows = document.querySelectorAll("table tbody tr");

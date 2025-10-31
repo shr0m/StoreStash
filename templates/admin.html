@@ -142,55 +142,101 @@
             </div>
         </div>
 
-        <!-- Right column: User Table -->
+        <!-- Right column: User Table + Action History -->
         <div class="col-md-8">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0"><i class="fa-solid fa-users me-2"></i>Current Users</h5>
-                <div class="w-50">
-                    <input type="text" id="stock-search" class="form-control" placeholder="Search users..." oninput="filterUserTable()">
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <h5 class="mb-0">
+                            <i class="fa-solid fa-users me-2"></i>Current Users
+                        </h5>
+
+                        <div class="d-flex align-items-center gap-2 flex-grow-1 justify-content-end">
+                            <input type="text" id="stock-search" class="form-control w-auto" placeholder="Search users..." oninput="filterUserTable()">
+                            <form method="POST" action="{{ url_for('admin.update_users') }}" id="update-settings-form" class="m-0">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fa-solid fa-floppy-disk me-1"></i>Update Settings
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered align-middle table-hover">
+                            <thead class="bg-primary text-white bg-opacity-75">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Privilege</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in users %}
+                                <tr>
+                                    <td>{{ user.name }}</td>
+                                    <td>{{ user.username }}</td>
+                                    <td>
+                                        <select name="privilege_{{ user.id }}" class="form-select">
+                                            <option value="admin" {% if user.privilege == 'admin' %}selected{% endif %}>Admin</option>
+                                            <option value="edit" {% if user.privilege == 'edit' %}selected{% endif %}>Edit</option>
+                                            <option value="view" {% if user.privilege == 'view' %}selected{% endif %}>View</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <div class="form-check mb-1">
+                                            <input class="form-check-input" type="checkbox" name="reset_{{ user.id }}" id="reset_{{ user.id }}">
+                                            <label class="form-check-label" for="reset_{{ user.id }}">Reset Pass</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="delete_{{ user.id }}" id="delete_{{ user.id }}">
+                                            <label class="form-check-label text-danger" for="delete_{{ user.id }}">Delete</label>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
-            <form method="POST" action="{{ url_for('admin.update_users') }}" id="update-settings-form">
-                <div class="table-responsive">
-                    <table class="table table-bordered align-middle table-hover">
-                        <thead class="bg-primary text-white bg-opacity-75">
-                            <tr>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Privilege</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for user in users %}
-                            <tr>
-                                <td>{{ user.name }}</td>
-                                <td>{{ user.username }}</td>
-                                <td>
-                                    <select name="privilege_{{ user.id }}" class="form-select">
-                                        <option value="admin" {% if user.privilege == 'admin' %}selected{% endif %}>Admin</option>
-                                        <option value="edit" {% if user.privilege == 'edit' %}selected{% endif %}>Edit</option>
-                                        <option value="view" {% if user.privilege == 'view' %}selected{% endif %}>View</option>
-                                    </select>
-                                </td>
-                                <td>
-                                    <div class="form-check mb-1">
-                                        <input class="form-check-input" type="checkbox" name="reset_{{ user.id }}" id="reset_{{ user.id }}">
-                                        <label class="form-check-label" for="reset_{{ user.id }}">Reset Pass</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="delete_{{ user.id }}" id="delete_{{ user.id }}">
-                                        <label class="form-check-label text-danger" for="delete_{{ user.id }}">Delete</label>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+            <!-- Action History Section -->
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">
+                        <i class="fa-solid fa-clock-rotate-left me-2"></i>Action History
+                    </h5>
+
+                    {% if actions %}
+                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                        <table class="table table-striped table-hover align-middle">
+                            <thead class="bg-secondary bg-opacity-25">
+                                <tr>
+                                    <th>User</th>
+                                    <th>Action</th>
+                                    <th>Target</th>
+                                    <th>Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for action in actions %}
+                                <tr>
+                                    <td>{{ action.user_name }}</td>
+                                    <td>{{ action.description }}</td>
+                                    <td>{{ action.target }}</td>
+                                    <td>{{ action.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                        <p class="text-muted fst-italic">No recent actions recorded.</p>
+                    {% endif %}
                 </div>
-                <button type="submit" class="btn btn-success mt-3">Update Settings</button>
-            </form>
+            </div>
+        </div>
         </div>
     </div>
 </div>
