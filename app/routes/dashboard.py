@@ -532,15 +532,6 @@ def update_stock_settings():
         supabase.table('items').update({'category_id': new_category_id}) \
             .eq('id', item_id).eq('client_id', client_id).execute()
 
-        # Update issued_stock category references for this client
-        issued_matches = supabase.table('issued_stock').select('id') \
-            .eq('category_id', current_category_id) \
-            .eq('client_id', client_id).execute()
-        if issued_matches.data:
-            supabase.table('issued_stock').update({'category_id': new_category_id}) \
-                .eq('category_id', current_category_id) \
-                .eq('client_id', client_id).execute()
-
     # Container transfers
     if new_container_id and new_container_id != current_container_id:
         if transfer_quantity and transfer_quantity > 0:
