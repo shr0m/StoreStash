@@ -162,7 +162,7 @@
                     </div>
 
                     <div class="table-responsive">
-                        <table class="table table-bordered align-middle table-hover">
+                        <table id="user-table" class="table table-bordered align-middle table-hover">
                             <thead class="bg-primary text-white bg-opacity-75">
                                 <tr>
                                     <th>Name</th>
@@ -364,8 +364,8 @@
     function filterUserTable() {
         const input = document.getElementById("stock-search");
         const filter = input.value.toLowerCase();
-        const table = document.querySelector("table tbody");
-        const rows = table.getElementsByTagName("tr");
+        const table = document.querySelector("#user-table tbody");
+        const rows = table ? table.getElementsByTagName("tr") : [];
 
         for (let row of rows) {
             const cells = row.getElementsByTagName("td");
