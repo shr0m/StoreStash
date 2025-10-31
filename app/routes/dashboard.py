@@ -477,113 +477,88 @@ def update_stock_settings():
     if not has_edit_privileges():
         return "Unauthorized", 403
 
-    # Check client_id valid
     client_id = get_client_id()
     if not client_id:
         flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
-    redirect_resp = redirect_if_password_change_required()
-    if redirect_resp:
-        return redirect_resp
-
-    item_type = request.form.get('type')
-    sizing_raw = request.form.get('sizing')
-    sizing = normalize_sizing(sizing_raw)
+    stock_id = request.form.get('stock_id')
     new_category_id = request.form.get('category_id')
     new_container_id = request.form.get('container_id')
     transfer_quantity_raw = request.form.get('transfer_quantity')
     alert_threshold_raw = request.form.get('alert_threshold')
 
     transfer_quantity = int(transfer_quantity_raw) if transfer_quantity_raw else None
-    alert_threshold = int(alert_threshold_raw) if alert_threshold_raw else None
+    try:
+        alert_threshold = int(alert_threshold_raw)
+    except (TypeError, ValueError):
+        alert_threshold = None
 
-    if not item_type:
-        flash("Invalid input provided.", "danger")
+    if not stock_id:
+        flash("No stock selected.", "danger")
         return redirect_to_dashboard()
 
     supabase = get_supabase_client()
     current_container_id = session.get('container_id')
 
-    stock_query = supabase.table('stock') \
-        .select('id, item_id, quantity, alert_threshold, container_id, items(type, sizing, category_id)') \
-        .eq('container_id', current_container_id) \
-        .eq('items.type', item_type) \
-        .eq('client_id', client_id)
+    # Fetch the exact stock row
+    stock_resp = supabase.table('stock') \
+        .select('id, item_id, quantity, container_id, alert_threshold, items(category_id)') \
+        .eq('id', stock_id).eq('client_id', client_id).execute()
 
-    stock_query = stock_query.is_('items.sizing', None) if sizing is None else stock_query.eq('items.sizing', sizing)
-    stock_resp = stock_query.execute()
     stock_items = stock_resp.data or []
-
     if not stock_items:
-        flash("No matching stock items found in this container.", "info")
+        flash("Stock item not found.", "info")
         return redirect_to_dashboard()
 
     stock_item = stock_items[0]
-    stock_id = stock_item['id']
     item_id = stock_item['item_id']
     current_quantity = stock_item.get('quantity', 0)
-    current_category_id = stock_item.get('items', {}).get('category_id')
+    items_data = stock_item.get('items')
+    current_category_id = items_data['category_id'] if items_data else None
 
-    update_data = {'alert_threshold': alert_threshold}
+    # Update alert_threshold for this exact stock row
+    if alert_threshold is None or alert_threshold == 0:
+        supabase.table('stock').update({'alert_threshold': None}) \
+            .eq('id', stock_id).eq('client_id', client_id).execute()
+    else:
+        supabase.table('stock').update({'alert_threshold': alert_threshold}) \
+            .eq('id', stock_id).eq('client_id', client_id).execute()
 
-    # Category transfers
+
+    # Update category if changed
     if new_category_id and new_category_id != current_category_id:
         supabase.table('items').update({'category_id': new_category_id}) \
             .eq('id', item_id).eq('client_id', client_id).execute()
 
-    # Container transfers
+    # Container transfer logic
     if new_container_id and new_container_id != current_container_id:
-        if transfer_quantity and transfer_quantity > 0:
-            if transfer_quantity > current_quantity:
-                flash("Not enough items to transfer.", "danger")
-                return redirect_to_dashboard()
+        qty_to_transfer = transfer_quantity if transfer_quantity and transfer_quantity > 0 else current_quantity
+        remaining_quantity = current_quantity - qty_to_transfer
 
-            remaining_quantity = current_quantity - transfer_quantity
-
-            if remaining_quantity > 0:
-                supabase.table('stock').update({'quantity': remaining_quantity, **update_data}) \
-                    .eq('id', stock_id).eq('client_id', client_id).execute()
-            else:
-                supabase.table('stock').delete().eq('id', stock_id).eq('client_id', client_id).execute()
-
-            target_query = supabase.table('stock').select('id, quantity') \
-                .eq('item_id', item_id) \
-                .eq('container_id', new_container_id) \
-                .eq('client_id', client_id)
-            target_resp = target_query.execute()
-            target_items = target_resp.data or []
-
-            if target_items:
-                new_qty = target_items[0]['quantity'] + transfer_quantity
-                supabase.table('stock').update({'quantity': new_qty, 'alert_threshold': alert_threshold}) \
-                    .eq('id', target_items[0]['id']).eq('client_id', client_id).execute()
-            else:
-                supabase.table('stock').insert({
-                    'item_id': item_id,
-                    'container_id': new_container_id,
-                    'quantity': transfer_quantity,
-                    'alert_threshold': alert_threshold,
-                    'client_id': client_id
-                }).execute()
+        # Update or delete original stock
+        if remaining_quantity > 0:
+            supabase.table('stock').update({'quantity': remaining_quantity}).eq('id', stock_id).eq('client_id', client_id).execute()
         else:
-            target_query = supabase.table('stock').select('id, quantity') \
-                .eq('item_id', item_id) \
-                .eq('container_id', new_container_id) \
-                .eq('client_id', client_id)
-            target_resp = target_query.execute()
-            target_items = target_resp.data or []
+            supabase.table('stock').delete().eq('id', stock_id).eq('client_id', client_id).execute()
 
-            if target_items:
-                new_qty = target_items[0]['quantity'] + current_quantity
-                supabase.table('stock').update({'quantity': new_qty, 'alert_threshold': alert_threshold}) \
-                    .eq('id', target_items[0]['id']).eq('client_id', client_id).execute()
-                supabase.table('stock').delete().eq('id', stock_id).eq('client_id', client_id).execute()
-            else:
-                update_data['container_id'] = new_container_id
-                supabase.table('stock').update(update_data).eq('id', stock_id).eq('client_id', client_id).execute()
-    else:
-        supabase.table('stock').update(update_data).eq('id', stock_id).eq('client_id', client_id).execute()
+        # Merge or insert into target container
+        target_resp = supabase.table('stock').select('id, quantity').eq('item_id', item_id) \
+            .eq('container_id', new_container_id).eq('client_id', client_id).execute()
+        target_items = target_resp.data or []
+
+        if target_items:
+            new_qty = target_items[0]['quantity'] + qty_to_transfer
+            supabase.table('stock').update({'quantity': new_qty, 'alert_threshold': alert_threshold}) \
+                .eq('id', target_items[0]['id']).eq('client_id', client_id).execute()
+        else:
+            supabase.table('stock').insert({
+                'item_id': item_id,
+                'container_id': new_container_id,
+                'quantity': qty_to_transfer,
+                'alert_threshold': alert_threshold,
+                'client_id': client_id
+            }).execute()
 
     flash("Stock settings updated successfully.", "success")
     return redirect_to_dashboard()

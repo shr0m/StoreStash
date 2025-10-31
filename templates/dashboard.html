@@ -144,7 +144,9 @@
                     </thead>
                     <tbody>
                     {% for item in stock_items %}
-                    <tr data-category-id="{{ item.category_id }}" data-alert-threshold="{{ item.alert_threshold if item.alert_threshold is not none else '0' }}">
+                    <tr data-category-id="{{ item.category_id }}" 
+                        data-alert-threshold="{{ item.alert_threshold if item.alert_threshold is not none else '0' }}" 
+                        data-stock-id="{{ item.id }}">
                         <td>{{ item.category }}</td>
                         <td>{{ item.type if item.type != "None" else "N/A" }}</td>
                         <td>{{ item.sizing }}</td>
@@ -157,7 +159,8 @@
                             <div class="d-flex gap-2">
                                 <button type="button" class="btn btn-outline-success btn-sm" onclick="changeQuantity(this, 1)">+</button>
                                 <button type="button" class="btn btn-outline-danger btn-sm" onclick="changeQuantity(this, -1)">−</button>
-                                <button class="btn btn-sm btn-outline-secondary" onclick="openStockModal('{{ item.type }}', '{{ item.sizing }}', '{{ item.category_id }}')">
+                                <button class="btn btn-sm btn-outline-secondary" 
+                                    onclick="openStockModal('{{ item.id }}', '{{ item.type }}', '{{ item.sizing }}', '{{ item.category_id }}', '{{ item.alert_threshold }}')">
                                     <i class="fas fa-cog"></i>
                                 </button>
                             </div>
@@ -316,6 +319,7 @@
         </div>
         <div class="modal-body">
         <!-- Hidden inputs to identify stock items -->
+        <input type="hidden" name="stock_id" id="modal-stock-id">
         <input type="hidden" name="type" id="modal-stock-type">
         <input type="hidden" name="sizing" id="modal-stock-sizing">
         <input type="hidden" name="category_id_current" id="modal-stock-category-id">
