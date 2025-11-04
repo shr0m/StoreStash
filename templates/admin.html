@@ -1,448 +1,528 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="{{ 'dark' if current_theme == 'dark' else 'light' }}">
-<head>
-    <meta charset="UTF-8">
+<html
+  lang="en"
+  data-bs-theme="{{ 'dark' if current_theme == 'dark' else 'light' }}"
+>
+  <head>
+    <meta charset="UTF-8" />
     <title>Admin</title>
 
     <!-- Bootstrap 5.3 -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
 
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+    <link
+      rel="icon"
+      href="{{ url_for('static', filename='images/favicon.ico') }}"
+      type="image/x-icon"
+    />
 
-    <!-- Optional blur background CSS -->
     <style>
-        body.modal-open .container,
-        body.modal-open nav {
-            filter: blur(4px);
-            transition: filter 0.3s ease;
+      body.modal-open .container,
+      body.modal-open nav {
+        filter: blur(4px);
+        transition: filter 0.3s ease;
+      }
+
+      @media (max-width: 992px) {
+        .table-responsive {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
         }
+
+        /* space between collapsed sections */
+        .collapse.show .card {
+          margin-bottom: 1rem;
+        }
+      }
     </style>
-</head>
-<body class="bg-body text-body">
+  </head>
+  <body class="bg-body text-body">
+    <!-- Navbar -->
+    <nav
+      class="navbar navbar-expand-lg bg-primary bg-opacity-75 navbar-dark px-4 sticky-top"
+    >
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">
+          <i class="fa-solid fa-box-open me-2"></i>Stock
+        </a>
 
-<!-- Navbar -->
-<nav class="navbar navbar-expand-lg bg-primary bg-opacity-75 navbar-dark px-4 sticky-top">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="/">
-      <i class="fa-solid fa-box-open me-2"></i>Stock
-    </a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarContent"
+          aria-controls="navbarContent"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
 
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent"
-      aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
+        <div class="collapse navbar-collapse" id="navbarContent">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/people"
+                ><i class="fa-solid fa-person me-1"></i>People</a
+              >
+            </li>
+            {% if session.get('privilege') == 'admin' %}
+            <li class="nav-item">
+              <a class="nav-link active" href="/admin"
+                ><i class="fas fa-user-shield me-1"></i>Admin</a
+              >
+            </li>
+            {% endif %}
+          </ul>
+          <ul class="navbar-nav">
+            <li class="nav-item">
+              <a class="nav-link" href="/support"
+                ><i class="fa-solid fa-circle-question me-1"></i>Support</a
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/settings"
+                ><i class="fas fa-cog me-1"></i>Settings</a
+              >
+            </li>
+            {% if 'user_id' in session %}
+            <li class="nav-item">
+              <a class="nav-link" href="/logout"
+                ><i class="fas fa-sign-out-alt me-1"></i>Logout</a
+              >
+            </li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    </nav>
 
-    <div class="collapse navbar-collapse" id="navbarContent">
-      <ul class="navbar-nav me-auto">
-        <li class="nav-item"><a class="nav-link" href="/people"><i class="fa-solid fa-person me-1"></i>People</a></li>
-        {% if session.get('privilege') == 'admin' %}
-        <li class="nav-item"><a class="nav-link active" href="/admin"><i class="fas fa-user-shield me-1"></i>Admin</a></li>
-        {% endif %}
-      </ul>
-      <ul class="navbar-nav">
-        <li class="nav-item"><a class="nav-link" href="/support"><i class="fa-solid fa-circle-question me-1"></i>Support</a></li>
-        <li class="nav-item"><a class="nav-link" href="/settings"><i class="fas fa-cog me-1"></i>Settings</a></li>
-        {% if 'user_id' in session %}
-        <li class="nav-item"><a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>Logout</a></li>
-        {% endif %}
-      </ul>
-    </div>
-  </div>
-</nav>
+    <!-- Main Container -->
+    <div class="container my-5">
+      <h1 class="mb-4">Admin Dashboard</h1>
 
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %} {% if
+      messages %}
+      <div class="mb-4">
+        {% for category, message in messages %}
+        <div
+          class="alert alert-{{ category }} alert-dismissible fade show"
+          role="alert"
+        >
+          {{ message }}
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="alert"
+            aria-label="Close"
+          ></button>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %} {% endwith %}
 
-<!-- Main Container -->
-<div class="container my-5">
-    <h1 class="mb-4">Admin Dashboard</h1>
+      <!-- Mobile collapse buttons -->
+      <div class="d-block d-lg-none mb-3">
+        <div class="btn-group w-100" role="group">
+          <button
+            class="btn btn-outline-primary"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#addUserCollapse"
+            aria-expanded="false"
+            aria-controls="addUserCollapse"
+          >
+            Add User
+          </button>
+          <button
+            class="btn btn-outline-success"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#containerCollapse"
+            aria-expanded="false"
+            aria-controls="containerCollapse"
+          >
+            Containers
+          </button>
+          <button
+            class="btn btn-outline-secondary"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#usersCollapse"
+            aria-expanded="false"
+            aria-controls="usersCollapse"
+          >
+            User List
+          </button>
+        </div>
+      </div>
 
-    <!-- Flash Messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="mb-4">
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
-
-    <div class="row">
-        <!-- Left column: Add User + Control Panel -->
-        <div class="col-md-4 mb-4">
-            <!-- Add User Section -->
+      <div class="row">
+        <!-- LEFT COLUMN -->
+        <div class="col-lg-4 mb-4">
+          <!-- Add User Section -->
+          <div class="collapse d-lg-block" id="addUserCollapse">
             <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <h5 class="card-title mb-3"><i class="fa-solid fa-user-plus me-2"></i>Add Users</h5>
-                    <form action="/invite_user" method="POST" class="row g-2">
-                        <div class="col-12">
-                            <label for="name" class="form-label">Name</label>
-                            <input type="text" id="name" name="name" class="form-control" required>
-                        </div>
-                        <div class="col-12">
-                            <label for="email" class="form-label">Email</label>
-                            <input type="email" id="email" name="email" class="form-control" required>
-                        </div>
-                        <div class="col-12">
-                            <label for="privilege" class="form-label">Privilege</label>
-                            <select id="privilege" name="privilege" class="form-select" required>
-                                <option value="admin">Admin</option>
-                                <option value="edit">Edit</option>
-                                <option value="view">View</option>
-                            </select>
-                        </div>
-                        <div class="col-12 d-grid">
-                            <button class="btn btn-primary mt-2" type="submit">Add</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Container Section -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="card-title mb-0">
-                        <i class="fa-solid fa-boxes-stacked"></i> Containers
-                    </h5>
-                    <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addContainerModal">
-                        <i class="fa-solid fa-plus me-1"></i> Add Container
+              <div class="card-body">
+                <h5 class="card-title mb-3">
+                  <i class="fa-solid fa-user-plus me-2"></i>Add Users
+                </h5>
+                <form action="/invite_user" method="POST" class="row g-2">
+                  <div class="col-12">
+                    <label for="name" class="form-label">Name</label>
+                    <input
+                      type="text"
+                      id="name"
+                      name="name"
+                      class="form-control"
+                      required
+                    />
+                  </div>
+                  <div class="col-12">
+                    <label for="email" class="form-label">Email</label>
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      class="form-control"
+                      required
+                    />
+                  </div>
+                  <div class="col-12">
+                    <label for="privilege" class="form-label">Privilege</label>
+                    <select
+                      id="privilege"
+                      name="privilege"
+                      class="form-select"
+                      required
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="edit">Edit</option>
+                      <option value="view">View</option>
+                    </select>
+                  </div>
+                  <div class="col-12 d-grid">
+                    <button class="btn btn-primary mt-2" type="submit">
+                      Add
                     </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <!-- Containers Section -->
+          <div class="collapse d-lg-block" id="containerCollapse">
+            <div class="card shadow-sm mb-4">
+              <div class="card-body">
+                <div
+                  class="d-flex justify-content-between align-items-center mb-3"
+                >
+                  <h5 class="card-title mb-0">
+                    <i class="fa-solid fa-boxes-stacked"></i> Containers
+                  </h5>
+                  <button
+                    type="button"
+                    class="btn btn-success btn-sm"
+                    data-bs-toggle="modal"
+                    data-bs-target="#addContainerModal"
+                  >
+                    <i class="fa-solid fa-plus me-1"></i> Add Container
+                  </button>
+                </div>
+
+                {% if containers %}
+                <div class="table-responsive">
+                  <table class="table table-bordered align-middle table-hover">
+                    <thead class="bg-secondary bg-opacity-25">
+                      <tr>
+                        <th>Container Name</th>
+                        <th style="width: 120px">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for container in containers %}
+                      <tr>
+                        <td>{{ container.name }}</td>
+                        <td class="text-center">
+                          <button
+                            class="btn btn-danger btn-sm"
+                            data-bs-toggle="modal"
+                            data-bs-target="#deleteContainerModal"
+                            data-container="{{ container.name }}"
+                          >
+                            <i class="fa-solid fa-trash"></i>
+                          </button>
+                          <button
+                            class="btn btn-secondary btn-sm"
+                            data-bs-toggle="modal"
+                            data-bs-target="#containerSettingsModal"
+                            data-container="{{ container.name }}"
+                          >
+                            <i class="fa-solid fa-gear"></i>
+                          </button>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                {% else %}
+                <p class="text-muted fst-italic">No containers available.</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="col-lg-8">
+          <!-- Users Section -->
+          <div class="collapse d-lg-block" id="usersCollapse">
+            <div class="card shadow-sm mb-4">
+              <div class="card-body">
+                <div
+                  class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2"
+                >
+                  <h5 class="mb-0">
+                    <i class="fa-solid fa-users me-2"></i>Current Users
+                  </h5>
+                  <form
+                    method="POST"
+                    action="{{ url_for('admin.update_users') }}"
+                    id="update-settings-form"
+                    class="m-0 flex-grow-1"
+                  >
+                    <div
+                      class="d-flex align-items-center gap-2 justify-content-end"
+                    >
+                      <input
+                        type="text"
+                        id="stock-search"
+                        class="form-control w-auto"
+                        placeholder="Search users..."
+                        oninput="filterUserTable()"
+                      />
+                      <button type="submit" class="btn btn-success">
+                        <i class="fa-solid fa-floppy-disk me-1"></i>Update
+                      </button>
                     </div>
 
-                    <!-- Container List -->
-                    {% if containers %}
-                    <div class="table-responsive">
-                    <table class="table table-bordered align-middle table-hover">
-                        <thead class="bg-secondary bg-opacity-25">
-                        <tr>
-                            <th>Container Name</th>
-                            <th style="width: 120px;">Actions</th>
-                        </tr>
+                    <!-- Horizontally scrollable table -->
+                    <div class="table-responsive mt-3">
+                      <table
+                        id="user-table"
+                        class="table table-bordered align-middle table-hover"
+                      >
+                        <thead class="bg-primary text-white bg-opacity-75">
+                          <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Privilege</th>
+                            <th>Actions</th>
+                          </tr>
                         </thead>
                         <tbody>
-                        {% for container in containers %}
-                        <tr>
-                            <td>{{ container.name }}</td>
-                            <td class="text-center">
-                            <button class="btn btn-danger btn-sm"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#deleteContainerModal"
-                                    data-container="{{ container.name }}">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
-                            <button class="btn btn-secondary btn-sm"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#containerSettingsModal"
-                                    data-container="{{ container.name }}">
-                                <i class="fa-solid fa-gear"></i>
+                          {% for user in users %}
+                          <tr>
+                            <td>{{ user.name }}</td>
+                            <td>{{ user.username }}</td>
+                            <td>
+                              <select
+                                name="privilege_{{ user.id }}"
+                                class="form-select"
+                              >
+                                <option value="admin" {% if
+                                user.privilege=='admin' %}selected{% endif %}>
+                                Admin <option value="edit" {% if
+                                user.privilege=='edit' %}selected{% endif %}>
+                                Edit <option value="view" {% if
+                                user.privilege=='view' %}selected{% endif %}>
+                                View
+                              </select>
                             </td>
-                        </tr>
-                        {% endfor %}
+                            <td>
+                              <div class="form-check mb-1">
+                                <input
+                                  class="form-check-input"
+                                  type="checkbox"
+                                  name="reset_{{ user.id }}"
+                                />
+                                <label class="form-check-label"
+                                  >Reset Pass</label
+                                >
+                              </div>
+                              <div class="form-check">
+                                <input
+                                  class="form-check-input"
+                                  type="checkbox"
+                                  name="delete_{{ user.id }}"
+                                />
+                                <label class="form-check-label text-danger"
+                                  >Delete</label
+                                >
+                              </div>
+                            </td>
+                          </tr>
+                          {% endfor %}
                         </tbody>
-                    </table>
+                      </table>
                     </div>
-                    {% else %}
-                    <p class="text-muted fst-italic">No containers available.</p>
-                    {% endif %}
+                  </form>
                 </div>
+              </div>
             </div>
-        </div>
+          </div>
 
-        <!-- Right column: User Table + Action History -->
-        <div class="col-md-8">
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                        <h5 class="mb-0">
-                            <i class="fa-solid fa-users me-2"></i>Current Users
-                        </h5>
-                        <form method="POST" action="{{ url_for('admin.update_users') }}" id="update-settings-form" class="m-0">
-                        <div class="d-flex align-items-center gap-2 flex-grow-1 justify-content-end">
-                            <input type="text" id="stock-search" class="form-control w-auto" placeholder="Search users..." oninput="filterUserTable()">
-                                <button type="submit" class="btn btn-success">
-                                    <i class="fa-solid fa-floppy-disk me-1"></i>Update Settings
-                                </button>
-                        </div>
-                    </div>
-
-                    <div class="table-responsive">
-                        <table id="user-table" class="table table-bordered align-middle table-hover">
-                            <thead class="bg-primary text-white bg-opacity-75">
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Privilege</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for user in users %}
-                                <tr>
-                                    <td>{{ user.name }}</td>
-                                    <td>{{ user.username }}</td>
-                                    <td>
-                                        <select name="privilege_{{ user.id }}" class="form-select">
-                                            <option value="admin" {% if user.privilege == 'admin' %}selected{% endif %}>Admin</option>
-                                            <option value="edit" {% if user.privilege == 'edit' %}selected{% endif %}>Edit</option>
-                                            <option value="view" {% if user.privilege == 'view' %}selected{% endif %}>View</option>
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <div class="form-check mb-1">
-                                            <input class="form-check-input" type="checkbox" name="reset_{{ user.id }}" id="reset_{{ user.id }}">
-                                            <label class="form-check-label" for="reset_{{ user.id }}">Reset Pass</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="delete_{{ user.id }}" id="delete_{{ user.id }}">
-                                            <label class="form-check-label text-danger" for="delete_{{ user.id }}">Delete</label>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </form>
-                </div>
+          <!-- Action History Section -->
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h5 class="card-title mb-3">
+                <i class="fa-solid fa-clock-rotate-left me-2"></i>Action History
+              </h5>
+              {% if actions %}
+              <div
+                class="table-responsive"
+                style="max-height: 300px; overflow-y: auto"
+              >
+                <table class="table table-striped table-hover align-middle">
+                  <thead class="bg-secondary bg-opacity-25">
+                    <tr>
+                      <th>User</th>
+                      <th>Action</th>
+                      <th>Target</th>
+                      <th>Timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for action in actions %}
+                    <tr>
+                      <td>{{ action.user_name }}</td>
+                      <td>{{ action.description }}</td>
+                      <td>{{ action.target }}</td>
+                      <td>
+                        {{ action.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {% else %}
+              <p class="text-muted fst-italic">No recent actions recorded.</p>
+              {% endif %}
             </div>
-
-            <!-- Action History Section -->
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h5 class="card-title mb-3">
-                        <i class="fa-solid fa-clock-rotate-left me-2"></i>Action History
-                    </h5>
-
-                    {% if actions %}
-                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-                        <table class="table table-striped table-hover align-middle">
-                            <thead class="bg-secondary bg-opacity-25">
-                                <tr>
-                                    <th>User</th>
-                                    <th>Action</th>
-                                    <th>Target</th>
-                                    <th>Timestamp</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for action in actions %}
-                                <tr>
-                                    <td>{{ action.user_name }}</td>
-                                    <td>{{ action.description }}</td>
-                                    <td>{{ action.target }}</td>
-                                    <td>{{ action.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% else %}
-                        <p class="text-muted fst-italic">No recent actions recorded.</p>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-        </div>
-    </div>
-</div>
-
-<!-- Confirmation Modal -->
-<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content bg-body text-body shadow-lg">
-      <div class="modal-header">
-        <h5 class="modal-title" id="confirmModalLabel">Confirm Changes</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        You have selected to <strong>reset passwords</strong> or <strong>delete users</strong>.<br>
-        Are you sure you want to proceed? This action cannot be undone...
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-danger" id="confirmSubmit">Yes, Proceed</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Add Container Modal -->
-<div class="modal fade" id="addContainerModal" tabindex="-1" aria-labelledby="addContainerModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content bg-body text-body shadow-lg">
-      <div class="modal-header border-2 border-bottom">
-        <h5 class="modal-title" id="addContainerModalLabel">
-          <i class="fa-solid fa-plus me-2 text-primary"></i>Add New Container
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <form method="POST" action="{{ url_for('admin.add_container') }}">
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label">Container Name</label>
-            <input type="text" name="container_name" class="form-control" required>
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="submit" class="btn btn-success">Add Container</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<!-- Delete Container Modal -->
-<div class="modal fade" id="deleteContainerModal" tabindex="-1" aria-labelledby="deleteContainerModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content bg-body text-body shadow-lg">
-      <div class="modal-header border-2 border-bottom">
-        <h5 class="modal-title" id="deleteContainerModalLabel">Delete Container</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <form method="POST" action="{{ url_for('admin.delete_container') }}">
-        <div class="modal-body">
-          <p class="mb-2">
-            Are you sure you want to delete container <strong id="containerToDelete"></strong>?
-          </p>
-          <p class="text-danger fw-bold mb-3">
-            Deleting a container will also delete <u>all items</u> stored inside it. This action cannot be undone.
-          </p>
-          <div class="mb-3">
-            <label for="confirmContainerName" class="form-label">Type the container name to confirm:</label>
-            <input type="text" id="confirmContainerName" class="form-control" placeholder="Enter container name">
-          </div>
-          <input type="hidden" name="container_name" id="containerNameInput">
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-danger" id="deleteContainerBtn" disabled>Delete Container</button>
-        </div>
-      </form>
     </div>
-  </div>
-</div>
 
-<!-- Container Settings Modal -->
-<div class="modal fade" id="containerSettingsModal" tabindex="-1" aria-labelledby="containerSettingsModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content bg-body text-body shadow-lg">
-      <div class="modal-header border-2 border-bottom">
-        <h5 class="modal-title" id="containerSettingsModalLabel">
-          <i class="fa-solid fa-gear me-2 text-secondary"></i>Container Settings
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <form method="POST" action="{{ url_for('admin.edit_container') }}">
-        <div class="modal-body">
-          <input type="hidden" name="container_name" id="settingsOldName">
-
-          <div class="mb-3">
-            <label for="settingsNewName" class="form-label">New Container Name</label>
-            <input type="text" name="new_container_name" id="settingsNewName" class="form-control" required>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Changes</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<!-- JavaScript -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-    const containerSettingsModal = document.getElementById('containerSettingsModal');
-    const settingsOldNameInput = document.getElementById('settingsOldName');
-    const settingsNewNameInput = document.getElementById('settingsNewName');
-
-    containerSettingsModal.addEventListener('show.bs.modal', function (event) {
-        const button = event.relatedTarget;
-        const containerName = button.getAttribute('data-container');
-
-        settingsOldNameInput.value = containerName;
-        settingsNewNameInput.value = containerName;
-    });
-
-
-    function filterUserTable() {
+    <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      // Filter table
+      function filterUserTable() {
         const input = document.getElementById("stock-search");
         const filter = input.value.toLowerCase();
         const table = document.querySelector("#user-table tbody");
         const rows = table ? table.getElementsByTagName("tr") : [];
 
         for (let row of rows) {
-            const cells = row.getElementsByTagName("td");
-            let matchFound = false;
-
-            for (let cell of cells) {
-                const text = cell.textContent.toLowerCase();
-                if (text.includes(filter)) {
-                    matchFound = true;
-                    break;
-                }
+          const cells = row.getElementsByTagName("td");
+          let matchFound = false;
+          for (let cell of cells) {
+            const text = cell.textContent.toLowerCase();
+            if (text.includes(filter)) {
+              matchFound = true;
+              break;
             }
-            row.style.display = matchFound ? "" : "none";
+          }
+          row.style.display = matchFound ? "" : "none";
         }
-    }
+      }
 
-    const updateForm = document.getElementById('update-settings-form');
-    const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
-    let shouldSubmit = false;
+      // Confirm actions modal logic
+      const updateForm = document.getElementById("update-settings-form");
+      const confirmModal = new bootstrap.Modal(
+        document.getElementById("confirmModal")
+      );
+      let shouldSubmit = false;
 
-    updateForm.addEventListener('submit', function (e) {
+      updateForm?.addEventListener("submit", function (e) {
         if (shouldSubmit) return;
 
-        const resetChecked = document.querySelectorAll('input[type="checkbox"][name^="reset_"]:checked').length > 0;
-        const deleteChecked = document.querySelectorAll('input[type="checkbox"][name^="delete_"]:checked').length > 0;
+        const resetChecked =
+          document.querySelectorAll(
+            'input[type="checkbox"][name^="reset_"]:checked'
+          ).length > 0;
+        const deleteChecked =
+          document.querySelectorAll(
+            'input[type="checkbox"][name^="delete_"]:checked'
+          ).length > 0;
 
         if (resetChecked || deleteChecked) {
-            e.preventDefault();
-            confirmModal.show();
+          e.preventDefault();
+          confirmModal.show();
         }
-    });
+      });
 
-    document.getElementById('confirmSubmit').addEventListener('click', function () {
-        shouldSubmit = true;
-        confirmModal.hide();
-        updateForm.submit();
-    });
+      document
+        .getElementById("confirmSubmit")
+        ?.addEventListener("click", function () {
+          shouldSubmit = true;
+          confirmModal.hide();
+          updateForm.submit();
+        });
 
+      // Container delete confirmation
+      const deleteContainerModal = document.getElementById(
+        "deleteContainerModal"
+      );
+      const containerToDeleteEl = document.getElementById("containerToDelete");
+      const containerNameInput = document.getElementById("containerNameInput");
+      const confirmContainerNameInput = document.getElementById(
+        "confirmContainerName"
+      );
+      const deleteBtn = document.getElementById("deleteContainerBtn");
 
-
-    const deleteContainerModal = document.getElementById('deleteContainerModal');
-    const containerToDeleteEl = document.getElementById('containerToDelete');
-    const containerNameInput = document.getElementById('containerNameInput');
-    const confirmContainerNameInput = document.getElementById('confirmContainerName');
-    const deleteBtn = document.getElementById('deleteContainerBtn');
-    // When modal is shown, populate container name
-    deleteContainerModal.addEventListener('show.bs.modal', function (event) {
-    const button = event.relatedTarget;
-    const containerName = button.getAttribute('data-container');
-
-    containerToDeleteEl.textContent = containerName;
-    containerNameInput.value = containerName;
-
-    // Reset input and button state
-    confirmContainerNameInput.value = '';
-    deleteBtn.disabled = true;
-    });
-
-    // Enable delete button only when input matches container name
-    confirmContainerNameInput.addEventListener('input', function() {
-    if (confirmContainerNameInput.value === containerNameInput.value) {
-        deleteBtn.disabled = false;
-    } else {
+      deleteContainerModal?.addEventListener("show.bs.modal", function (event) {
+        const button = event.relatedTarget;
+        const containerName = button.getAttribute("data-container");
+        containerToDeleteEl.textContent = containerName;
+        containerNameInput.value = containerName;
+        confirmContainerNameInput.value = "";
         deleteBtn.disabled = true;
-    }
-    });
-</script>
+      });
 
-</body>
+      confirmContainerNameInput?.addEventListener("input", function () {
+        deleteBtn.disabled =
+          confirmContainerNameInput.value !== containerNameInput.value;
+      });
+
+      // Container settings modal
+      const containerSettingsModal = document.getElementById(
+        "containerSettingsModal"
+      );
+      const settingsOldNameInput = document.getElementById("settingsOldName");
+      const settingsNewNameInput = document.getElementById("settingsNewName");
+
+      containerSettingsModal?.addEventListener(
+        "show.bs.modal",
+        function (event) {
+          const button = event.relatedTarget;
+          const containerName = button.getAttribute("data-container");
+          settingsOldNameInput.value = containerName;
+          settingsNewNameInput.value = containerName;
+        }
+      );
+    </script>
+  </body>
 </html>
