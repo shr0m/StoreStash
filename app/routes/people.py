@@ -22,7 +22,7 @@ def people():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id", "danger")
+        flash("Invalid client_id")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -160,7 +160,7 @@ def add_person():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id", "danger")
+        flash("Invalid client_id")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -232,7 +232,7 @@ def delete_person():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id", "danger")
+        flash("Invalid client_id")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -283,7 +283,7 @@ def edit_person():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id", "danger")
+        flash("Invalid client_id")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -372,7 +372,7 @@ def assign_item():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id", "danger")
+        flash("Invalid client_id")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -514,7 +514,7 @@ def process_item():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id", "danger")
+        flash("Invalid client_id")
         return redirect(url_for('auth.login'))
 
     redirect_resp = redirect_if_password_change_required()
@@ -572,7 +572,11 @@ def process_item():
             return redirect(request.referrer)
         item_id = item_resp.data[0]['id']
 
-        # Find matching issued entry for this client
+        note = request.form.get('note')
+        note = note.strip() if note else None
+        if note == '':
+            note = None
+
         issued_query = (
             supabase.table('issued_stock')
             .select('id, quantity')
@@ -581,7 +585,7 @@ def process_item():
             .eq('client_id', client_id)
             .limit(1)
         )
-        issued_query = issued_query.eq('note', request.form.get('note')) if request.form.get('note') else issued_query.is_('note', None)
+
         issued_resp = issued_query.execute()
         if not issued_resp.data:
             flash("No matching issued items found.", "warning")
@@ -666,7 +670,7 @@ def add_label():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id", "danger")
+        flash("Invalid client_id")
         return redirect(url_for('auth.login'))
 
     label_name = request.form.get('label_name', '').strip()
@@ -732,7 +736,7 @@ def delete_label(label_id):
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id", "danger")
+        flash("Invalid client_id")
         return redirect(url_for('auth.login'))
 
     supabase = get_supabase_client()
@@ -782,7 +786,7 @@ def assign_label():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id", "danger")
+        flash("Invalid client_id")
         return redirect(url_for('auth.login'))
 
     person_id = request.form.get('person_id')
@@ -830,7 +834,7 @@ def unassign_label():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id", "danger")
+        flash("Invalid client_id")
         return redirect(url_for('auth.login'))
 
     person_id = request.form.get('person_id')
@@ -865,7 +869,7 @@ def toggle_label():
     # Check client_id valid
     client_id = get_client_id()
     if not client_id:
-        flash("Invalid client_id", "danger")
+        flash("Invalid client_id")
         return redirect(url_for('auth.login'))
 
     data = request.get_json()
