@@ -28,6 +28,8 @@ def settings():
         print(f"Error fetching Auth user metadata: {e}")
         metadata = {}
 
+    name = metadata['full_name'] if metadata else 'User'
+
     if request.method == 'POST':
         new_theme = 'dark' if request.form.get('theme') == 'dark' else 'light'
         metadata['theme'] = new_theme
@@ -45,7 +47,8 @@ def settings():
 
     return render_template(
         'settings.html',
-        patch_notes=patch_notes
+        patch_notes=patch_notes,
+        name=name
     )
 
 
