@@ -1,5 +1,6 @@
 from app.extensions import limiter
 from app.db import get_supabase_client
+from app.utils.audit import log_audit_action
 from app.utils.otp_utils import redirect_if_password_change_required, get_client_id
 from flask import redirect, url_for, flash, render_template, session, request, Blueprint, jsonify
 import re, os
@@ -157,7 +158,6 @@ def add_person():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
-    # Check client_id valid
     client_id = get_client_id()
     if not client_id:
         flash("Invalid client_id")
@@ -187,8 +187,6 @@ def add_person():
         return redirect(url_for('people.people'))
 
     supabase = get_supabase_client()
-
-    # Convert name to uppercase
     name_upper = name.upper()
 
     try:
@@ -216,6 +214,14 @@ def add_person():
         else:
             flash("Person added successfully.", "success")
 
+            # Log audit
+            log_audit_action(
+                client_id=client_id,
+                user_id=session.get('user_id'),
+                action='add_person',
+                description=f"Added person '{name_upper}' with rank '{rank}'."
+            )
+
     except Exception as e:
         flash(f"An error occurred: {str(e)}", "danger")
 
@@ -229,7 +235,6 @@ def delete_person():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
-    # Check client_id valid
     client_id = get_client_id()
     if not client_id:
         flash("Invalid client_id")
@@ -268,6 +273,14 @@ def delete_person():
 
         flash(f"{name} and related records were deleted.", "success")
 
+        # Log audit
+        log_audit_action(
+            client_id=client_id,
+            user_id=session.get('user_id'),
+            action='delete_person',
+            description=f"Deleted person '{name}' and related records."
+        )
+
     except Exception as e:
         flash(f"Error deleting {name}: {str(e)}", "danger")
 
@@ -280,7 +293,6 @@ def edit_person():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
-    # Check client_id valid
     client_id = get_client_id()
     if not client_id:
         flash("Invalid client_id")
@@ -357,6 +369,14 @@ def edit_person():
         else:
             flash("Person updated successfully.", "success")
 
+            # Log audit action
+            log_audit_action(
+                client_id=client_id,
+                user_id=session.get('user_id'),
+                action='edit_person',
+                description=f"Updated person '{original_name_upper}' -> '{new_name_upper}', rank -> '{new_rank}'"
+            )
+
     except Exception as e:
         flash(f"An error occurred: {str(e)}", "danger")
 
@@ -369,7 +389,6 @@ def assign_item():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
-    # Check client_id valid
     client_id = get_client_id()
     if not client_id:
         flash("Invalid client_id")
@@ -455,18 +474,14 @@ def assign_item():
 
         # Decrement stock
         new_quantity = available_qty - quantity
-        supabase.table('stock').update({
-            'quantity': new_quantity
-        }).eq('id', stock_item['id']).eq('client_id', client_id).execute()
+        supabase.table('stock').update({'quantity': new_quantity}) \
+            .eq('id', stock_item['id']).eq('client_id', client_id).execute()
 
-        # Delete stock record if it’s now empty
         if new_quantity <= 0:
             supabase.table('stock').delete() \
-                .eq('id', stock_item['id']) \
-                .eq('client_id', client_id) \
-                .execute()
+                .eq('id', stock_item['id']).eq('client_id', client_id).execute()
 
-        # Check issued_stock for existing records for this client
+        # Check issued_stock for existing records
         issued_query = (
             supabase.table('issued_stock')
             .select('id, quantity')
@@ -485,9 +500,8 @@ def assign_item():
         if existing_issued:
             issued_id = existing_issued[0]['id']
             current_qty = existing_issued[0].get('quantity', 0)
-            supabase.table('issued_stock').update({
-                'quantity': current_qty + quantity
-            }).eq('id', issued_id).eq('client_id', client_id).execute()
+            supabase.table('issued_stock').update({'quantity': current_qty + quantity}) \
+                .eq('id', issued_id).eq('client_id', client_id).execute()
         else:
             supabase.table('issued_stock').insert({
                 'person_id': person_id,
@@ -499,11 +513,18 @@ def assign_item():
 
         flash(f"Assigned {quantity} × {item_type}{f' ({sizing})' if sizing else ''} to {name}.", "success")
 
+        # Log audit action
+        log_audit_action(
+            client_id=client_id,
+            user_id=session.get('user_id'),
+            action='assign_item',
+            description=f"Assigned {quantity} × {item_type}{f' ({sizing})' if sizing else ''} to {name}{f' with note: {note}' if note else ''}."
+        )
+
     except Exception as e:
         flash(f"Error assigning item: {str(e)}", "danger")
 
     return redirect(url_for('people.people'))
-
 
 @people_bp.route('/process_item', methods=['POST'])
 @limiter.limit('30 per minute')
@@ -511,7 +532,6 @@ def process_item():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
-    # Check client_id valid
     client_id = get_client_id()
     if not client_id:
         flash("Invalid client_id")
@@ -544,7 +564,7 @@ def process_item():
         return redirect(request.referrer)
 
     try:
-        # Resolve person for this client
+        # Resolve person
         person_resp = (
             supabase.table('people')
             .select('id')
@@ -558,7 +578,7 @@ def process_item():
             return redirect(request.referrer)
         person_id = person_resp.data[0]['id']
 
-        # Resolve item for this client
+        # Resolve item
         item_query = (
             supabase.table('items')
             .select('id, category_id')
@@ -577,16 +597,15 @@ def process_item():
         if note == '':
             note = None
 
-        issued_query = (
+        issued_resp = (
             supabase.table('issued_stock')
             .select('id, quantity')
             .eq('person_id', person_id)
             .eq('item_id', item_id)
             .eq('client_id', client_id)
             .limit(1)
+            .execute()
         )
-
-        issued_resp = issued_query.execute()
         if not issued_resp.data:
             flash("No matching issued items found.", "warning")
             return redirect(request.referrer)
@@ -598,15 +617,18 @@ def process_item():
         if current_quantity < quantity:
             flash("Not enough issued items to process.", "warning")
             return redirect(request.referrer)
+        
+        container_resp = supabase.table("containers").select("name").eq("id", container_id).single().execute()
+        container_name = container_resp.data.get("name") if container_resp.data else "Unknown Container"
 
-        # Handle return
+        description = ""  # For audit log
+
         if action == "return":
             container_id = request.form.get('container_id')
             if not container_id:
                 flash("You must select a container to return items.", "warning")
                 return redirect(request.referrer)
 
-            # Update issued quantity
             new_quantity = current_quantity - quantity
             if new_quantity > 0:
                 supabase.table('issued_stock').update({'quantity': new_quantity}) \
@@ -614,7 +636,7 @@ def process_item():
             else:
                 supabase.table('issued_stock').delete().eq('id', issued_id).eq('client_id', client_id).execute()
 
-            # Update stock for this client
+            # Update stock
             stock_resp = (
                 supabase.table('stock')
                 .select('id, quantity')
@@ -640,8 +662,8 @@ def process_item():
                 }).execute()
 
             flash(f"Returned {quantity} × {item_type}{f' ({sizing})' if sizing else ''} to stock.", "success")
+            description = f"Returned {quantity} × {item_type}{f' ({sizing})' if sizing else ''} from {person_name} to container {container_name}."
 
-        # Handle lost items
         elif action == "lost":
             new_quantity = current_quantity - quantity
             if new_quantity > 0:
@@ -651,9 +673,20 @@ def process_item():
                 supabase.table('issued_stock').delete().eq('id', issued_id).eq('client_id', client_id).execute()
 
             flash(f"Marked {quantity} × {item_type}{f' ({sizing})' if sizing else ''} as lost.", "success")
+            description = f"Marked {quantity} × {item_type}{f' ({sizing})' if sizing else ''} as lost from {person_name}."
 
         else:
             flash("Invalid action.", "danger")
+            return redirect(request.referrer)
+
+        # Audit log
+        if description:
+            log_audit_action(
+                client_id=client_id,
+                user_id=session.get('user_id'),
+                action=f'process_item_{action}',
+                description=description
+            )
 
     except Exception as e:
         flash(f"Error processing request: {str(e)}", "danger")
@@ -718,6 +751,15 @@ def add_label():
 
         if insert_result.data:
             flash("Label created successfully.", "success")
+
+            # Log action
+            log_audit_action(
+                client_id=client_id,
+                user_id=session.get('user_id'),
+                action='create_label',
+                description=f"Created label '{label_name}' with colour '{label_colour}'."
+            )
+
         else:
             flash("Failed to create label.", "danger")
 
@@ -745,13 +787,15 @@ def delete_label(label_id):
         # Check if label exists for this client
         existing = (
             supabase.table('labels')
-            .select('id')
+            .select('id, name, colour')
             .eq('id', label_id)
             .eq('client_id', client_id)
             .execute()
         )
 
         if existing.data and len(existing.data) > 0:
+            label = existing.data[0]
+
             # Delete related entries in label_issue for this client
             supabase.table('label_issue')\
                 .delete()\
@@ -767,6 +811,15 @@ def delete_label(label_id):
                 .execute()
 
             flash("Label and related assignments deleted successfully.", "success")
+
+            # Log action
+            log_audit_action(
+                client_id=client_id,
+                user_id=session.get('user_id'),
+                action='delete_label',
+                description=f"Deleted label '{label['name']}' with colour '{label['colour']}'."
+            )
+
         else:
             flash("Label not found or already deleted.", "warning")
 

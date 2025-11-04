@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from app.db import get_supabase_client
 import json, re, uuid
 from app.utils.otp_utils import redirect_if_password_change_required, get_client_id
+from app.utils.audit import log_audit_action
 from app import limiter
 from collections import defaultdict
 from postgrest.exceptions import APIError
@@ -141,6 +142,7 @@ def dashboard(container_id):
 
     total_in_store = sum(item.get('quantity', 0) for item in stock_summary)
 
+    # Pass to template
     return render_template(
         'dashboard.html',
         categories=categories,
@@ -150,7 +152,7 @@ def dashboard(container_id):
         stock_by_category=stock_by_category_serializable,
         session=session,
         total_in_store=total_in_store,
-        container_name=container_name
+        container_name=container_name,
     )
 
 
@@ -171,6 +173,7 @@ def add_stock_type():
         return redirect_resp
 
     supabase = get_supabase_client()
+    user_id = session.get('user_id')
 
     container_id = session.get('container_id')
     if not container_id or not is_valid_uuid(container_id):
@@ -241,6 +244,9 @@ def add_stock_type():
         .eq('client_id', client_id) \
         .execute()
 
+    container_resp = supabase.table("containers").select("name").eq("id", container_id).single().execute()
+    container_name = container_resp.data.get("name") if container_resp.data else "Unknown Container"
+
     if stock_resp.data:
         stock_id = stock_resp.data[0]['id']
         current_qty = stock_resp.data[0].get('quantity', 0)
@@ -251,6 +257,14 @@ def add_stock_type():
         if not update_resp.data:
             flash("Error updating stock quantity.", "danger")
             return redirect_to_dashboard()
+
+        # Log update action
+        log_audit_action(
+            client_id=client_id,
+            user_id=user_id,
+            action="update_stock",
+            description=f"Updated quantity of '{new_type}' by +{initial_quantity} in container {container_name}.",
+        )
     else:
         insert_stock = supabase.table('stock').insert({
             'item_id': item_id,
@@ -263,6 +277,16 @@ def add_stock_type():
             flash("Error inserting stock record.", "danger")
             return redirect_to_dashboard()
 
+        stock_id = insert_stock.data[0]['id']
+
+        # Log action
+        log_audit_action(
+            client_id=client_id,
+            user_id=user_id,
+            action="create_stock",
+            description=f"Added new stock of '{new_type}' ({initial_quantity} units) in container {container_name}."
+        )
+
     flash(f"Added {initial_quantity} items of type '{new_type}' to this container.", "success")
     return redirect_to_dashboard()
 
@@ -273,7 +297,6 @@ def update_stock_batch():
     if not has_edit_privileges():
         return "Unauthorized", 403
 
-    # Check client_id valid
     client_id = get_client_id()
     if not client_id:
         flash("Invalid client_id", "danger")
@@ -301,6 +324,7 @@ def update_stock_batch():
         return redirect_to_dashboard()
 
     supabase = get_supabase_client()
+    user_id = session.get('user_id')
 
     for item in data:
         item_type = item.get('type')
@@ -316,7 +340,7 @@ def update_stock_batch():
         if not item_type or new_quantity < 0 or not category_id or not is_valid_uuid(category_id):
             continue
 
-        # Find/Create item record for this client
+        # Find/Create item record
         item_query = supabase.table('items') \
             .select('id') \
             .eq('type', item_type) \
@@ -342,7 +366,17 @@ def update_stock_batch():
 
             item_id = new_item.data[0]['id']
 
-        # Handle container stock for this client
+            # Log creation of a new item
+            category_resp = supabase.table("categories").select("category").eq("id", category_id).single().execute()
+            category_name = category_resp.data.get("category") if category_resp.data else "Unknown Category"
+            log_audit_action(
+                client_id=client_id,
+                user_id=user_id,
+                action="create_item",
+                description=f"Created new item '{item_type}' ({sizing}) in category {category_name}."
+            )
+
+        # Handle container stock
         stock_resp = supabase.table('stock') \
             .select('id, quantity') \
             .eq('item_id', item_id) \
@@ -351,13 +385,34 @@ def update_stock_batch():
             .execute()
         stock_data = stock_resp.data or []
 
+        container_resp = supabase.table("containers").select("name").eq("id", container_id).single().execute()
+        container_name = container_resp.data.get("name") if container_resp.data else "Unknown Container"
+
         if stock_data:
             stock_id = stock_data[0]['id']
+            old_qty = stock_data[0].get('quantity', 0)
+
+
             if new_quantity > 0:
                 supabase.table('stock').update({'quantity': new_quantity}) \
                     .eq('id', stock_id).eq('client_id', client_id).execute()
+
+                # Log update
+                log_audit_action(
+                    client_id=client_id,
+                    user_id=user_id,
+                    action="update_stock",
+                    description=f"Updated stock of '{item_type}' ({sizing}) in container {container_name} from {old_qty} → {new_quantity}."
+                )
             else:
                 supabase.table('stock').delete().eq('id', stock_id).eq('client_id', client_id).execute()
+
+                log_audit_action(
+                    client_id=client_id,
+                    user_id=user_id,
+                    action="delete_stock",
+                    description=f"Deleted stock of '{item_type}' ({sizing}) from container {container_name}."
+                )
 
                 # Check if any other stock exists for this item
                 remaining_stock_resp = supabase.table('stock') \
@@ -373,7 +428,14 @@ def update_stock_batch():
                             .eq('id', item_id) \
                             .eq('client_id', client_id) \
                             .execute()
-                    except APIError:
+
+                        log_audit_action(
+                            client_id=client_id,
+                            user_id=user_id,
+                            action="delete_item",
+                            description=f"Deleted item '{item_type}' ({sizing}) as no remaining stock exists."
+                        )
+                    except Exception:
                         pass
         else:
             if new_quantity > 0:
@@ -383,6 +445,14 @@ def update_stock_batch():
                     'quantity': new_quantity,
                     'client_id': client_id
                 }).execute()
+
+                # Log creation
+                log_audit_action(
+                    client_id=client_id,
+                    user_id=user_id,
+                    action="create_stock",
+                    description=f"Created new stock of '{item_type}' ({sizing}) with quantity {new_quantity} in container {container_name}."
+                )
 
     flash("Stock updated successfully.", "success")
     return redirect_to_dashboard()
@@ -414,6 +484,7 @@ def add_category():
         return redirect_to_dashboard()
 
     supabase = get_supabase_client()
+    user_id = session.get('user_id')
 
     # Check if category already exists for this client
     existing = supabase.table('categories') \
@@ -433,6 +504,14 @@ def add_category():
 
     if ins_resp.data:
         flash(f"Category '{category_name}' added successfully.", "success")
+
+        # Log audit action
+        log_audit_action(
+            client_id=client_id,
+            user_id=user_id,
+            action="create_category",
+            description=f"Created new category '{category_name}'."
+        )
     else:
         flash("Error adding category. Please try again.", "danger")
 
@@ -499,11 +578,12 @@ def update_stock_settings():
         return redirect_to_dashboard()
 
     supabase = get_supabase_client()
+    user_id = session.get('user_id')
     current_container_id = session.get('container_id')
 
     # Fetch the exact stock row
     stock_resp = supabase.table('stock') \
-        .select('id, item_id, quantity, container_id, alert_threshold, items(category_id)') \
+        .select('id, item_id, quantity, container_id, alert_threshold, items(category_id, type, sizing)') \
         .eq('id', stock_id).eq('client_id', client_id).execute()
 
     stock_items = stock_resp.data or []
@@ -514,10 +594,12 @@ def update_stock_settings():
     stock_item = stock_items[0]
     item_id = stock_item['item_id']
     current_quantity = stock_item.get('quantity', 0)
-    items_data = stock_item.get('items')
-    current_category_id = items_data['category_id'] if items_data else None
+    items_data = stock_item.get('items', {})
+    current_category_id = items_data.get('category_id')
+    item_type = items_data.get('type', 'Unknown')
+    item_sizing = items_data.get('sizing')
 
-    # Update alert_threshold for this exact stock row
+    # Update alert_threshold for this stock row
     if alert_threshold is None or alert_threshold == 0:
         supabase.table('stock').update({'alert_threshold': None}) \
             .eq('id', stock_id).eq('client_id', client_id).execute()
@@ -525,11 +607,29 @@ def update_stock_settings():
         supabase.table('stock').update({'alert_threshold': alert_threshold}) \
             .eq('id', stock_id).eq('client_id', client_id).execute()
 
-
     # Update category if changed
     if new_category_id and new_category_id != current_category_id:
         supabase.table('items').update({'category_id': new_category_id}) \
             .eq('id', item_id).eq('client_id', client_id).execute()
+        
+        # Fetch old category name
+        old_category_resp = supabase.table("categories").select("category").eq("id", current_category_id).single().execute()
+        old_category_name = old_category_resp.data.get("category") if old_category_resp.data else "Unknown Category"
+
+        # Fetch new category name
+        new_category_resp = supabase.table("categories").select("category").eq("id", new_category_id).single().execute()
+        new_category_name = new_category_resp.data.get("category") if new_category_resp.data else "Unknown Category"
+
+        # Log audit action with category names
+        log_audit_action(
+            client_id=client_id,
+            user_id=user_id,
+            action="update_stock_category",
+            description=(
+                f"Changed category of '{item_type}' ({item_sizing}) "
+                f"from '{old_category_name}' to '{new_category_name}'."
+            )
+        )
 
     # Container transfer logic
     if new_container_id and new_container_id != current_container_id:
@@ -560,8 +660,28 @@ def update_stock_settings():
                 'client_id': client_id
             }).execute()
 
+            # Fetch current container name
+            current_container_resp = supabase.table("containers").select("name").eq("id", current_container_id).single().execute()
+            current_container_name = current_container_resp.data.get("name") if current_container_resp.data else "Unknown Container"
+
+            # Fetch new container name
+            new_container_resp = supabase.table("containers").select("name").eq("id", new_container_id).single().execute()
+            new_container_name = new_container_resp.data.get("name") if new_container_resp.data else "Unknown Container"
+
+            # Log audit action with container names
+            log_audit_action(
+                client_id=client_id,
+                user_id=user_id,
+                action="transfer_stock",
+                description=(
+                    f"Transferred {qty_to_transfer} of '{item_type}' ({item_sizing}) "
+                    f"from container '{current_container_name}' to '{new_container_name}'."
+                )
+            )
+
     flash("Stock settings updated successfully.", "success")
     return redirect_to_dashboard()
+
 
 
 @dashboard_bp.route('/delete_category/<string:category_id>', methods=['POST'])
@@ -577,6 +697,7 @@ def delete_category(category_id):
         return redirect(url_for('auth.login'))
 
     supabase = get_supabase_client()
+    user_id = session.get('user_id')
 
     try:
         # Check if any stock items use this category for this client
@@ -591,12 +712,28 @@ def delete_category(category_id):
             flash('Category is in use and cannot be deleted.', 'warning')
             return redirect_to_dashboard()
 
+        # Fetch category name for audit log
+        category_resp = supabase.table('categories') \
+            .select('category') \
+            .eq('id', category_id) \
+            .eq('client_id', client_id) \
+            .execute()
+        category_name = category_resp.data[0]['category'] if category_resp.data else category_id
+
         # Delete the category for this client
         supabase.table('categories') \
             .delete() \
             .eq('id', category_id) \
             .eq('client_id', client_id) \
             .execute()
+
+        # Log the deletion
+        log_audit_action(
+            client_id=client_id,
+            user_id=user_id,
+            action="delete_category",
+            description=f"Deleted category '{category_name}'."
+        )
 
         flash('Category deleted successfully.', 'success')
     except Exception as e:

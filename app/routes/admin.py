@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from app.db import get_supabase_client
 from app import limiter
+from app.utils.audit import log_audit_action
 from app.utils.otp_utils import generate_otp, send_otp_email, redirect_if_password_change_required, get_client_id
 from app.utils.email_utils import send_reset_email
 from datetime import datetime, timezone, timedelta
@@ -30,10 +31,9 @@ def admin():
 
     supabase = get_supabase_client()
 
-    # Get all auth users
+    # Fetch auth users
     try:
         auth_users_resp = supabase.auth.admin.list_users()
-
         if isinstance(auth_users_resp, list):
             all_auth_users = auth_users_resp
         elif hasattr(auth_users_resp, "users"):
@@ -48,17 +48,12 @@ def admin():
         print(f"Warning: Could not fetch Auth users: {e}")
         all_auth_users = []
 
-    # Filter Auth users
     client_auth_users = [
         u for u in all_auth_users
-        if getattr(u, "user_metadata", None)
-        and u.user_metadata.get("client_id") == client_id
+        if getattr(u, "user_metadata", None) and u.user_metadata.get("client_id") == client_id
     ]
 
-    # Build a lookup by user ID
     auth_users = {u.id: u for u in client_auth_users}
-
-    # Fetch matching IDs
     user_ids = list(auth_users.keys())
     users = []
 
@@ -71,7 +66,6 @@ def admin():
         )
         users = users_resp.data or []
 
-    # Merge in metadata from Auth users
     for user in users:
         auth_user = auth_users.get(user["id"])
         if auth_user:
@@ -88,7 +82,6 @@ def admin():
                 "privilege": "view",
             })
 
-    # Sort by privilege
     privilege_order = {"admin": 0, "edit": 1, "view": 2}
     sorted_users = sorted(users, key=lambda u: privilege_order.get(u.get("privilege", ""), 99))
 
@@ -101,7 +94,43 @@ def admin():
     )
     containers = containers_resp.data or []
 
-    return render_template("admin.html", users=sorted_users, containers=containers)
+    # Fetch audit logs
+    audit_log_resp = (
+        supabase.table("audit_log")
+        .select("id, user_id, action, description, timestamp")
+        .eq("client_id", client_id)
+        .order("timestamp", desc=True)
+        .limit(100)
+        .execute()
+    )
+    audit_logs = audit_log_resp.data or []
+    for log in audit_logs:
+        ts_str = log.get("timestamp")
+        if ts_str:
+            try:
+                dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))  # Convert Zulu time
+                log['timestamp'] = dt.strftime('%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                log['timestamp'] = ts_str
+
+    # Merge full_name from auth users into audit logs
+    for log in audit_logs:
+        user_id = log.get("user_id")
+        auth_user = auth_users.get(user_id)
+        if auth_user:
+            metadata = getattr(auth_user, "user_metadata", {}) or {}
+            log["user_name"] = metadata.get("full_name", "Unknown")
+            log["user_email"] = getattr(auth_user, "email", "Unknown")
+        else:
+            log["user_name"] = "Unknown"
+            log["user_email"] = "Unknown"
+
+    return render_template(
+        "admin.html",
+        users=sorted_users,
+        containers=containers,
+        audit_logs=audit_logs
+    )
 
 
 
@@ -127,6 +156,7 @@ def invite_user():
         return redirect(url_for('admin.admin'))
 
     supabase = get_supabase_client()
+    user_id = session.get('user_id')
 
     # If first user, make admin
     user_count_resp = supabase.table('users').select('id').limit(1).execute()
@@ -146,7 +176,6 @@ def invite_user():
     expires_at = datetime.now(timezone.utc) + timedelta(hours=12)
 
     try:
-
         user_data = {
             "full_name": name,
             "privilege": privilege,
@@ -186,6 +215,14 @@ def invite_user():
             flash("Failed to send OTP email.", "danger")
             return redirect(url_for('admin.admin'))
 
+        # Log audit action
+        log_audit_action(
+            client_id=client_id,
+            user_id=user_id,
+            action="invite_user",
+            description=f"Invited user '{name}' ({email}) with privilege '{privilege}'."
+        )
+
         flash(f"User invited; OTP sent to {email}", "success")
 
     except Exception as e:
@@ -206,12 +243,12 @@ def update_users():
         return redirect_resp
 
     supabase = get_supabase_client()
-
-    # Get client_id
     client_id = get_client_id()
     if not client_id:
         flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
+
+    user_id = session.get('user_id')
 
     # Fetch all Auth users
     try:
@@ -230,30 +267,24 @@ def update_users():
         flash(f"Failed to fetch Auth users: {e}", "danger")
         return redirect(url_for('admin.admin'))
 
-    # Filter users
+    # Filter users belonging to this client
     client_auth_users = [
         u for u in all_auth_users
         if getattr(u, "user_metadata", None)
         and u.user_metadata.get("client_id") == client_id
     ]
 
-    # Build convenience lookup
     auth_users_by_id = {u.id: u for u in client_auth_users}
-    admin_users = [
-        u for u in client_auth_users
-        if u.user_metadata.get("privilege") == "admin"
-    ]
+    admin_users = [u for u in client_auth_users if u.user_metadata.get("privilege") == "admin"]
     admin_count = len(admin_users)
 
-    # Fetch internal user table data for reference
+    # Fetch internal user table data
     users_resp = supabase.table("users").select("id").execute()
     users = users_resp.data or []
 
-    # Iterate through users of client
     for user in users:
-        user_id = user["id"]
-        auth_user = auth_users_by_id.get(user_id)
-
+        target_user_id = user["id"]
+        auth_user = auth_users_by_id.get(target_user_id)
         if not auth_user:
             continue
 
@@ -261,11 +292,11 @@ def update_users():
         metadata = getattr(auth_user, "user_metadata", {}) or {}
         old_priv = metadata.get("privilege", "view")
 
-        reset = request.form.get(f"reset_{user_id}")
-        delete = request.form.get(f"delete_{user_id}")
-        new_priv = request.form.get(f"privilege_{user_id}")
+        reset = request.form.get(f"reset_{target_user_id}")
+        delete = request.form.get(f"delete_{target_user_id}")
+        new_priv = request.form.get(f"privilege_{target_user_id}")
 
-        # Prevent demoting or deleting the last admin
+        # Prevent deleting or demoting last admin
         if old_priv == "admin" and admin_count == 1:
             if delete:
                 flash(f"Cannot delete {username}: at least one admin is required.", "danger")
@@ -274,14 +305,22 @@ def update_users():
                 flash(f"Cannot demote {username}: at least one admin is required.", "danger")
                 continue
 
-        # Handle privilege updates
+        # Privilege update
         if new_priv and new_priv != old_priv:
             try:
                 metadata["privilege"] = new_priv
-                supabase.auth.admin.update_user_by_id(user_id, {"user_metadata": metadata})
+                supabase.auth.admin.update_user_by_id(target_user_id, {"user_metadata": metadata})
                 flash(f"Privilege updated for {username}", "success")
 
-                # Adjust local count for subsequent users in loop
+                # Log privilege change
+                log_audit_action(
+                    client_id=client_id,
+                    user_id=user_id,
+                    action="update_privilege",
+                    description=f"Changed privilege for '{username}' from '{old_priv}' to '{new_priv}'."
+                )
+
+                # Adjust admin count
                 if old_priv == "admin":
                     admin_count -= 1
                 if new_priv == "admin":
@@ -289,29 +328,35 @@ def update_users():
             except Exception as e:
                 flash(f"Failed to update privilege for {username}: {e}", "danger")
 
-        # Handle password reset
+        # Password reset (do not log)
         if reset:
             try:
                 passw = "storestash"
-                supabase.auth.admin.update_user_by_id(user_id, {
-                    "password": passw,
-                })
-                supabase.table("users").update({"requires_password_change": True}).eq("id", user_id).execute()
+                supabase.auth.admin.update_user_by_id(target_user_id, {"password": passw})
+                supabase.table("users").update({"requires_password_change": True}).eq("id", target_user_id).execute()
                 send_reset_email(username)
                 flash(f"Password reset for {username} - Default password is '{passw}'", "success")
             except Exception as e:
                 flash(f"Failed to reset password for {username}: {e}", "danger")
 
-        # Handle deletion
+        # Deletion
         if delete:
             try:
-                supabase.auth.admin.delete_user(user_id)
+                supabase.auth.admin.delete_user(target_user_id)
             except Exception as e:
                 flash(f"Failed to delete Auth user {username}: {e}", "danger")
-            supabase.table("users").delete().eq("id", user_id).execute()
+            supabase.table("users").delete().eq("id", target_user_id).execute()
+
+            # Log deletion
+            log_audit_action(
+                client_id=client_id,
+                user_id=user_id,
+                action="delete_user",
+                description=f"Deleted user '{username}'."
+            )
 
             # Self deletion
-            if user_id == session.get("user_id"):
+            if target_user_id == user_id:
                 session.clear()
                 flash("Your account was deleted.", "info")
                 return redirect(url_for("auth.login"))
@@ -329,7 +374,6 @@ def add_container():
         flash("Unauthorized action.", "danger")
         return redirect(url_for('home.home'))
 
-    # Get client_id
     client_id = get_client_id()
     if not client_id:
         flash("Invalid client_id", "danger")
@@ -345,9 +389,21 @@ def add_container():
         return redirect(url_for('admin.admin'))
 
     supabase = get_supabase_client()
-    supabase.table('containers').insert({'name': name, 'client_id': client_id}).execute()
+    insert_resp = supabase.table('containers').insert({'name': name, 'client_id': client_id}).execute()
 
-    flash(f"Container '{name}' added successfully!", "success")
+    if insert_resp.data:
+        flash(f"Container '{name}' added successfully!", "success")
+
+        # Log audit
+        log_audit_action(
+            client_id=client_id,
+            user_id=session.get('user_id'),
+            action='add_container',
+            description=f"Added container '{name}'."
+        )
+    else:
+        flash("Failed to add container.", "danger")
+
     return redirect(url_for('admin.admin'))
 
 @admin_bp.route('/delete_container', methods=['POST'])
@@ -357,7 +413,6 @@ def delete_container():
         flash("Unauthorized action.", "danger")
         return redirect(url_for('home.home'))
 
-    # Get client_id
     client_id = get_client_id()
     if not client_id:
         flash("Invalid client_id", "danger")
@@ -375,17 +430,31 @@ def delete_container():
     supabase = get_supabase_client()
     
     try:
-        container_data = supabase.table('containers').select('id').eq('name', name).eq('client_id', client_id).execute()
+        container_data = supabase.table('containers') \
+            .select('id') \
+            .eq('name', name) \
+            .eq('client_id', client_id) \
+            .execute()
+        
         if not container_data.data:
             flash(f"No container found with name '{name}'.", "danger")
             return redirect(url_for('admin.admin'))
 
         container_id = container_data.data[0]['id']
 
+        # Delete associated stock first
         supabase.table('stock').delete().eq('container_id', container_id).execute()
         supabase.table('containers').delete().eq('id', container_id).execute()
 
         flash("Container and stored items were deleted", "success")
+
+        # Log audit
+        log_audit_action(
+            client_id=client_id,
+            user_id=session.get('user_id'),
+            action='delete_container',
+            description=f"Deleted container '{name}' and its stock."
+        )
 
     except Exception as e:
         flash(f"Error deleting '{name}': {str(e)}", "danger")
@@ -399,7 +468,6 @@ def edit_container():
         flash("Unauthorized action.", "danger")
         return redirect(url_for('home.home'))
 
-    # Get client_id
     client_id = get_client_id()
     if not client_id:
         flash("Invalid client_id", "danger")
@@ -409,7 +477,6 @@ def edit_container():
     if redirect_resp:
         return redirect_resp
 
-    # Current + new name
     current_name = request.form.get('container_name')
     new_name = request.form.get('new_container_name')
 
@@ -451,6 +518,15 @@ def edit_container():
         supabase.table('containers').update({"name": new_name}).eq('id', container_id).execute()
 
         flash(f"Container '{current_name}' renamed to '{new_name}'.", "success")
+
+        # Log audit
+        log_audit_action(
+            client_id=client_id,
+            user_id=session.get('user_id'),
+            action='edit_container',
+            description=f"Renamed container '{current_name}' to '{new_name}'."
+        )
+
         return redirect(url_for('admin.admin'))
 
     except Exception as e:
