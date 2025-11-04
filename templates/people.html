@@ -1,627 +1,1100 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="{{ 'dark' if current_theme == 'dark' else 'light' }}">
-<head>
+<html
+  lang="en"
+  data-bs-theme="{{ 'dark' if current_theme == 'dark' else 'light' }}"
+>
+  <head>
     <meta charset="UTF-8" />
     <title>People</title>
 
     <!-- Bootstrap 5.3 -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+    <link
+      rel="icon"
+      href="{{ url_for('static', filename='images/favicon.ico') }}"
+      type="image/x-icon"
+    />
 
     <style>
-        .person-card {
-            cursor: pointer;
-            transition: transform 0.1s ease-in-out;
-        }
+      .person-card {
+        cursor: pointer;
+        transition: transform 0.1s ease-in-out;
+      }
 
-        .person-card:hover {
-            transform: scale(1.01);
-        }
+      .person-card:hover {
+        transform: scale(1.01);
+      }
     </style>
-</head>
-<body class="bg-body text-body">
-<!-- Navbar -->
-<nav class="navbar navbar-expand-lg bg-primary bg-opacity-75 navbar-dark px-4 sticky-top">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="/">
-      <i class="fa-solid fa-box-open me-2"></i>Stock
-    </a>
+  </head>
+  <body class="bg-body text-body">
+    <!-- Navbar -->
+    <nav
+      class="navbar navbar-expand-lg bg-primary bg-opacity-75 navbar-dark px-4 sticky-top"
+    >
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">
+          <i class="fa-solid fa-box-open me-2"></i>Stock
+        </a>
 
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent"
-      aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    
-    <div class="collapse navbar-collapse" id="navbarContent">
-      <ul class="navbar-nav me-auto">
-        <li class="nav-item"><a class="nav-link active" href="/people"><i class="fa-solid fa-person me-1"></i>People</a></li>
-        {% if session.get('privilege') == 'admin' %}
-        <li class="nav-item"><a class="nav-link" href="/admin"><i class="fas fa-user-shield me-1"></i>Admin</a></li>
-        {% endif %}
-      </ul>
-      <ul class="navbar-nav">
-        <li class="nav-item"><a class="nav-link" href="/support"><i class="fa-solid fa-circle-question me-1"></i>Support</a></li>
-        <li class="nav-item"><a class="nav-link" href="/settings"><i class="fas fa-cog me-1"></i>Settings</a></li>
-        {% if 'user_id' in session %}
-        <li class="nav-item"><a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>Logout</a></li>
-        {% endif %}
-      </ul>
-    </div>
-  </div>
-</nav>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarContent"
+          aria-controls="navbarContent"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
 
-<div class="container my-4">
-    <h1 class="mb-4">Issued Items</h1>
+        <div class="collapse navbar-collapse" id="navbarContent">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link active" href="/people"
+                ><i class="fa-solid fa-person me-1"></i>People</a
+              >
+            </li>
+            {% if session.get('privilege') == 'admin' %}
+            <li class="nav-item">
+              <a class="nav-link" href="/admin"
+                ><i class="fas fa-user-shield me-1"></i>Admin</a
+              >
+            </li>
+            {% endif %}
+          </ul>
+          <ul class="navbar-nav">
+            <li class="nav-item">
+              <a class="nav-link" href="/support"
+                ><i class="fa-solid fa-circle-question me-1"></i>Support</a
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/settings"
+                ><i class="fas fa-cog me-1"></i>Settings</a
+              >
+            </li>
+            {% if 'user_id' in session %}
+            <li class="nav-item">
+              <a class="nav-link" href="/logout"
+                ><i class="fas fa-sign-out-alt me-1"></i>Logout</a
+              >
+            </li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    </nav>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="mb-4">
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
+    <div class="container my-4">
+      <h1 class="mb-4">Issued Items</h1>
 
-    <div class="row">
+      {% with messages = get_flashed_messages(with_categories=true) %} {% if
+      messages %}
+      <div class="mb-4">
+        {% for category, message in messages %}
+        <div
+          class="alert alert-{{ category }} alert-dismissible fade show"
+          role="alert"
+        >
+          {{ message }}
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="alert"
+            aria-label="Close"
+          ></button>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %} {% endwith %}
+
+      <div class="row">
         {% if session.get('privilege') in ['admin', 'edit'] %}
         <div class="d-block d-lg-none mb-3">
-            <button class="btn btn-outline-primary w-100" type="button"
-                    data-bs-toggle="collapse" data-bs-target="#assignFormCollapse"
-                    aria-expanded="false" aria-controls="assignFormCollapse">
-                Assign Item to Person
-            </button>
+          <button
+            class="btn btn-outline-secondary w-25"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#assignFormCollapse"
+            aria-expanded="false"
+            aria-controls="assignFormCollapse"
+          >
+            Labels
+          </button>
         </div>
 
         <!-- LEFT COLUMN -->
         <div class="col-lg-4 collapse d-lg-block mb-5" id="assignFormCollapse">
-            <!-- Create Label Card -->
-            <div class="card shadow-sm mt-4">
-                <div class="card-body">
-                    <h2 class="h5 mb-3"><i class="fa-solid fa-tag me-2"></i>Labels</h2>
-                    <form method="POST" action="/create_label" class="row g-3">
-                        <div class="col-12">
-                            <label class="form-label">Label Name</label>
-                            <input type="text" name="label_name" class="form-control" placeholder="e.g. Needs blues" required>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Label Colour</label>
-                            <select name="label_color" class="form-select" id="labelColorSelect" required>
-                                <option value="" disabled selected>Select Colour</option>
-                                <option value="primary">Blue</option>
-                                <option value="secondary">Grey</option>
-                                <option value="success">Green</option>
-                                <option value="danger">Red</option>
-                                <option value="warning">Yellow</option>
-                                <option value="info">Cyan</option>
-                                <option value="dark">Black</option>
-                            </select>
-                        </div>
-                        <div class="col-12 d-grid">
-                            <button type="submit" class="btn btn-secondary">Create Label</button>
-                        </div>
-
-                        <div class="col-12 d-grid">
-                            <button type="button" class="btn btn-outline mt-2" data-bs-toggle="modal" data-bs-target="#manageLabelsModal">
-                                <i class="fa-solid fa-tags me-1"></i> Manage Labels
-                            </button>
-                        </div>
-                    </form>
+          <!-- Create Label Card -->
+          <div class="card shadow-sm mt-4">
+            <div class="card-body">
+              <h2 class="h5 mb-3">
+                <i class="fa-solid fa-tag me-2"></i>Labels
+              </h2>
+              <form method="POST" action="/create_label" class="row g-3">
+                <div class="col-12">
+                  <label class="form-label">Label Name</label>
+                  <input
+                    type="text"
+                    name="label_name"
+                    class="form-control"
+                    placeholder="e.g. Needs blues"
+                    required
+                  />
                 </div>
+                <div class="col-12">
+                  <label class="form-label">Label Colour</label>
+                  <select
+                    name="label_color"
+                    class="form-select"
+                    id="labelColorSelect"
+                    required
+                  >
+                    <option value="" disabled selected>Select Colour</option>
+                    <option value="primary">Blue</option>
+                    <option value="secondary">Grey</option>
+                    <option value="success">Green</option>
+                    <option value="danger">Red</option>
+                    <option value="warning">Yellow</option>
+                    <option value="info">Cyan</option>
+                    <option value="dark">Black</option>
+                  </select>
+                </div>
+                <div class="col-12 d-grid">
+                  <button type="submit" class="btn btn-secondary">
+                    Create Label
+                  </button>
+                </div>
+
+                <div class="col-12 d-grid">
+                  <button
+                    type="button"
+                    class="btn btn-outline mt-2"
+                    data-bs-toggle="modal"
+                    data-bs-target="#manageLabelsModal"
+                  >
+                    <i class="fa-solid fa-tags me-1"></i> Manage Labels
+                  </button>
+                </div>
+              </form>
             </div>
+          </div>
         </div>
-        {% endif %}
-
-        {% if session.get('privilege') in ['admin', 'edit'] %}
-        <div class="modal fade" id="manageLabelsModal" tabindex="-1" aria-labelledby="manageLabelsModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-scrollable">
-                <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="manageLabelsModalLabel"><i class="fa-solid fa-tags me-2"></i>Manage Labels</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    {% if labels %}
-                    <ul class="list-group">
-                    {% for label in labels %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span><span class="badge bg-{{ label.colour }}">{{ label.name }}</span></span>
-                        <form method="POST" action="{{ url_for('people.delete_label', label_id=label.id) }}" onsubmit="return confirm('Are you sure you want to delete this label?');">
-                            <button class="btn btn-sm btn-outline-danger" type="submit" title="Delete Label">
-                            <i class="fa-solid fa-trash"></i>
-                            </button>
-                        </form>
-                        </li>
-                    {% endfor %}
-                    </ul>
-                    {% else %}
-                    <p class="text-muted">No labels created yet.</p>
-                    {% endif %}
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-                </div>
+        {% endif %} {% if session.get('privilege') in ['admin', 'edit'] %}
+        <div
+          class="modal fade"
+          id="manageLabelsModal"
+          tabindex="-1"
+          aria-labelledby="manageLabelsModalLabel"
+          aria-hidden="true"
+        >
+          <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="manageLabelsModalLabel">
+                  <i class="fa-solid fa-tags me-2"></i>Manage Labels
+                </h5>
+                <button
+                  type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="Close"
+                ></button>
+              </div>
+              <div class="modal-body">
+                {% if labels %}
+                <ul class="list-group">
+                  {% for label in labels %}
+                  <li
+                    class="list-group-item d-flex justify-content-between align-items-center"
+                  >
+                    <span
+                      ><span class="badge bg-{{ label.colour }}"
+                        >{{ label.name }}</span
+                      ></span
+                    >
+                    <form
+                      method="POST"
+                      action="{{ url_for('people.delete_label', label_id=label.id) }}"
+                      onsubmit="return confirm('Are you sure you want to delete this label?');"
+                    >
+                      <button
+                        class="btn btn-sm btn-outline-danger"
+                        type="submit"
+                        title="Delete Label"
+                      >
+                        <i class="fa-solid fa-trash"></i>
+                      </button>
+                    </form>
+                  </li>
+                  {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted">No labels created yet.</p>
+                {% endif %}
+              </div>
+              <div class="modal-footer">
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  data-bs-dismiss="modal"
+                >
+                  Close
+                </button>
+              </div>
             </div>
+          </div>
         </div>
         {% endif %}
 
         <!-- RIGHT COLUMN -->
         <div class="col-lg-8">
-            <section>
-                <div class="mb-4">
-                    <div class="row g-2 align-items-center">
-                        <div class="col">
-                            <input type="text" id="stock-search" class="form-control" placeholder="Search people..." oninput="filterPersonCards()">
-                        </div>
-
-                        {% if session.get('privilege') in ['admin', 'edit'] %}
-                        <div class="col-auto">
-                            <button type="button" class="btn btn-success d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#addPersonModal">
-                                <i class="fa-solid fa-user-plus"></i>
-                                <span class="d-none d-sm-inline">Add Person</span>
-                            </button>
-                        </div>
-                        <div class="col-auto">
-                            <button type="button" class="btn btn-primary d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#assignItemModal">
-                                <i class="fa-solid fa-link"></i>
-                                <span class="d-none d-sm-inline">Assign Items</span>
-                            </button>
-                        </div>
-                        {% endif %}
-                    </div>
+          <section>
+            <div class="mb-4">
+              <div class="row g-2 align-items-center">
+                <div class="col">
+                  <input
+                    type="text"
+                    id="stock-search"
+                    class="form-control"
+                    placeholder="Search people..."
+                    oninput="filterPersonCards()"
+                  />
                 </div>
 
-                <h2 class="h5">People List</h2>
-                <!-- Container for cards -->
-                <section id="personCardList" class="container">
-                    <div class="row g-3">
-                        {% for person in people %}
-                        <div class="col-12">
-                            <div class="card person-card shadow-sm h-100" 
-                                data-name="{{ person.name | lower }}" 
-                                data-person-id="{{ person.id }}">
-                                <div class="card-body d-flex justify-content-between align-items-center"
-                                    data-bs-toggle="modal" 
-                                    data-bs-target="#modal-{{ loop.index }}">
-                                    <div>
-                                        <h5 class="card-title mb-0">{{ person.rank }}</h5>
-                                        <p class="mb-0">{{ person.name }}</p>
-                                    </div>
+                {% if session.get('privilege') in ['admin', 'edit'] %}
+                <div class="col-auto">
+                  <button
+                    type="button"
+                    class="btn btn-success d-flex align-items-center gap-2"
+                    data-bs-toggle="modal"
+                    data-bs-target="#addPersonModal"
+                  >
+                    <i class="fa-solid fa-user-plus"></i>
+                    <span class="d-none d-sm-inline">Add Person</span>
+                  </button>
+                </div>
+                <div class="col-auto">
+                  <button
+                    type="button"
+                    class="btn btn-primary d-flex align-items-center gap-2"
+                    data-bs-toggle="modal"
+                    data-bs-target="#assignItemModal"
+                  >
+                    <i class="fa-solid fa-link"></i>
+                    <span class="d-none d-sm-inline">Assign Items</span>
+                  </button>
+                </div>
+                {% endif %}
+              </div>
+            </div>
 
-                                    <!-- Labels -->
-                                    <div class="d-flex flex-wrap gap-1 mt-1 ms-3 badge-container">
-                                        {% for label in person.assigned_labels %}
-                                            <span class="badge bg-{{ label.colour }}" data-label-id="label-{{ label.id }}">
-                                                {{ label.name }}
-                                            </span>
-                                        {% endfor %}
-                                    </div>
+            <h2 class="h5">People List</h2>
+            <!-- Container for cards -->
+            <section id="personCardList" class="container">
+              <div class="row g-3">
+                {% for person in people %}
+                <div class="col-12">
+                  <div
+                    class="card person-card shadow-sm h-100"
+                    data-name="{{ person.name | lower }}"
+                    data-person-id="{{ person.id }}"
+                  >
+                    <div
+                      class="card-body d-flex justify-content-between align-items-center"
+                      data-bs-toggle="modal"
+                      data-bs-target="#modal-{{ loop.index }}"
+                    >
+                      <div>
+                        <h5 class="card-title mb-0">{{ person.name }}</h5>
+                        <p class="card-title mb-0">{{ person.rank }}</p>
+                      </div>
 
-                                    <i class="fas fa-chevron-right"></i>
-                                </div>
-                            </div>
-
-                            <!-- Modal for viewing items -->
-                            <div class="modal fade" id="modal-{{ loop.index }}" tabindex="-1" aria-labelledby="modalLabel-{{ loop.index }}" aria-hidden="true">
-                                <div class="modal-dialog modal-xl modal-dialog-centered">
-                                    <div class="modal-content">
-                                        <div class="modal-header align-items-start">
-                                            <h5 class="modal-title" id="modalLabel-{{ loop.index }}">{{ person.rank }} {{ person.name }}</h5>
-                                            <div class="d-flex align-items-center ms-auto">
-
-                                                <!-- Label Assignment Dropdown -->
-                                                <div class="dropdown me-2">
-                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="labelDropdown-{{ loop.index }}" data-bs-toggle="dropdown" aria-expanded="false">
-                                                        <i class="fa-solid fa-tag"></i>
-                                                    </button>
-                                                    <ul class="dropdown-menu dropdown-menu-end p-2" aria-labelledby="labelDropdown-{{ loop.index }}">
-                                                        {% if all_labels %}
-                                                            {% for label in all_labels %}
-                                                                {% set is_assigned = label.id in person.assigned_labels | map(attribute='id') | list %}
-                                                                <li class="mb-1">
-                                                                    <button class="btn btn-sm w-100 text-start {% if is_assigned %}btn-{{ label.colour }}{% else %}btn-outline-{{ label.colour }}{% endif %}"
-                                                                            onclick="toggleLabel('{{ person.id }}', '{{ label.id }}', this)">
-                                                                        {{ label.name }}
-                                                                    </button>
-                                                                </li>
-                                                            {% endfor %}
-                                                        {% else %}
-                                                            <li class="text-muted px-2">No existing labels</li>
-                                                        {% endif %}
-                                                    </ul>
-                                                </div>
-
-                                                {% if session.get('privilege') in ['admin', 'edit'] %}
-                                                <div class="dropdown me-2">
-                                                    <button class="btn btn-sm btn-outline-secondary" type="button" id="dropdownMenuButton-{{ loop.index }}" data-bs-toggle="dropdown" aria-expanded="false">
-                                                        <i class="fa-solid fa-ellipsis"></i>
-                                                    </button>
-                                                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton-{{ loop.index }}">
-                                                        <li>
-                                                            <button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#editPersonModal-{{ loop.index }}">
-                                                                <i class="fas fa-edit me-2"></i>Edit Person
-                                                            </button>
-                                                        </li>
-                                                        <li>
-                                                            <button class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal-{{ loop.index }}">
-                                                                <i class="fas fa-trash-alt me-2"></i>Delete Person
-                                                            </button>
-                                                        </li>
-                                                    </ul>
-                                                </div>
-                                                {% endif %}
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                            </div>
-                                        </div>
-
-                                        <div class="modal-body">
-                                            {% if person.issued_items %}
-                                            <table class="table table-bordered align-middle text-center">
-                                                <thead class="bg-primary text-white bg-opacity-75">
-                                                    <tr>
-                                                        <th>Item</th>
-                                                        <th>Sizing</th>
-                                                        <th>Issued Quantity</th>
-                                                        <th>Notes</th>
-                                                        {% if session.get('privilege') in ['admin', 'edit'] %}
-                                                        <th>Actions</th>
-                                                        {% endif %}
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {% for item in person.issued_items %}
-                                                    <tr>
-                                                        <td>{{ item.type }}</td>
-                                                        <td>{{ item.sizing }}</td>
-                                                        <td>{{ item.quantity }}</td>
-                                                        <td>{{ item.note }}</td>
-
-                                                        {% if session.get('privilege') in ['admin', 'edit'] %}
-                                                        <td class="text-nowrap">
-                                                            <form method="POST" action="/process_item" class="d-flex flex-column flex-sm-row align-items-sm-center gap-2">
-                                                                <input type="number" class="form-control" name="quantity" min="1" max="{{ item.quantity }}" value="1" required style="width: 80px;" placeholder="Qty">
-                                                                <select name="container_id" class="form-select d-inline-block" style="width: 150px;">
-                                                                    <option value="" disabled selected>Container</option>
-                                                                    {% for container in containers %}
-                                                                    <option value="{{ container.id }}">{{ container.name }}</option>
-                                                                    {% endfor %}
-                                                                </select>
-                                                                <button type="submit" class="btn btn-sm btn-outline-success" name="action" value="return">Return to Stock</button>
-                                                                <button type="submit" class="btn btn-sm btn-outline-danger" name="action" value="lost">Mark as Lost</button>
-                                                                <input type="hidden" name="person_name" value="{{ person.name }}">
-                                                                <input type="hidden" name="item_type" value="{{ item.type }}">
-                                                                <input type="hidden" name="sizing" value="{{ item.sizing }}">
-                                                            </form>
-                                                        </td>
-                                                        {% endif %}
-                                                    </tr>
-                                                    {% endfor %}
-                                                </tbody>
-                                            </table>
-                                            {% else %}
-                                            <p>No items assigned.</p>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Confirm Delete Modal -->
-                            <div class="modal fade" id="confirmDeleteModal-{{ loop.index }}" tabindex="-1" aria-labelledby="confirmDeleteLabel-{{ loop.index }}" aria-hidden="true">
-                                <div class="modal-dialog modal-dialog-centered">    
-                                    <div class="modal-content border-danger">
-                                        <div class="modal-header bg-danger text-white">
-                                            <h5 class="modal-title" id="confirmDeleteLabel-{{ loop.index }}">Confirm Deletion</h5>
-                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            Are you sure you want to delete <strong>{{ person.rank }} {{ person.name }}</strong>? This action cannot be undone.
-                                        </div>
-                                        <div class="modal-footer">
-                                            <form method="POST" action="/delete_person">
-                                                <input type="hidden" name="name" value="{{ person.name }}">
-                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                <button type="submit" class="btn btn-danger">Delete</button>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Edit Person Modal -->
-                            <div class="modal fade" id="editPersonModal-{{ loop.index }}" tabindex="-1" aria-labelledby="editPersonLabel-{{ loop.index }}" aria-hidden="true">
-                                <div class="modal-dialog modal-dialog-centered">
-                                    <div class="modal-content">
-                                        <form method="POST" action="/edit_person">
-                                            <div class="modal-header">
-                                                <h5 class="modal-title" id="editPersonLabel-{{ loop.index }}">Edit Person</h5>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                            </div>
-                                            <div class="modal-body">
-                                                <input type="hidden" name="original_name" value="{{ person.name }}">
-                                                <div class="mb-3">
-                                                    <label for="editRank-{{ loop.index }}" class="form-label">Rank</label>
-                                                    <select class="form-select" id="editRank-{{ loop.index }}" name="rank" required>
-                                                        <option value="Cadet" {% if person.rank == 'Cadet' %}selected{% endif %}>Cadet</option>
-                                                        <option value="Corporal" {% if person.rank == 'Corporal' %}selected{% endif %}>Corporal</option>
-                                                        <option value="Sergeant" {% if person.rank == 'Sergeant' %}selected{% endif %}>Sergeant</option>
-                                                        <option value="Flight Sergeant" {% if person.rank == 'Flight Sergeant' %}selected{% endif %}>Flight Sergeant</option>
-                                                        <option value="Cadet Warrant Officer" {% if person.rank == 'Cadet Warrant Officer' %}selected{% endif %}>Cadet Warrant Officer</option>
-                                                    </select>
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label for="editName-{{ loop.index }}" class="form-label">Name</label>
-                                                    <input type="text" class="form-control" id="editName-{{ loop.index }}" name="name" value="{{ person.name }}" required>
-                                                </div>
-                                            </div>
-                                            <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                <button type="submit" class="btn btn-primary">Save Changes</button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-
-                        </div> <!-- End col -->
+                      <!-- Labels -->
+                      <div
+                        class="d-flex flex-wrap gap-1 mt-1 ms-3 badge-container"
+                      >
+                        {% for label in person.assigned_labels %}
+                        <span
+                          class="badge bg-{{ label.colour }}"
+                          data-label-id="label-{{ label.id }}"
+                        >
+                          {{ label.name }}
+                        </span>
                         {% endfor %}
-                    </div> <!-- End row -->
-                </section>
+                      </div>
 
-                
-                <!-- Add Person Modal -->
-                    <div class="modal fade" id="addPersonModal" tabindex="-1" aria-labelledby="addPersonModalLabel" aria-hidden="true">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="addPersonModalLabel"><i class="fa-solid fa-user-plus me-2"></i>Add Person</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <form method="POST" action="/add_person" class="row g-3">
-                                <div class="col-12">
-                                    <label class="form-label">Rank</label>
-                                    <select name="rank" class="form-select" required>
-                                        <option value="" disabled selected>Select Rank</option>
-                                        <option value="Cadet">Cadet</option>
-                                        <option value="Corporal">Corporal</option>
-                                        <option value="Sergeant">Sergeant</option>
-                                        <option value="Flight Sergeant">Flight Sergeant</option>
-                                        <option value="Cadet Warrant Officer">Cadet Warrant Officer</option>
-                                    </select>
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label">Name</label>
-                                    <input type="text" name="name" class="form-control" placeholder="Surname" required>
-                                </div>
-                                <div class="col-12 d-grid">
-                                    <button type="submit" class="btn btn-success">Add Person</button>
-                                </div>
-                            </form>
-                        </div>
-                        </div>
+                      <i class="fas fa-chevron-right"></i>
                     </div>
-                    </div>
+                  </div>
 
-                    <!-- Assign Item Modal -->
-                    <div class="modal fade" id="assignItemModal" tabindex="-1" aria-labelledby="assignItemModalLabel" aria-hidden="true">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="assignItemModalLabel">Assign Items</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <form method="POST" action="/assign_item" class="row g-3">
-
-                            <!-- Person Selector -->
-                            <div class="col-12">
-                                <div class="dropdown">
-                                <input type="text" id="personSearch" class="form-control" placeholder="Find person..." autocomplete="off" required>
-                                <input type="hidden" name="person_name" id="selectedPerson">
-                                <ul id="personDropdown" class="dropdown-menu w-100" style="max-height: 200px; overflow-y: auto;">
-                                    {% for person in people %}
-                                    <li><a class="dropdown-item" href="#" data-name="{{ person.name }}">{{ person.name }}</a></li>
-                                    {% endfor %}
-                                </ul>
-                                </div>
+                  <!-- Modal for viewing items -->
+                  <div
+                    class="modal fade"
+                    id="modal-{{ loop.index }}"
+                    tabindex="-1"
+                    aria-labelledby="modalLabel-{{ loop.index }}"
+                    aria-hidden="true"
+                  >
+                    <div
+                      class="modal-dialog modal-fullscreen modal-dialog-centered"
+                    >
+                      <div class="modal-content">
+                        <!-- Modal Header -->
+                        <div class="modal-header align-items-start">
+                          <h5
+                            class="modal-title"
+                            id="modalLabel-{{ loop.index }}"
+                          >
+                            {{ person.rank }} {{ person.name }}
+                          </h5>
+                          <div class="d-flex align-items-center ms-auto">
+                            <!-- Label Assignment Dropdown -->
+                            <div class="dropdown me-2">
+                              <button
+                                class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                type="button"
+                                id="labelDropdown-{{ loop.index }}"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                              >
+                                <i class="fa-solid fa-tag"></i>
+                              </button>
+                              <ul
+                                class="dropdown-menu dropdown-menu-end p-2"
+                                aria-labelledby="labelDropdown-{{ loop.index }}"
+                              >
+                                {% if all_labels %} {% for label in all_labels
+                                %} {% set is_assigned = label.id in
+                                person.assigned_labels | map(attribute='id') |
+                                list %}
+                                <li class="mb-1">
+                                  <button
+                                    class="btn btn-sm w-100 text-start {% if is_assigned %}btn-{{ label.colour }}{% else %}btn-outline-{{ label.colour }}{% endif %}"
+                                    onclick="toggleLabel('{{ person.id }}', '{{ label.id }}', this)"
+                                  >
+                                    {{ label.name }}
+                                  </button>
+                                </li>
+                                {% endfor %} {% else %}
+                                <li class="text-muted px-2">
+                                  No existing labels
+                                </li>
+                                {% endif %}
+                              </ul>
                             </div>
 
-                            <!-- Container Selector -->
-                            <div class="col-12">
-                                <select id="containerSelect" name="container_id" class="form-select" required>
-                                <option value="" selected disabled>Container</option>
-                                {% for container in containers %}
-                                    <option value="{{ container.id }}">{{ container.name }}</option>
+                            <!-- Admin/Edit Dropdown -->
+                            {% if session.get('privilege') in ['admin', 'edit']
+                            %}
+                            <div class="dropdown me-2">
+                              <button
+                                class="btn btn-sm btn-outline-secondary"
+                                type="button"
+                                id="dropdownMenuButton-{{ loop.index }}"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                              >
+                                <i class="fa-solid fa-ellipsis"></i>
+                              </button>
+                              <ul
+                                class="dropdown-menu dropdown-menu-end"
+                                aria-labelledby="dropdownMenuButton-{{ loop.index }}"
+                              >
+                                <li>
+                                  <button
+                                    class="dropdown-item"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#editPersonModal-{{ loop.index }}"
+                                  >
+                                    <i class="fas fa-edit me-2"></i>Edit Person
+                                  </button>
+                                </li>
+                                <li>
+                                  <button
+                                    class="dropdown-item text-danger"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#confirmDeleteModal-{{ loop.index }}"
+                                  >
+                                    <i class="fas fa-trash-alt me-2"></i>Delete
+                                    Person
+                                  </button>
+                                </li>
+                              </ul>
+                            </div>
+                            {% endif %}
+
+                            <!-- Close Button -->
+                            <button
+                              type="button"
+                              class="btn-close"
+                              data-bs-dismiss="modal"
+                              aria-label="Close"
+                            ></button>
+                          </div>
+                        </div>
+
+                        <!-- Modal Body -->
+                        <div class="modal-body">
+                          {% if person.issued_items %}
+                          <div class="table-responsive">
+                            <table
+                              class="table table-bordered align-middle text-center"
+                            >
+                              <thead
+                                class="bg-primary text-white bg-opacity-75"
+                              >
+                                <tr>
+                                  <th>Item</th>
+                                  <th>Sizing</th>
+                                  <th>Issued Quantity</th>
+                                  <th>Notes</th>
+                                  {% if session.get('privilege') in ['admin',
+                                  'edit'] %}
+                                  <th>Actions</th>
+                                  {% endif %}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {% for item in person.issued_items %}
+                                <tr>
+                                  <td>{{ item.type }}</td>
+                                  <td>{{ item.sizing }}</td>
+                                  <td>{{ item.quantity }}</td>
+                                  <td>{{ item.note }}</td>
+                                  {% if session.get('privilege') in ['admin',
+                                  'edit'] %}
+                                  <td class="text-nowrap">
+                                    <form
+                                      method="POST"
+                                      action="/process_item"
+                                      class="d-flex flex-column flex-sm-row align-items-sm-center gap-2"
+                                    >
+                                      <input
+                                        type="number"
+                                        class="form-control"
+                                        name="quantity"
+                                        min="1"
+                                        max="{{ item.quantity }}"
+                                        value="1"
+                                        required
+                                        style="width: 80px"
+                                        placeholder="Qty"
+                                      />
+                                      <select
+                                        name="container_id"
+                                        class="form-select d-inline-block"
+                                        style="width: 150px"
+                                      >
+                                        <option value="" disabled selected>
+                                          Container
+                                        </option>
+                                        {% for container in containers %}
+                                        <option value="{{ container.id }}">
+                                          {{ container.name }}
+                                        </option>
+                                        {% endfor %}
+                                      </select>
+                                      <button
+                                        type="submit"
+                                        class="btn btn-sm btn-outline-success"
+                                        name="action"
+                                        value="return"
+                                      >
+                                        Return to Stock
+                                      </button>
+                                      <button
+                                        type="submit"
+                                        class="btn btn-sm btn-outline-danger"
+                                        name="action"
+                                        value="lost"
+                                      >
+                                        Mark as Lost
+                                      </button>
+                                      <input
+                                        type="hidden"
+                                        name="person_name"
+                                        value="{{ person.name }}"
+                                      />
+                                      <input
+                                        type="hidden"
+                                        name="item_type"
+                                        value="{{ item.type }}"
+                                      />
+                                      <input
+                                        type="hidden"
+                                        name="sizing"
+                                        value="{{ item.sizing }}"
+                                      />
+                                    </form>
+                                  </td>
+                                  {% endif %}
+                                </tr>
                                 {% endfor %}
-                                </select>
-                            </div>
-
-                            <!-- Item Selector -->
-                            <div class="col-12">
-                                <div class="dropdown">
-                                <input type="text" id="itemSearch" class="form-control" placeholder="Find item..." autocomplete="off" required>
-                                <input type="hidden" name="item_type" id="selectedItemType" required>
-                                <input type="hidden" name="sizing" id="selectedSizing">
-                                <ul id="itemDropdown" class="dropdown-menu w-100" style="max-height: 200px; overflow-y: auto;">
-                                    {% for item in stock_items %}
-                                    <li data-container="{{ item.container_id }}">
-                                        <a class="dropdown-item d-flex justify-content-between align-items-center"
-                                        href="#"
-                                        data-type="{{ item.type }}"
-                                        data-sizing="{{ item.sizing or 'N/A' }}">
-                                        <span>{{ item.type }}{% if item.sizing %} ({{ item.sizing }}){% endif %}</span>
-                                        <span class="badge bg-secondary">{{ item.count }}</span>
-                                        </a>
-                                    </li>
-                                    {% endfor %}
-                                </ul>
-                                </div>
-                            </div>
-
-                            <div class="col-12">
-                                <input type="number" name="quantity" class="form-control" placeholder="Quantity" required min="1">
-                            </div>
-
-                            <div class="col-12">
-                                <input type="text" name="note" class="form-control" placeholder="Notes">
-                            </div>                        
-
-                            <div class="col-12 d-grid">
-                                <button type="submit" class="btn btn-primary">Assign Item</button>
-                            </div>
-                            </form>
+                              </tbody>
+                            </table>
+                          </div>
+                          {% else %}
+                          <p>No items assigned.</p>
+                          {% endif %}
+                        </div>
+                      </div>
                     </div>
+                  </div>
+
+                  <!-- Confirm Delete Modal -->
+                  <div
+                    class="modal fade"
+                    id="confirmDeleteModal-{{ loop.index }}"
+                    tabindex="-1"
+                    aria-labelledby="confirmDeleteLabel-{{ loop.index }}"
+                    aria-hidden="true"
+                  >
+                    <div class="modal-dialog modal-dialog-centered">
+                      <div class="modal-content border-danger">
+                        <div class="modal-header bg-danger text-white">
+                          <h5
+                            class="modal-title"
+                            id="confirmDeleteLabel-{{ loop.index }}"
+                          >
+                            Confirm Deletion
+                          </h5>
+                          <button
+                            type="button"
+                            class="btn-close btn-close-white"
+                            data-bs-dismiss="modal"
+                            aria-label="Close"
+                          ></button>
+                        </div>
+                        <div class="modal-body">
+                          Are you sure you want to delete
+                          <strong>{{ person.rank }} {{ person.name }}</strong>?
+                          This action cannot be undone.
+                        </div>
+                        <div class="modal-footer">
+                          <form method="POST" action="/delete_person">
+                            <input
+                              type="hidden"
+                              name="name"
+                              value="{{ person.name }}"
+                            />
+                            <button
+                              type="button"
+                              class="btn btn-secondary"
+                              data-bs-dismiss="modal"
+                            >
+                              Cancel
+                            </button>
+                            <button type="submit" class="btn btn-danger">
+                              Delete
+                            </button>
+                          </form>
+                        </div>
+                      </div>
                     </div>
+                  </div>
+
+                  <!-- Edit Person Modal -->
+                  <div
+                    class="modal fade"
+                    id="editPersonModal-{{ loop.index }}"
+                    tabindex="-1"
+                    aria-labelledby="editPersonLabel-{{ loop.index }}"
+                    aria-hidden="true"
+                  >
+                    <div class="modal-dialog modal-dialog-centered">
+                      <div class="modal-content">
+                        <form method="POST" action="/edit_person">
+                          <div class="modal-header">
+                            <h5
+                              class="modal-title"
+                              id="editPersonLabel-{{ loop.index }}"
+                            >
+                              Edit Person
+                            </h5>
+                            <button
+                              type="button"
+                              class="btn-close"
+                              data-bs-dismiss="modal"
+                              aria-label="Close"
+                            ></button>
+                          </div>
+                          <div class="modal-body">
+                            <input
+                              type="hidden"
+                              name="original_name"
+                              value="{{ person.name }}"
+                            />
+                            <div class="mb-3">
+                              <label
+                                for="editRank-{{ loop.index }}"
+                                class="form-label"
+                                >Rank</label
+                              >
+                              <select
+                                class="form-select"
+                                id="editRank-{{ loop.index }}"
+                                name="rank"
+                                required
+                              >
+                                <option value="Cadet" {% if person.rank ==
+                                'Cadet' %}selected{% endif %}>Cadet <option
+                                value="Corporal" {% if person.rank == 'Corporal'
+                                %}selected{% endif %}>Corporal <option
+                                value="Sergeant" {% if person.rank == 'Sergeant'
+                                %}selected{% endif %}>Sergeant <option
+                                value="Flight Sergeant" {% if person.rank ==
+                                'Flight Sergeant' %}selected{% endif %}>Flight
+                                Sergeant <option value="Cadet Warrant Officer"
+                                {% if person.rank == 'Cadet Warrant Officer'
+                                %}selected{% endif %}>Cadet Warrant Officer
+                              </select>
+                            </div>
+                            <div class="mb-3">
+                              <label
+                                for="editName-{{ loop.index }}"
+                                class="form-label"
+                                >Name</label
+                              >
+                              <input
+                                type="text"
+                                class="form-control"
+                                id="editName-{{ loop.index }}"
+                                name="name"
+                                value="{{ person.name }}"
+                                required
+                              />
+                            </div>
+                          </div>
+                          <div class="modal-footer">
+                            <button
+                              type="button"
+                              class="btn btn-secondary"
+                              data-bs-dismiss="modal"
+                            >
+                              Cancel
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                              Save Changes
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- End col -->
+                {% endfor %}
+              </div>
+              <!-- End row -->
             </section>
-        </div>
-    </div>
-</div>
 
-<!-- Scripts -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+            <!-- Add Person Modal -->
+            <div
+              class="modal fade"
+              id="addPersonModal"
+              tabindex="-1"
+              aria-labelledby="addPersonModalLabel"
+              aria-hidden="true"
+            >
+              <div class="modal-dialog">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title" id="addPersonModalLabel">
+                      <i class="fa-solid fa-user-plus me-2"></i>Add Person
+                    </h5>
+                    <button
+                      type="button"
+                      class="btn-close"
+                      data-bs-dismiss="modal"
+                      aria-label="Close"
+                    ></button>
+                  </div>
+                  <div class="modal-body">
+                    <form method="POST" action="/add_person" class="row g-3">
+                      <div class="col-12">
+                        <label class="form-label">Rank</label>
+                        <select name="rank" class="form-select" required>
+                          <option value="" disabled selected>
+                            Select Rank
+                          </option>
+                          <option value="Cadet">Cadet</option>
+                          <option value="Corporal">Corporal</option>
+                          <option value="Sergeant">Sergeant</option>
+                          <option value="Flight Sergeant">
+                            Flight Sergeant
+                          </option>
+                          <option value="Cadet Warrant Officer">
+                            Cadet Warrant Officer
+                          </option>
+                        </select>
+                      </div>
+                      <div class="col-12">
+                        <label class="form-label">Name</label>
+                        <input
+                          type="text"
+                          name="name"
+                          class="form-control"
+                          placeholder="Surname"
+                          required
+                        />
+                      </div>
+                      <div class="col-12 d-grid">
+                        <button type="submit" class="btn btn-success">
+                          Add Person
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
+            <!-- Assign Item Modal -->
+            <div
+              class="modal fade"
+              id="assignItemModal"
+              tabindex="-1"
+              aria-labelledby="assignItemModalLabel"
+              aria-hidden="true"
+            >
+              <div class="modal-dialog">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title" id="assignItemModalLabel">
+                      Assign Items
+                    </h5>
+                    <button
+                      type="button"
+                      class="btn-close"
+                      data-bs-dismiss="modal"
+                      aria-label="Close"
+                    ></button>
+                  </div>
+                  <div class="modal-body">
+                    <form method="POST" action="/assign_item" class="row g-3">
+                      <!-- Person Selector -->
+                      <div class="col-12">
+                        <div class="dropdown">
+                          <input
+                            type="text"
+                            id="personSearch"
+                            class="form-control"
+                            placeholder="Find person..."
+                            autocomplete="off"
+                            required
+                          />
+                          <input
+                            type="hidden"
+                            name="person_name"
+                            id="selectedPerson"
+                          />
+                          <ul
+                            id="personDropdown"
+                            class="dropdown-menu w-100"
+                            style="max-height: 200px; overflow-y: auto"
+                          >
+                            {% for person in people %}
+                            <li>
+                              <a
+                                class="dropdown-item"
+                                href="#"
+                                data-name="{{ person.name }}"
+                                >{{ person.name }}</a
+                              >
+                            </li>
+                            {% endfor %}
+                          </ul>
+                        </div>
+                      </div>
 
-    // --- Person Search ---
-    const personInput = document.getElementById("personSearch");
-    const personDropdown = document.getElementById("personDropdown");
-    const hiddenPerson = document.getElementById("selectedPerson");
+                      <!-- Container Selector -->
+                      <div class="col-12">
+                        <select
+                          id="containerSelect"
+                          name="container_id"
+                          class="form-select"
+                          required
+                        >
+                          <option value="" selected disabled>Container</option>
+                          {% for container in containers %}
+                          <option value="{{ container.id }}">
+                            {{ container.name }}
+                          </option>
+                          {% endfor %}
+                        </select>
+                      </div>
 
-    const people = Array.from(personDropdown.querySelectorAll(".dropdown-item"))
-        .map(item => item.getAttribute("data-name"));
+                      <!-- Item Selector -->
+                      <div class="col-12">
+                        <div class="dropdown">
+                          <input
+                            type="text"
+                            id="itemSearch"
+                            class="form-control"
+                            placeholder="Find item..."
+                            autocomplete="off"
+                            required
+                          />
+                          <input
+                            type="hidden"
+                            name="item_type"
+                            id="selectedItemType"
+                            required
+                          />
+                          <input
+                            type="hidden"
+                            name="sizing"
+                            id="selectedSizing"
+                          />
+                          <ul
+                            id="itemDropdown"
+                            class="dropdown-menu w-100"
+                            style="max-height: 200px; overflow-y: auto"
+                          >
+                            {% for item in stock_items %}
+                            <li data-container="{{ item.container_id }}">
+                              <a
+                                class="dropdown-item d-flex justify-content-between align-items-center"
+                                href="#"
+                                data-type="{{ item.type }}"
+                                data-sizing="{{ item.sizing or 'N/A' }}"
+                              >
+                                <span
+                                  >{{ item.type }}{% if item.sizing %} ({{
+                                  item.sizing }}){% endif %}</span
+                                >
+                                <span class="badge bg-secondary"
+                                  >{{ item.count }}</span
+                                >
+                              </a>
+                            </li>
+                            {% endfor %}
+                          </ul>
+                        </div>
+                      </div>
 
-    function updatePersonDropdown(query) {
-        personDropdown.innerHTML = "";
+                      <div class="col-12">
+                        <input
+                          type="number"
+                          name="quantity"
+                          class="form-control"
+                          placeholder="Quantity"
+                          required
+                          min="1"
+                        />
+                      </div>
 
-        const matches = people.filter(name =>
-            name.toLowerCase().includes(query.toLowerCase())
-        );
-        matches.forEach(name => {
-            const li = document.createElement("li");
-            li.innerHTML = `<a class="dropdown-item" href="#" data-name="${name}">${name}</a>`;
-            li.querySelector("a").addEventListener("click", e => {
-                e.preventDefault();
-                personInput.value = name;
-                hiddenPerson.value = name;
-                personDropdown.classList.remove("show");
-            });
-            personDropdown.appendChild(li);
-        });
-        personDropdown.classList.toggle("show", matches.length > 0);
-    }
+                      <div class="col-12">
+                        <input
+                          type="text"
+                          name="note"
+                          class="form-control"
+                          placeholder="Notes"
+                        />
+                      </div>
 
-    personInput.addEventListener("input", () => updatePersonDropdown(personInput.value));
-    document.addEventListener("click", e => {
-        if (!personDropdown.contains(e.target) && e.target !== personInput) {
-            personDropdown.classList.remove("show");
-        }
-    });
+                      <div class="col-12 d-grid">
+                        <button type="submit" class="btn btn-primary">
+                          Assign Item
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-    // --- Item Search ---
-    const itemInput = document.getElementById("itemSearch");
-    const itemDropdown = document.getElementById("itemDropdown");
-    const selectedItemType = document.getElementById("selectedItemType");
-    const selectedSizing = document.getElementById("selectedSizing");
+            <!-- Scripts -->
+            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+            <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 
-    const containerSelect = document.getElementById("containerSelect");
+            <script>
+              document.addEventListener("DOMContentLoaded", () => {
+                // --- Person Search ---
+                const personInput = document.getElementById("personSearch");
+                const personDropdown =
+                  document.getElementById("personDropdown");
+                const hiddenPerson = document.getElementById("selectedPerson");
 
-    // Store all stock items in memory with container info
-    const stockItems = Array.from(itemDropdown.querySelectorAll("li")).map(li => {
-        const link = li.querySelector("a");
-        return {
-            type: link.getAttribute("data-type"),
-            sizing: link.getAttribute("data-sizing") || "N/A",
-            label: link.textContent.trim(),
-            container_id: li.getAttribute("data-container")
-        };
-    });
+                const people = Array.from(
+                  personDropdown.querySelectorAll(".dropdown-item")
+                ).map((item) => item.getAttribute("data-name"));
 
-    function updateItemDropdown(query) {
-        const selectedContainer = containerSelect.value;
-        itemDropdown.innerHTML = ""; // clear
+                function updatePersonDropdown(query) {
+                  personDropdown.innerHTML = "";
 
-        const matches = stockItems.filter(item =>
-            item.label.toLowerCase().includes(query.toLowerCase()) &&
-            (!selectedContainer || item.container_id === selectedContainer)
-        );
+                  const matches = people.filter((name) =>
+                    name.toLowerCase().includes(query.toLowerCase())
+                  );
+                  matches.forEach((name) => {
+                    const li = document.createElement("li");
+                    li.innerHTML = `<a class="dropdown-item" href="#" data-name="${name}">${name}</a>`;
+                    li.querySelector("a").addEventListener("click", (e) => {
+                      e.preventDefault();
+                      personInput.value = name;
+                      hiddenPerson.value = name;
+                      personDropdown.classList.remove("show");
+                    });
+                    personDropdown.appendChild(li);
+                  });
+                  personDropdown.classList.toggle("show", matches.length > 0);
+                }
 
-        matches.forEach(item => {
-            const li = document.createElement("li");
-            li.innerHTML = `
+                personInput.addEventListener("input", () =>
+                  updatePersonDropdown(personInput.value)
+                );
+                document.addEventListener("click", (e) => {
+                  if (
+                    !personDropdown.contains(e.target) &&
+                    e.target !== personInput
+                  ) {
+                    personDropdown.classList.remove("show");
+                  }
+                });
+
+                // --- Item Search ---
+                const itemInput = document.getElementById("itemSearch");
+                const itemDropdown = document.getElementById("itemDropdown");
+                const selectedItemType =
+                  document.getElementById("selectedItemType");
+                const selectedSizing =
+                  document.getElementById("selectedSizing");
+
+                const containerSelect =
+                  document.getElementById("containerSelect");
+
+                // Store all stock items in memory with container info
+                const stockItems = Array.from(
+                  itemDropdown.querySelectorAll("li")
+                ).map((li) => {
+                  const link = li.querySelector("a");
+                  return {
+                    type: link.getAttribute("data-type"),
+                    sizing: link.getAttribute("data-sizing") || "N/A",
+                    label: link.textContent.trim(),
+                    container_id: li.getAttribute("data-container"),
+                  };
+                });
+
+                function updateItemDropdown(query) {
+                  const selectedContainer = containerSelect.value;
+                  itemDropdown.innerHTML = ""; // clear
+
+                  const matches = stockItems.filter(
+                    (item) =>
+                      item.label.toLowerCase().includes(query.toLowerCase()) &&
+                      (!selectedContainer ||
+                        item.container_id === selectedContainer)
+                  );
+
+                  matches.forEach((item) => {
+                    const li = document.createElement("li");
+                    li.innerHTML = `
                 <a class="dropdown-item d-flex justify-content-between align-items-center" 
                    href="#" data-type="${item.type}" data-sizing="${item.sizing}">
                    <span>${item.label}</span>
                 </a>`;
-            li.querySelector("a").addEventListener("click", e => {
-                e.preventDefault();
-                itemInput.value = item.label;
-                selectedItemType.value = item.type;
-                selectedSizing.value = item.sizing;
-                itemDropdown.classList.remove("show");
-            });
-            itemDropdown.appendChild(li);
-        });
-        itemDropdown.classList.toggle("show", matches.length > 0);
-    }
-
-    itemInput.addEventListener("input", () => updateItemDropdown(itemInput.value));
-
-    // Refilter when container changes
-    containerSelect.addEventListener("change", () => {
-        if (itemInput.value) updateItemDropdown(itemInput.value);
-    });
-
-    document.addEventListener("click", e => {
-        if (!itemDropdown.contains(e.target) && e.target !== itemInput) {
-            itemDropdown.classList.remove("show");
-        }
-    });
-
-    document.querySelectorAll("form[action='/process_item']").forEach(form => {
-        const containerSelect = form.querySelector("select[name='container_id']");
-        const returnBtn = form.querySelector("button[name='action'][value='return']");
-        const lostBtn = form.querySelector("button[name='action'][value='lost']");
-
-        if (containerSelect && returnBtn && lostBtn) {
-            returnBtn.addEventListener("click", () => {
-                containerSelect.required = true;
-            });
-            lostBtn.addEventListener("click", () => {
-                containerSelect.required = false;
-            });
-        }
-    });
-
-    // --- Label Color Selector ---
-    const select = document.getElementById("labelColorSelect");
-    if (select) {
-        select.addEventListener("change", function () {
-            select.classList.remove(
-                "bg-primary", "bg-secondary", "bg-success", "bg-danger",
-                "bg-warning", "bg-info", "bg-dark", "text-white"
-            );
-
-            const selected = select.value;
-            if (selected) {
-                select.classList.add(`bg-${selected}`);
-                if (["dark", "primary", "danger", "success", "secondary", "info"].includes(selected)) {
-                    select.classList.add("text-white");
+                    li.querySelector("a").addEventListener("click", (e) => {
+                      e.preventDefault();
+                      itemInput.value = item.label;
+                      selectedItemType.value = item.type;
+                      selectedSizing.value = item.sizing;
+                      itemDropdown.classList.remove("show");
+                    });
+                    itemDropdown.appendChild(li);
+                  });
+                  itemDropdown.classList.toggle("show", matches.length > 0);
                 }
-            }
-        });
-    }
-});
-</script>
 
+                itemInput.addEventListener("input", () =>
+                  updateItemDropdown(itemInput.value)
+                );
 
-</body>
+                // Refilter when container changes
+                containerSelect.addEventListener("change", () => {
+                  if (itemInput.value) updateItemDropdown(itemInput.value);
+                });
+
+                document.addEventListener("click", (e) => {
+                  if (
+                    !itemDropdown.contains(e.target) &&
+                    e.target !== itemInput
+                  ) {
+                    itemDropdown.classList.remove("show");
+                  }
+                });
+
+                document
+                  .querySelectorAll("form[action='/process_item']")
+                  .forEach((form) => {
+                    const containerSelect = form.querySelector(
+                      "select[name='container_id']"
+                    );
+                    const returnBtn = form.querySelector(
+                      "button[name='action'][value='return']"
+                    );
+                    const lostBtn = form.querySelector(
+                      "button[name='action'][value='lost']"
+                    );
+
+                    if (containerSelect && returnBtn && lostBtn) {
+                      returnBtn.addEventListener("click", () => {
+                        containerSelect.required = true;
+                      });
+                      lostBtn.addEventListener("click", () => {
+                        containerSelect.required = false;
+                      });
+                    }
+                  });
+
+                // --- Label Color Selector ---
+                const select = document.getElementById("labelColorSelect");
+                if (select) {
+                  select.addEventListener("change", function () {
+                    select.classList.remove(
+                      "bg-primary",
+                      "bg-secondary",
+                      "bg-success",
+                      "bg-danger",
+                      "bg-warning",
+                      "bg-info",
+                      "bg-dark",
+                      "text-white"
+                    );
+
+                    const selected = select.value;
+                    if (selected) {
+                      select.classList.add(`bg-${selected}`);
+                      if (
+                        [
+                          "dark",
+                          "primary",
+                          "danger",
+                          "success",
+                          "secondary",
+                          "info",
+                        ].includes(selected)
+                      ) {
+                        select.classList.add("text-white");
+                      }
+                    }
+                  });
+                }
+              });
+            </script>
+          </section>
+        </div>
+      </div>
+    </div>
+  </body>
 </html>
