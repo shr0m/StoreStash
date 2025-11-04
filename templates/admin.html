@@ -150,14 +150,12 @@
                         <h5 class="mb-0">
                             <i class="fa-solid fa-users me-2"></i>Current Users
                         </h5>
-
+                        <form method="POST" action="{{ url_for('admin.update_users') }}" id="update-settings-form" class="m-0">
                         <div class="d-flex align-items-center gap-2 flex-grow-1 justify-content-end">
                             <input type="text" id="stock-search" class="form-control w-auto" placeholder="Search users..." oninput="filterUserTable()">
-                            <form method="POST" action="{{ url_for('admin.update_users') }}" id="update-settings-form" class="m-0">
                                 <button type="submit" class="btn btn-success">
                                     <i class="fa-solid fa-floppy-disk me-1"></i>Update Settings
                                 </button>
-                            </form>
                         </div>
                     </div>
 
@@ -198,6 +196,7 @@
                             </tbody>
                         </table>
                     </div>
+                </form>
                 </div>
             </div>
 
