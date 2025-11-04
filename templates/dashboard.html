@@ -1,495 +1,667 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="{{ 'dark' if current_theme == 'dark' else 'light' }}">
-<head>
-    <meta charset="UTF-8">
+<html
+  lang="en"
+  data-bs-theme="{{ 'dark' if current_theme == 'dark' else 'light' }}"
+>
+  <head>
+    <meta charset="UTF-8" />
     <title>Stock Dashboard</title>
 
     <!-- Bootstrap 5.3 -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
 
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
-</head>
-<body class="bg-body text-body">
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+    <link
+      rel="icon"
+      href="{{ url_for('static', filename='images/favicon.ico') }}"
+      type="image/x-icon"
+    />
 
-<!-- Navbar -->
-<nav class="navbar navbar-expand-lg bg-primary bg-opacity-75 navbar-dark px-4 sticky-top">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="/">
-      <i class="fa-solid fa-box-open me-2"></i>Stock
-    </a>
+    <style>
+      .table-responsive {
+        overflow-x: auto;
+      }
+      table {
+        min-width: 700px; /* ensures table layout isn’t cramped on mobile */
+      }
+    </style>
+  </head>
 
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent"
-      aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    
-    <div class="collapse navbar-collapse" id="navbarContent">
-      <ul class="navbar-nav me-auto">
-        <li class="nav-item"><a class="nav-link" href="/people"><i class="fa-solid fa-person me-1"></i>People</a></li>
-        {% if session.get('privilege') == 'admin' %}
-        <li class="nav-item"><a class="nav-link" href="/admin"><i class="fas fa-user-shield me-1"></i>Admin</a></li>
-        {% endif %}
-      </ul>
-      <ul class="navbar-nav">
-        <li class="nav-item"><a class="nav-link" href="/support"><i class="fa-solid fa-circle-question me-1"></i>Support</a></li>
-        <li class="nav-item"><a class="nav-link" href="/settings"><i class="fas fa-cog me-1"></i>Settings</a></li>
-        {% if 'user_id' in session %}
-        <li class="nav-item"><a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>Logout</a></li>
-        {% endif %}
-      </ul>
-    </div>
-  </div>
-</nav>
+  <body class="bg-body text-body">
+    <!-- Navbar -->
+    <nav
+      class="navbar navbar-expand-lg bg-primary bg-opacity-75 navbar-dark px-4 sticky-top"
+    >
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">
+          <i class="fa-solid fa-box-open me-2"></i>Stock
+        </a>
 
-<!-- Main Container -->
-<div class="container my-5">
-    <h1 class="mb-4">{{ container_name }} - Storage Information</h1>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarContent"
+          aria-controls="navbarContent"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
 
-    <!-- Flash Messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="mb-4">
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
+        <div class="collapse navbar-collapse" id="navbarContent">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/people"
+                ><i class="fa-solid fa-person me-1"></i>People</a
+              >
+            </li>
+            {% if session.get('privilege') == 'admin' %}
+            <li class="nav-item">
+              <a class="nav-link" href="/admin"
+                ><i class="fas fa-user-shield me-1"></i>Admin</a
+              >
+            </li>
+            {% endif %}
+          </ul>
+          <ul class="navbar-nav">
+            <li class="nav-item">
+              <a class="nav-link" href="/support"
+                ><i class="fa-solid fa-circle-question me-1"></i>Support</a
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/settings"
+                ><i class="fas fa-cog me-1"></i>Settings</a
+              >
+            </li>
+            {% if 'user_id' in session %}
+            <li class="nav-item">
+              <a class="nav-link" href="/logout"
+                ><i class="fas fa-sign-out-alt me-1"></i>Logout</a
+              >
+            </li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    </nav>
 
-    <div class="row">
-        <!-- Stock Table Section -->
+    <!-- Main Container -->
+    <div class="container my-5">
+      <h1 class="mb-4">{{ container_name }} - Storage Information</h1>
+
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <div class="mb-4">
+        {% for category, message in messages %}
+        <div
+          class="alert alert-{{ category }} alert-dismissible fade show"
+          role="alert"
+        >
+          {{ message }}
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="alert"
+            aria-label="Close"
+          ></button>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% endwith %}
+
+      <div class="row">
+        <!-- Left Column -->
         <div class="col-md-8 col-12">
-
-            <!-- Stock Summary Card -->
-            <div class="card mb-4 shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="card-title mb-0">
-                            <i class="fa-solid fa-chart-column me-2"></i>Stock Overview
-                        </h5>
-                        {% if session.get('privilege') in ['admin', 'edit'] %}
-                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="exportStockCSV()">
-                                <i class="fa-solid fa-file-csv me-1"></i> Export CSV
-                            </button>
-                        {% endif %}
-                    </div>
-
-                    <!-- Stock in Storage -->
-                    <div class="row mt-3">
-                        <div class="col-md-4 col-12 mt-4">
-                            <div class="text-muted">Stock in Storage</div>
-                            <h6 class="fw-bold">{{ total_in_store }}</h6>
-                        </div>
-                    </div>
-
-                    <!-- Category Summary Table -->
-                    <div class="mt-4">
-                        <table class="table table-sm">
-                            <thead style="background-color: inherit; border-bottom: none;">
-                                <tr>
-                                    <th>Category</th>
-                                    <th>In Stock</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for cat in category_summaries %}
-                                <tr>
-                                    <td>{{ cat.category }}</td>
-                                    <td>{{ cat.in_stock }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
-                <!-- Heading -->
-                <h5 class="mb-0 d-flex align-items-center">
-                    <i class="fa-solid fa-boxes-stacked me-2"></i> Current Stock
+          <!-- Stock Summary Card -->
+          <div class="card mb-4 shadow-sm">
+            <div class="card-body">
+              <div
+                class="d-flex justify-content-between align-items-center mb-3"
+              >
+                <h5 class="card-title mb-0">
+                  <i class="fa-solid fa-chart-column me-2"></i>Stock Overview
                 </h5>
-
-                <!-- Search Bar -->
-                <div class="flex-grow-1" style="max-width: 300px;">
-                    <input type="text" id="stock-search" class="form-control" placeholder="Search stock types..." oninput="filterStockTable()">
-                </div>
                 {% if session.get('privilege') in ['admin', 'edit'] %}
-                <!-- Buttons -->
-                <div class="d-flex gap-2">
-                    <form method="POST" action="/update_stock_batch" onsubmit="prepareUpdateData(event)" class="mb-0">
-                        <input type="hidden" name="update_data" id="update-data-input">
-                        <button class="btn btn-success" type="submit">
-                            <i class="fa-solid fa-arrow-up-right-dots me-1"></i> Update Stock
-                        </button>
-                    </form>
-                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStockModal">
-                        <i class="fa-solid fa-plus me-1"></i> Add Stock Type
-                    </button>
-                </div>
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary btn-sm"
+                  onclick="exportStockCSV()"
+                >
+                  <i class="fa-solid fa-file-csv me-1"></i> Export CSV
+                </button>
                 {% endif %}
-            </div>
+              </div>
 
+              <div class="row mt-3">
+                <div class="col-md-4 col-12 mt-4">
+                  <div class="text-muted">Stock in Storage</div>
+                  <h6 class="fw-bold">{{ total_in_store }}</h6>
+                </div>
+              </div>
 
-            <div class="table-responsive">
-                <table class="table table-bordered align-middle table-hover">
-                    <thead class="bg-primary text-white bg-opacity-75">
-                        <tr>
-                            <th>Category</th>
-                            <th>Name</th>
-                            <th>Sizing</th>
-                            <th>Quantity</th>
-                            {% if session.get('privilege') in ['admin', 'edit'] %}
-                            <th>Edited Quantity</th>
-                            <th>Actions</th>
-                            {% endif %}
-                        </tr>
-                    </thead>
-                    <tbody>
-                    {% for item in stock_items %}
-                    <tr data-category-id="{{ item.category_id }}" 
-                        data-alert-threshold="{{ item.alert_threshold if item.alert_threshold is not none else '0' }}" 
-                        data-stock-id="{{ item.id }}">
-                        <td>{{ item.category }}</td>
-                        <td>{{ item.type if item.type != "None" else "N/A" }}</td>
-                        <td>{{ item.sizing }}</td>
-                        <td class="saved-quantity">{{ item.quantity }}</td>
-                        {% if session.get('privilege') in ['admin', 'edit'] %}
-                        <td>
-                            <input type="number" class="form-control quantity-input" value="{{ item.quantity }}" min="0" data-original="{{ item.quantity }}">
-                        </td>
-                        <td>
-                            <div class="d-flex gap-2">
-                                <button type="button" class="btn btn-outline-success btn-sm" onclick="changeQuantity(this, 1)">+</button>
-                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="changeQuantity(this, -1)">−</button>
-                                <button class="btn btn-sm btn-outline-secondary" 
-                                    onclick="openStockModal('{{ item.id }}', '{{ item.type }}', '{{ item.sizing }}', '{{ item.category_id }}', '{{ item.alert_threshold }}')">
-                                    <i class="fas fa-cog"></i>
-                                </button>
-                            </div>
-                        </td>
-                        {% endif %}
+              <div class="mt-4 table-responsive">
+                <table class="table table-sm">
+                  <thead>
+                    <tr>
+                      <th style="width: 30%">Category</th>
+                      <th style="width: 40%">In Stock</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for cat in category_summaries %}
+                    <tr>
+                      <td>{{ cat.category }}</td>
+                      <td>{{ cat.in_stock }}</td>
                     </tr>
                     {% endfor %}
-                    </tbody>
+                  </tbody>
                 </table>
+              </div>
             </div>
-
-            <div class="modal fade" id="addStockModal" tabindex="-1" aria-labelledby="addStockModalLabel" aria-hidden="true">
-                <div class="modal-dialog">
-                    <div class="modal-content shadow">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="addStockModalLabel">
-                        <i class="fa-solid fa-plus me-2"></i>Add New Stock Type
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <form id="add-stock-form" method="POST" action="/add_stock_type">
-                        <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Category</label>
-                            <select name="category_id" class="form-select" required>
-                            <option value="">Select a category</option>
-                            {% for category in categories %}
-                            <option value="{{ category.id }}">{{ category.category }}</option>
-                            {% endfor %}
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Item Name</label>
-                            <input type="text" name="new_type" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Sizing</label>
-                            <input type="text" name="sizing" class="form-control" placeholder="Optional">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Initial Quantity</label>
-                            <input type="number" name="initial_quantity" class="form-control" required min="1">
-                        </div>
-                        </div>
-                        <div class="modal-footer">
-                        <button type="submit" class="btn btn-success">Add Type</button>
-                        </div>
-                    </form>
-                    </div>
-                </div>
-                </div>
+          </div>
         </div>
 
         <!-- Right Column -->
         <div class="col-md-4 mb-4">
-
-            <!-- Pie Chart Card -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="card-title mb-0">
-                            <i class="fa-solid fa-chart-pie me-2"></i>Stock by <span id="selected-category">Category</span>
-                        </h5>
-                        <div class="dropdown">
-                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
-                                    id="categoryFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                <span id="selected-category-name">All</span>
-                            </button>
-                            <ul class="dropdown-menu" aria-labelledby="categoryFilterDropdown">
-                                <li><a class="dropdown-item category-filter active" data-id="all" href="#">All</a></li>
-                                {% for category in categories %}
-                                    <li>
-                                        <a class="dropdown-item category-filter" data-id="{{ category.id }}" href="#">
-                                            {{ category.category }}
-                                        </a>
-                                    </li>
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    </div>
-                    <canvas id="stockPieChart" width="100%" height="100"></canvas>
-                </div>
-            </div>
-            
-            
-            {% if session.get('privilege') in ['admin', 'edit'] %}
-            <!-- Add Category Card -->
-            <div class="card shadow-sm">
-                <div class="card-body py-3">
-                    <h6 class="card-title mb-3"><i class="fa-solid fa-tags me-2"></i>Create Category</h6>
-                    <form id="add-category-form" method="POST" action="/add_category" class="row g-2">
-                        <div class="col-12">
-                            <label class="form-label small">Category Name</label>
-                            <input type="text" name="category_name" class="form-control form-control-sm" required>
-                        </div>
-                        <div class="col-12 d-grid">
-                            <button class="btn btn-secondary mt-2" type="submit">Add Category</button>
-                        </div>
-                        <div class="col-12 d-grid">
-                            <button type="button" class="btn btn-outline mt-2" data-bs-toggle="modal" data-bs-target="#manageCategoriesModal">
-                                <i class="fa-solid fa-list"></i> Manage Categories
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-
-
-    </div>
-</div>
-
-{% if session.get('privilege') in ['admin', 'edit'] %}
-<div class="modal fade" id="manageCategoriesModal" tabindex="-1" aria-labelledby="manageCategoriesModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="manageCategoriesModalLabel"><i class="fa-solid fa-list me-2"></i>Manage Categories</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                {% if categories %}
-                <ul class="list-group">
+          <div class="card shadow-sm mb-4">
+            <div class="card-body">
+              <div
+                class="d-flex justify-content-between align-items-center mb-3"
+              >
+                <h5 class="card-title mb-0">
+                  <i class="fa-solid fa-chart-pie me-2"></i>Stock by
+                  <span id="selected-category">Category</span>
+                </h5>
+                <div class="dropdown">
+                  <button
+                    class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                    type="button"
+                    id="categoryFilterDropdown"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                  >
+                    <span id="selected-category-name">All</span>
+                  </button>
+                  <ul
+                    class="dropdown-menu"
+                    aria-labelledby="categoryFilterDropdown"
+                  >
+                    <li>
+                      <a
+                        class="dropdown-item category-filter active"
+                        data-id="all"
+                        href="#"
+                        >All</a
+                      >
+                    </li>
                     {% for category in categories %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>{{ category.category }}</span>
-                        <form method="POST" action="{{ url_for('dashboard.delete_category', category_id=category.id) }}" onsubmit="return confirm('Are you sure you want to delete this category?');">
-                            <button class="btn btn-sm btn-outline-danger" type="submit" title="Delete Category">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
-                        </form>
+                    <li>
+                      <a
+                        class="dropdown-item category-filter"
+                        data-id="{{ category.id }}"
+                        href="#"
+                        >{{ category.category }}</a
+                      >
                     </li>
                     {% endfor %}
-                </ul>
-                {% else %}
-                <p class="text-muted">No categories created yet.</p>
-                {% endif %}
+                  </ul>
+                </div>
+              </div>
+              <canvas id="stockPieChart" width="100%" height="100"></canvas>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+
+          {% if session.get('privilege') in ['admin', 'edit'] %}
+          <div class="card shadow-sm">
+            <div class="card-body py-3">
+              <h6 class="card-title mb-3">
+                <i class="fa-solid fa-tags me-2"></i>Create Category
+              </h6>
+              <form
+                id="add-category-form"
+                method="POST"
+                action="/add_category"
+                class="row g-2"
+              >
+                <div class="col-12">
+                  <label class="form-label small">Category Name</label>
+                  <input
+                    type="text"
+                    name="category_name"
+                    class="form-control form-control-sm"
+                    required
+                  />
+                </div>
+                <div class="col-12 d-grid">
+                  <button class="btn btn-secondary mt-2" type="submit">
+                    Add Category
+                  </button>
+                </div>
+                <div class="col-12 d-grid">
+                  <button
+                    type="button"
+                    class="btn btn-outline mt-2"
+                    data-bs-toggle="modal"
+                    data-bs-target="#manageCategoriesModal"
+                  >
+                    <i class="fa-solid fa-list"></i> Manage Categories
+                  </button>
+                </div>
+              </form>
             </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Settings Modal -->
-<div class="modal fade" id="stock-modal" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <form method="POST" action="/update_stock_settings">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Item Settings</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-        <!-- Hidden inputs to identify stock items -->
-        <input type="hidden" name="stock_id" id="modal-stock-id">
-        <input type="hidden" name="type" id="modal-stock-type">
-        <input type="hidden" name="sizing" id="modal-stock-sizing">
-        <input type="hidden" name="category_id_current" id="modal-stock-category-id">
-
-        <!-- Change category -->
-        <div class="mb-3">
-            <label for="modal-category-id" class="form-label">Select new category:</label>
-            <select name="category_id" id="modal-category-id" class="form-select">
-            <option value="">Keep Current</option>
-            {% for cat in categories %}
-            <option value="{{ cat.id }}">{{ cat.category }}</option>
-            {% endfor %}
-            </select>
-        </div>
-
-        <!-- Divider -->
-        <hr class="my-4">
-
-        <!-- Alert threshold -->
-        <div class="mb-3">
-            <label for="modal-alert-threshold" class="form-label">Alert Quantity:</label>
-            <input type="number" 
-                class="form-control" 
-                name="alert_threshold" 
-                id="modal-alert-threshold" 
-                min="0" 
-                placeholder="Leave empty for none">
-        </div>
-
-        <hr class="my-4">
-
-        <!-- Transfer to container -->
-        <div class="mb-3">
-            <label for="modal-container-id" class="form-label">Transfer to container:</label>
-            <select name="container_id" id="modal-container-id" class="form-select">
-            <option value="">Do Not Transfer</option>
-            {% for container in containers %}
-            <option value="{{ container.id }}">{{ container.name }}</option>
-            {% endfor %}
-            </select>
-        </div>
-
-        <!-- Quantity to transfer -->
-        <div class="mb-3">
-            <label for="modal-transfer-qty" class="form-label">Quantity to transfer:</label>
-            <input type="number" class="form-control" name="transfer_quantity" id="modal-transfer-qty" min="1" placeholder="Leave empty to move all">
-        </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-          <button type="submit" class="btn btn-primary">Apply</button>
+          </div>
+          {% endif %}
         </div>
       </div>
-    </form>
-  </div>
-</div>
 
-<!-- JavaScript -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="{{ url_for('static', filename='js/script.js') }}"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-    const stockByCategory = {{ stock_by_category | tojson }};
-    const categorySummaries = {{ category_summaries | tojson }};
+      <!-- Full-width Stock Table BELOW both columns -->
+      <div class="mt-5">
+        <div
+          class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3"
+        >
+          <h5 class="mb-0 d-flex align-items-center">
+            <i class="fa-solid fa-boxes-stacked me-2"></i> Current Stock
+          </h5>
 
-    document.addEventListener("DOMContentLoaded", function () {
-        const ctx = document.getElementById('stockPieChart').getContext('2d');
-        const selectedLabel = document.getElementById('selected-category-name');
-        const categoryItems = document.querySelectorAll(".category-filter");
+          <div class="flex-grow-1" style="max-width: 300px">
+            <input
+              type="text"
+              id="stock-search"
+              class="form-control"
+              placeholder="Search stock types..."
+              oninput="filterStockTable()"
+            />
+          </div>
 
-        const backgroundColors = [
-            '#3B5BDB', '#20C997', '#4ECDC4', '#F6C23E', '#E74A3B',
-            '#6F42C1', '#0DCAF0', '#F97316', '#84CC16', '#DB2777',
-            '#2563EB', '#A3E635', '#FF6B81', '#6366F1', '#10B981',
-            '#F59E0B', '#EC4899', '#14B8A6', '#C084FC', '#64748B'
-        ];
+          {% if session.get('privilege') in ['admin', 'edit'] %}
+          <div class="d-flex gap-2">
+            <form
+              method="POST"
+              action="/update_stock_batch"
+              onsubmit="prepareUpdateData(event)"
+              class="mb-0"
+            >
+              <input type="hidden" name="update_data" id="update-data-input" />
+              <button class="btn btn-success" type="submit">
+                <i class="fa-solid fa-arrow-up-right-dots me-1"></i> Update
+                Stock
+              </button>
+            </form>
+            <button
+              type="button"
+              class="btn btn-primary"
+              data-bs-toggle="modal"
+              data-bs-target="#addStockModal"
+            >
+              <i class="fa-solid fa-plus me-1"></i> Add Stock Type
+            </button>
+          </div>
+          {% endif %}
+        </div>
 
-        let chart;
+        <div class="table-responsive">
+          <table class="table table-bordered align-middle table-hover w-100">
+            <thead class="bg-primary text-white bg-opacity-75">
+              <tr>
+                <th>Category</th>
+                <th>Name</th>
+                <th>Sizing</th>
+                <th>Quantity</th>
+                {% if session.get('privilege') in ['admin', 'edit'] %}
+                <th>Edited Quantity</th>
+                <th>Actions</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in stock_items %}
+              <tr
+                data-category-id="{{ item.category_id }}"
+                data-alert-threshold="{{ item.alert_threshold if item.alert_threshold is not none else '0' }}"
+                data-stock-id="{{ item.id }}"
+              >
+                <td>{{ item.category }}</td>
+                <td>{{ item.type if item.type != "None" else "N/A" }}</td>
+                <td>{{ item.sizing }}</td>
+                <td class="saved-quantity">{{ item.quantity }}</td>
+                {% if session.get('privilege') in ['admin', 'edit'] %}
+                <td>
+                  <input
+                    type="number"
+                    class="form-control quantity-input"
+                    value="{{ item.quantity }}"
+                    min="0"
+                    data-original="{{ item.quantity }}"
+                  />
+                </td>
+                <td>
+                  <div class="d-flex gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-outline-success btn-sm"
+                      onclick="changeQuantity(this, 1)"
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-outline-danger btn-sm"
+                      onclick="changeQuantity(this, -1)"
+                    >
+                      −
+                    </button>
+                    <button
+                      class="btn btn-sm btn-outline-secondary"
+                      onclick="openStockModal('{{ item.id }}', '{{ item.type }}', '{{ item.sizing }}', '{{ item.category_id }}', '{{ item.alert_threshold }}')"
+                    >
+                      <i class="fas fa-cog"></i>
+                    </button>
+                  </div>
+                </td>
+                {% endif %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-        function updateChart(categoryId) {
-            let labels = [];
-            let values = [];
+    {% if session.get('privilege') in ['admin', 'edit'] %}
+    <div
+      class="modal fade"
+      id="manageCategoriesModal"
+      tabindex="-1"
+      aria-labelledby="manageCategoriesModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="manageCategoriesModalLabel">
+              <i class="fa-solid fa-list me-2"></i>Manage Categories
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            {% if categories %}
+            <ul class="list-group">
+              {% for category in categories %}
+              <li
+                class="list-group-item d-flex justify-content-between align-items-center"
+              >
+                <span>{{ category.category }}</span>
+                <form
+                  method="POST"
+                  action="{{ url_for('dashboard.delete_category', category_id=category.id) }}"
+                  onsubmit="return confirm('Are you sure you want to delete this category?');"
+                >
+                  <button
+                    class="btn btn-sm btn-outline-danger"
+                    type="submit"
+                    title="Delete Category"
+                  >
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                </form>
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted">No categories created yet.</p>
+            {% endif %}
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
-            if (categoryId === 'all') {
-                // Show all categories with their in-stock counts
-                labels = categorySummaries.map(c => c.category);
-                values = categorySummaries.map(c => c.in_stock);
-            } else {
-                // Show in-stock items for the selected category
-                const data = stockByCategory[categoryId] || [];
+    <!-- Settings Modal -->
+    <div
+      class="modal fade"
+      id="stock-modal"
+      tabindex="-1"
+      aria-labelledby="modalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog">
+        <form method="POST" action="/update_stock_settings">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Item Settings</h5>
+              <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Close"
+              ></button>
+            </div>
+            <div class="modal-body">
+              <!-- Hidden inputs to identify stock items -->
+              <input type="hidden" name="stock_id" id="modal-stock-id" />
+              <input type="hidden" name="type" id="modal-stock-type" />
+              <input type="hidden" name="sizing" id="modal-stock-sizing" />
+              <input
+                type="hidden"
+                name="category_id_current"
+                id="modal-stock-category-id"
+              />
 
-                // Group by label (ignore sizing, just use type)
-                const grouped = {};
-                data.forEach(item => {
-                    if (!grouped[item.label]) {
-                        grouped[item.label] = 0;
-                    }
-                    grouped[item.label] += item.quantity;
-                });
+              <!-- Change category -->
+              <div class="mb-3">
+                <label for="modal-category-id" class="form-label"
+                  >Select new category:</label
+                >
+                <select
+                  name="category_id"
+                  id="modal-category-id"
+                  class="form-select"
+                >
+                  <option value="">Keep Current</option>
+                  {% for cat in categories %}
+                  <option value="{{ cat.id }}">{{ cat.category }}</option>
+                  {% endfor %}
+                </select>
+              </div>
 
-                labels = Object.keys(grouped);
-                values = Object.values(grouped);
-            }
+              <!-- Divider -->
+              <hr class="my-4" />
 
-            if (chart) {
-                chart.data.labels = labels;
-                chart.data.datasets[0].data = values;
-                chart.update({
-                    duration: 500,
-                    easing: 'easeOutQuart'
-                });
-            } else {
-                chart = new Chart(ctx, {
-                    type: 'pie',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            data: values,
-                            backgroundColor: backgroundColors,
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                                labels: {
-                                    boxWidth: 20,
-                                    padding: 15
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-        }
+              <!-- Alert threshold -->
+              <div class="mb-3">
+                <label for="modal-alert-threshold" class="form-label"
+                  >Alert Quantity:</label
+                >
+                <input
+                  type="number"
+                  class="form-control"
+                  name="alert_threshold"
+                  id="modal-alert-threshold"
+                  min="0"
+                  placeholder="Leave empty for none"
+                />
+              </div>
 
-        // Initial render with all categories
-        updateChart('all');
+              <hr class="my-4" />
 
-        // Dropdown item click behavior
-        categoryItems.forEach(item => {
-            item.addEventListener("click", function (e) {
-                e.preventDefault();
+              <!-- Transfer to container -->
+              <div class="mb-3">
+                <label for="modal-container-id" class="form-label"
+                  >Transfer to container:</label
+                >
+                <select
+                  name="container_id"
+                  id="modal-container-id"
+                  class="form-select"
+                >
+                  <option value="">Do Not Transfer</option>
+                  {% for container in containers %}
+                  <option value="{{ container.id }}">
+                    {{ container.name }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
 
-                const selectedId = this.getAttribute("data-id");
-                const selectedCategoryName = this.textContent.trim();
+              <!-- Quantity to transfer -->
+              <div class="mb-3">
+                <label for="modal-transfer-qty" class="form-label"
+                  >Quantity to transfer:</label
+                >
+                <input
+                  type="number"
+                  class="form-control"
+                  name="transfer_quantity"
+                  id="modal-transfer-qty"
+                  min="1"
+                  placeholder="Leave empty to move all"
+                />
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                data-bs-dismiss="modal"
+              >
+                Close
+              </button>
+              <button type="submit" class="btn btn-primary">Apply</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
 
-                // Update chart and label
-                updateChart(selectedId);
+    <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      const stockByCategory = {{ stock_by_category | tojson }};
+      const categorySummaries = {{ category_summaries | tojson }};
 
-                // Update active class
-                categoryItems.forEach(i => i.classList.remove("active"));
-                this.classList.add("active");
+      document.addEventListener("DOMContentLoaded", function () {
+          const ctx = document.getElementById('stockPieChart').getContext('2d');
+          const selectedLabel = document.getElementById('selected-category-name');
+          const categoryItems = document.querySelectorAll(".category-filter");
 
-                // Update label text to selected category name
-                selectedLabel.textContent = selectedCategoryName;
-            });
-        });
-    });
-</script>
-</body>
+          const backgroundColors = [
+              '#3B5BDB', '#20C997', '#4ECDC4', '#F6C23E', '#E74A3B',
+              '#6F42C1', '#0DCAF0', '#F97316', '#84CC16', '#DB2777',
+              '#2563EB', '#A3E635', '#FF6B81', '#6366F1', '#10B981',
+              '#F59E0B', '#EC4899', '#14B8A6', '#C084FC', '#64748B'
+          ];
+
+          let chart;
+
+          function updateChart(categoryId) {
+              let labels = [];
+              let values = [];
+
+              if (categoryId === 'all') {
+                  // Show all categories with their in-stock counts
+                  labels = categorySummaries.map(c => c.category);
+                  values = categorySummaries.map(c => c.in_stock);
+              } else {
+                  // Show in-stock items for the selected category
+                  const data = stockByCategory[categoryId] || [];
+
+                  // Group by label (ignore sizing, just use type)
+                  const grouped = {};
+                  data.forEach(item => {
+                      if (!grouped[item.label]) {
+                          grouped[item.label] = 0;
+                      }
+                      grouped[item.label] += item.quantity;
+                  });
+
+                  labels = Object.keys(grouped);
+                  values = Object.values(grouped);
+              }
+
+              if (chart) {
+                  chart.data.labels = labels;
+                  chart.data.datasets[0].data = values;
+                  chart.update({
+                      duration: 500,
+                      easing: 'easeOutQuart'
+                  });
+              } else {
+                  chart = new Chart(ctx, {
+                      type: 'pie',
+                      data: {
+                          labels: labels,
+                          datasets: [{
+                              data: values,
+                              backgroundColor: backgroundColors,
+                              borderWidth: 1
+                          }]
+                      },
+                      options: {
+                          responsive: true,
+                          plugins: {
+                              legend: {
+                                  position: 'bottom',
+                                  labels: {
+                                      boxWidth: 20,
+                                      padding: 15
+                                  }
+                              }
+                          }
+                      }
+                  });
+              }
+          }
+
+          // Initial render with all categories
+          updateChart('all');
+
+          // Dropdown item click behavior
+          categoryItems.forEach(item => {
+              item.addEventListener("click", function (e) {
+                  e.preventDefault();
+
+                  const selectedId = this.getAttribute("data-id");
+                  const selectedCategoryName = this.textContent.trim();
+
+                  // Update chart and label
+                  updateChart(selectedId);
+
+                  // Update active class
+                  categoryItems.forEach(i => i.classList.remove("active"));
+                  this.classList.add("active");
+
+                  // Update label text to selected category name
+                  selectedLabel.textContent = selectedCategoryName;
+              });
+          });
+      });
+    </script>
+  </body>
 </html>
