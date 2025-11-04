@@ -292,17 +292,13 @@ def update_users():
         # Handle password reset
         if reset:
             try:
-                otp = "storestash"
-                expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
-                metadata["otp_expires_at"] = expires_at
-
+                passw = "storestash"
                 supabase.auth.admin.update_user_by_id(user_id, {
-                    "password": otp,
-                    "user_metadata": metadata,
+                    "password": passw,
                 })
                 supabase.table("users").update({"requires_password_change": True}).eq("id", user_id).execute()
                 send_reset_email(username)
-                flash(f"Password reset for {username}", "success")
+                flash(f"Password reset for {username} - Default password is '{passw}'", "success")
             except Exception as e:
                 flash(f"Failed to reset password for {username}: {e}", "danger")
 
