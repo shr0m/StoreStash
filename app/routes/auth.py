@@ -52,17 +52,28 @@ def login():
                     expires_dt = datetime.fromisoformat(otp_expires)
                     if expires_dt.tzinfo is None:
                         expires_dt = expires_dt.replace(tzinfo=timezone.utc)
-                    if datetime.now(timezone.utc) > expires_dt:
-                        # OTP expired, delete user
-                        try:
-                            supabase.auth.admin.delete_user(user_id)
-                        except Exception as e:
-                            print(f"Error deleting auth user: {e}")
 
-                        supabase.table('users').delete().eq('id', user_id).execute()
-                        flash("OTP expired. Your account has been removed. Please contact an admin.", "danger")
-                        return redirect(url_for('auth.login'))
-                except Exception:
+                    now = datetime.now(timezone.utc)
+
+                    # If current time is past expiry
+                    if now > expires_dt:
+                        hours_since_expiry = (now - expires_dt).total_seconds() / 3600
+                        if hours_since_expiry > 12:
+                            # Delete user if over 12h old
+                            try:
+                                supabase.auth.admin.delete_user(user_id)
+                            except Exception as e:
+                                print(f"Error deleting auth user: {e}")
+
+                            supabase.table('users').delete().eq('id', user_id).execute()
+                            flash("Your password reset link expired over 12 hours ago. Your account has been removed. Please contact an admin.", "danger")
+                            return redirect(url_for('auth.login'))
+                        else:
+                            flash("Your password reset link has expired. Please contact an admin to get a new one.", "warning")
+                            return redirect(url_for('auth.login'))
+
+                except Exception as e:
+                    print(f"Error checking OTP expiry: {e}")
                     pass
 
             # Save session info
