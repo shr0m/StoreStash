@@ -179,7 +179,7 @@ def invite_user():
         user_data = {
             "full_name": name,
             "privilege": privilege,
-            "theme": "light",
+            "theme": "dark",
             "otp_expires_at": expires_at.isoformat(),
             "created_by": session.get("username"),
             "client_id": client_id
