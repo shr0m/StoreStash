@@ -393,6 +393,15 @@
               </div>
 
               {% if audit_logs %}
+              <div class="d-flex align-items-center gap-2 justify-content-end">
+                <input
+                  type="text"
+                  id="audit-search"
+                  class="form-control w-auto"
+                  placeholder="Filter Logs..."
+                  oninput="filterAuditLog()"
+                />
+              </div>
               <!-- Scrollable Table -->
               <div
                 class="table-responsive"
@@ -400,6 +409,7 @@
               >
                 <table
                   class="table table-striped table-hover align-middle mb-0"
+                  id="audit-table"
                 >
                   <thead class="bg-secondary bg-opacity-25">
                     <tr>
@@ -648,6 +658,26 @@
         const input = document.getElementById("stock-search");
         const filter = input.value.toLowerCase();
         const table = document.querySelector("#user-table tbody");
+        const rows = table ? table.getElementsByTagName("tr") : [];
+
+        for (let row of rows) {
+          const cells = row.getElementsByTagName("td");
+          let matchFound = false;
+          for (let cell of cells) {
+            const text = cell.textContent.toLowerCase();
+            if (text.includes(filter)) {
+              matchFound = true;
+              break;
+            }
+          }
+          row.style.display = matchFound ? "" : "none";
+        }
+      }
+
+      function filterAuditLog() {
+        const input = document.getElementById("audit-search");
+        const filter = input.value.toLowerCase();
+        const table = document.querySelector("#audit-table tbody");
         const rows = table ? table.getElementsByTagName("tr") : [];
 
         for (let row of rows) {
