@@ -70,6 +70,7 @@ def ensure_root_user():
             "id": auth_user.id,
             "requires_password_change": True,
             "support_allowed": False,
+            "otp_created_at": None
         }).execute()
 
         print(f"Root user created for client_id={CLIENT_ID} root@{CLIENT_ID}.")
