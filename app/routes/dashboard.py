@@ -392,7 +392,6 @@ def update_stock_batch():
             stock_id = stock_data[0]['id']
             old_qty = stock_data[0].get('quantity', 0)
 
-
             if new_quantity > 0:
                 supabase.table('stock').update({'quantity': new_quantity}) \
                     .eq('id', stock_id).eq('client_id', client_id).execute()
@@ -405,38 +404,42 @@ def update_stock_batch():
                     description=f"Updated stock of '{item_type}' ({sizing}) in container {container_name} from {old_qty} → {new_quantity}."
                 )
             else:
-                supabase.table('stock').delete().eq('id', stock_id).eq('client_id', client_id).execute()
+                # Set the quantity to 0
+                supabase.table('stock').update({'quantity': 0}) \
+                    .eq('id', stock_id).eq('client_id', client_id).execute()
 
                 log_audit_action(
                     client_id=client_id,
                     user_id=user_id,
-                    action="delete_stock",
-                    description=f"Deleted stock of '{item_type}' ({sizing}) from container {container_name}."
+                    action="zero_stock",
+                    description=f"Set stock of '{item_type}' ({sizing}) to 0 in container {container_name}."
                 )
 
-                # Check if any other stock exists for this item
-                remaining_stock_resp = supabase.table('stock') \
-                    .select('id') \
-                    .eq('item_id', item_id) \
-                    .eq('client_id', client_id) \
-                    .limit(1) \
-                    .execute()
-                if not remaining_stock_resp.data:
-                    try:
-                        supabase.table('items') \
-                            .delete() \
-                            .eq('id', item_id) \
-                            .eq('client_id', client_id) \
-                            .execute()
+            # Check if item can be deleted (no remaining stock or issued_stock)
+            remaining_stock_resp = supabase.table('stock') \
+                .select('id') \
+                .eq('item_id', item_id) \
+                .eq('client_id', client_id) \
+                .limit(1) \
+                .execute()
 
-                        log_audit_action(
-                            client_id=client_id,
-                            user_id=user_id,
-                            action="delete_item",
-                            description=f"Deleted item '{item_type}' ({sizing}) as no remaining stock exists."
-                        )
-                    except Exception:
-                        pass
+            remaining_issued_stock_resp = supabase.table('issued_stock') \
+                .select('id') \
+                .eq('item_id', item_id) \
+                .eq('client_id', client_id) \
+                .limit(1) \
+                .execute()
+
+            if not remaining_stock_resp.data and not remaining_issued_stock_resp.data:
+                try:
+                    supabase.table('items') \
+                        .delete() \
+                        .eq('id', item_id) \
+                        .eq('client_id', client_id) \
+                        .execute()
+
+                except Exception:
+                    pass
         else:
             if new_quantity > 0:
                 supabase.table('stock').insert({
@@ -456,7 +459,6 @@ def update_stock_batch():
 
     flash("Stock updated successfully.", "success")
     return redirect_to_dashboard()
-
 
 
 @dashboard_bp.route('/add_category', methods=['POST'])
@@ -770,3 +772,109 @@ def dash_default():
     else:
         flash("No containers found.", "warning")
         return redirect(url_for('home.home'))
+
+
+@dashboard_bp.route('/delete_stock_record', methods=['POST'])
+def delete_stock_record():
+    if not has_edit_privileges():
+        return "Unauthorized", 403
+
+    client_id = get_client_id()
+    if not client_id:
+        return redirect(url_for('auth.login'))    
+
+    stock_id = request.form.get("stock_id")
+    if not stock_id:
+        flash("Invalid stock record ID.", "danger")
+        return redirect_to_dashboard()
+
+    # Delete the stock record
+    supabase = get_supabase_client()
+
+    try:
+        # Fetch item id
+        id_resp = supabase.table('stock') \
+            .select('item_id') \
+            .eq('id', stock_id) \
+            .eq('client_id', client_id) \
+            .execute()
+
+        # Check id_resp data
+        if not id_resp.data:
+            flash("Stock record not found.", "danger")
+            return redirect_to_dashboard()
+
+        # Extract item_id
+        item_id = id_resp.data[0].get('item_id')
+
+        if not item_id:
+            flash("Associated item not found.", "danger")
+            return redirect_to_dashboard()
+
+        # Retrieve stock name
+        stock_name_resp = supabase.table('items') \
+            .select('type') \
+            .eq('id', item_id) \
+            .eq('client_id', client_id) \
+            .execute()
+
+        # Check data for expected
+        if not stock_name_resp.data:
+            flash("Item not found.", "danger")
+            return redirect_to_dashboard()
+
+        stock_name = stock_name_resp.data[0].get('type')
+
+        # Delete from stock table
+        response = supabase.table('stock') \
+            .delete() \
+            .eq('id', stock_id) \
+            .eq('client_id', client_id) \
+            .execute()
+
+        # Check if deletion was successful
+        if response.data:
+            # Log the action
+            user_id = session.get('user_id')
+            log_audit_action(
+                client_id=client_id,
+                user_id=user_id,
+                action="delete_stock",
+                description=f"Deleted stock record {stock_name}."
+            )
+            flash("Stock record deleted successfully.", "success")
+
+            # Now, check remaining records in stock and issued_stock
+            remaining_stock_resp = supabase.table('stock') \
+                .select('id') \
+                .eq('item_id', item_id) \
+                .eq('client_id', client_id) \
+                .execute()
+
+            remaining_issued_resp = supabase.table('issued_stock') \
+                .select('id') \
+                .eq('item_id', item_id) \
+                .eq('client_id', client_id) \
+                .execute()
+
+            print(remaining_stock_resp.data)
+            print()
+            print(remaining_issued_resp.data)
+
+            # If no issued/stock records, delete item
+            if not remaining_stock_resp.data and not remaining_issued_resp.data:
+                # Delete item record
+                delete_item_response = supabase.table('items') \
+                    .delete() \
+                    .eq('id', item_id) \
+                    .eq('client_id', client_id) \
+                    .execute()
+        else:
+            flash(f"Failed to delete stock record. Error: {response.error['message']}", "danger")
+        
+    except Exception as e:
+        flash(f"Error deleting stock record: {str(e)}", "danger")
+
+    return redirect_to_dashboard()
+
+
