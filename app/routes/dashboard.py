@@ -40,6 +40,8 @@ def redirect_to_dashboard():
 #----------------------------------------------------------------------------------------------
 
 
+from collections import defaultdict
+
 @dashboard_bp.route('/dashboard/<container_id>')
 @limiter.limit("3 per second")
 def dashboard(container_id):
@@ -116,10 +118,14 @@ def dashboard(container_id):
             'alert_threshold': s.get('alert_threshold')
         })
 
-    # Sort the stock_summary by category and then by name
+    # Sort the stock_summary
     stock_summary = sorted(
         stock_summary,
-        key=lambda x: (x['category'], x['type'] if x['type'] != "None" else '')
+        key=lambda x: (
+            x['category'],                            # First by category
+            x['type'] if x['type'] != "None" else '', # Then by type (name)
+            x['sizing']                               # Then by sizing
+        )
     )
 
     # Summarize per category
@@ -160,6 +166,7 @@ def dashboard(container_id):
         total_in_store=total_in_store,
         container_name=container_name,
     )
+
 
 
 @dashboard_bp.route('/add_stock_type', methods=['POST'])
