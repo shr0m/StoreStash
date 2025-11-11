@@ -43,37 +43,40 @@ def login():
             user_resp = supabase.table('users').select('*').eq('id', user_id).maybe_single().execute()
             user_record = user_resp.data if user_resp else None
 
-            requires_password_change = user_record.get('requires_password_change') if user_record else False
-            otp_expires = auth_metadata.get('otp_expires_at') if requires_password_change else None
+            if not user_record:
+                flash("User record not found.", "danger")
+                return redirect(url_for('auth.login'))
 
-            # Check OTP expiry
-            if requires_password_change and otp_expires:
+            print(user_record)
+
+            requires_password_change = user_record.get('requires_password_change', False)
+            otp_created_str = user_record.get('otp_created_at')
+
+            print(requires_password_change)
+            print(otp_created_str)
+            print(user_id)
+
+            # Check OTP expiry based on users.otp_created
+            if requires_password_change and otp_created_str:
                 try:
-                    expires_dt = datetime.fromisoformat(otp_expires)
-                    if expires_dt.tzinfo is None:
-                        expires_dt = expires_dt.replace(tzinfo=timezone.utc)
+                    otp_created = datetime.fromisoformat(otp_created_str)
+                    if otp_created.tzinfo is None:
+                        otp_created = otp_created.replace(tzinfo=timezone.utc)
 
                     now = datetime.now(timezone.utc)
+                    hours_since_creation = (now - otp_created).total_seconds() / 3600
 
-                    # If current time is past expiry
-                    if now > expires_dt:
-                        hours_since_expiry = (now - expires_dt).total_seconds() / 3600
-                        if hours_since_expiry > 12:
-                            # Delete user if over 12h old
-                            try:
-                                supabase.auth.admin.delete_user(user_id)
-                            except Exception as e:
-                                print(f"Error deleting auth user: {e}")
+                    if hours_since_creation > 12:
+                        supabase.table('users').delete().eq('id', user_id).execute()
+                        flash("Your password reset link expired over 12 hours ago. Your account has been removed. Please contact an admin.", "danger")
+                        return redirect(url_for('auth.login'))
 
-                            supabase.table('users').delete().eq('id', user_id).execute()
-                            flash("Your password reset link expired over 12 hours ago. Your account has been removed. Please contact an admin.", "danger")
-                            return redirect(url_for('auth.login'))
-                        else:
-                            flash("Your password reset link has expired. Please contact an admin to get a new one.", "warning")
-                            return redirect(url_for('auth.login'))
+                    else:
+                        # Reset otp_created to NULL if within 12 hours
+                        supabase.table('users').update({"otp_created": None}).eq('id', user_id).execute()
 
                 except Exception as e:
-                    print(f"Error checking OTP expiry: {e}")
+                    print(f"Error checking OTP expiry from users table: {e}")
                     pass
 
             # Save session info
@@ -82,7 +85,7 @@ def login():
             session['privilege'] = auth_metadata.get('privilege')
             session['client_id'] = auth_metadata.get('client_id')
 
-            # Redirect if change pass required
+            # Redirect if change password required
             if requires_password_change:
                 return redirect(url_for('auth.change_password'))
 

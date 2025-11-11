@@ -173,14 +173,12 @@ def invite_user():
 
     # Generate OTP and expiry
     otp = generate_otp()
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=12)
 
     try:
         user_data = {
             "full_name": name,
             "privilege": privilege,
             "theme": "dark",
-            "otp_expires_at": expires_at.isoformat(),
             "created_by": session.get("username"),
             "client_id": client_id
         }
@@ -202,7 +200,7 @@ def invite_user():
         supabase.table('users').insert({
             'id': auth_user.id,
             'requires_password_change': True,
-            'support_allowed': True
+            'support_allowed': True,
         }).execute()
 
         # Send OTP
