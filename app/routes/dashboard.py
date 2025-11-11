@@ -116,6 +116,12 @@ def dashboard(container_id):
             'alert_threshold': s.get('alert_threshold')
         })
 
+    # Sort the stock_summary by category and then by name
+    stock_summary = sorted(
+        stock_summary,
+        key=lambda x: (x['category'], x['type'] if x['type'] != "None" else '')
+    )
+
     # Summarize per category
     category_summaries = []
     for cat in categories:
