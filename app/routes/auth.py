@@ -120,10 +120,7 @@ def change_password():
     requires_change = user_record.get('requires_password_change', False)
 
     if request.method == 'POST':
-        flash("Changing password is temporarily disabled")
-        return redirect(url_for('auth.login'))
-
-        """
+        
         current_password = request.form.get('current_password', '').strip()
         new_password = request.form.get('new_password', '').strip()
         confirm_password = request.form.get('confirm_password', '').strip()
@@ -182,7 +179,7 @@ def change_password():
         except Exception as e:
             flash(f"Error updating password: {e}", "danger")
             return redirect(url_for('auth.change_password'))
-            """
+            
 
     if requires_change:
         template = 'set_password.html'
