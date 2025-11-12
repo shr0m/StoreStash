@@ -47,14 +47,8 @@ def login():
                 flash("User record not found.", "danger")
                 return redirect(url_for('auth.login'))
 
-            print(user_record)
-
             requires_password_change = user_record.get('requires_password_change', False)
             otp_created_str = user_record.get('otp_created_at')
-
-            print(requires_password_change)
-            print(otp_created_str)
-            print(user_id)
 
             # Check OTP expiry based on users.otp_created
             if requires_password_change and otp_created_str:
@@ -104,6 +98,7 @@ def logout():
     session.clear() 
     return redirect(url_for('auth.login'))
 
+
 @auth_bp.route('/change_password', methods=['GET', 'POST'])
 @limiter.limit("10 per minute")
 def change_password():
@@ -113,7 +108,7 @@ def change_password():
     supabase = get_supabase_client()
     user_id = session['user_id']
 
-    # Fetch user record from users table
+    # Fetch user record
     user_resp = supabase.table('users').select('requires_password_change').eq('id', user_id).maybe_single().execute()
     user_record = user_resp.data if user_resp else None
 
@@ -121,29 +116,55 @@ def change_password():
         flash("User not found.", "danger")
         return redirect(url_for('auth.login'))
 
+    email = session.get('username')
     requires_change = user_record.get('requires_password_change', False)
 
     if request.method == 'POST':
+        flash("Changing password is temporarily disabled")
+        return redirect(url_for('auth.login'))
+
+        """
+        current_password = request.form.get('current_password', '').strip()
         new_password = request.form.get('new_password', '').strip()
         confirm_password = request.form.get('confirm_password', '').strip()
 
+        # Require old password unless it's a forced change
+        if not requires_change and not current_password:
+            flash("Old password is required.", "danger")
+            return redirect(url_for('auth.change_password'))
+
         if not new_password or not confirm_password:
-            flash("Both password fields are required.", "danger")
+            flash("Both new password fields are required.", "danger")
             return redirect(url_for('auth.change_password'))
 
         if new_password != confirm_password:
             flash("Passwords do not match.", "danger")
             return redirect(url_for('auth.change_password'))
 
+        # Verify old password (if not a forced change)
+        if not requires_change:
+            try:
+                # Attempt login using old password
+                auth_check = supabase.auth.sign_in_with_password({
+                    "email": email,
+                    "password": current_password
+                })
+                if not getattr(auth_check, "user", None):
+                    flash("Old password is incorrect.", "danger")
+                    return redirect(url_for('auth.change_password'))
+            except Exception as e:
+                flash("Old password is incorrect.", "danger")
+                print(e)
+                return redirect(url_for('auth.change_password'))
+
         try:
-            # Fetch Auth user to update metadata
+            # Fetch current auth user to update metadata
             auth_user_resp = supabase.auth.admin.get_user_by_id(user_id)
             auth_user = getattr(auth_user_resp, "user", None) or (
                 auth_user_resp.get("user") if isinstance(auth_user_resp, dict) else None
             )
             metadata = getattr(auth_user, "user_metadata", {}) or {}
 
-            # Clear OTP expiry in Auth metadata
             metadata.pop('otp_expires_at', None)
 
             # Update password and metadata
@@ -152,16 +173,20 @@ def change_password():
                 "user_metadata": metadata
             })
 
-            # Clear requires_password_change in users table
+            # Clear requires_password_change flag
             supabase.table('users').update({'requires_password_change': False}).eq('id', user_id).execute()
 
-            flash("Password set successfully!", "success")
+            flash("Password updated successfully!", "success")
             return redirect(url_for('home.home'))
 
         except Exception as e:
             flash(f"Error updating password: {e}", "danger")
             return redirect(url_for('auth.change_password'))
+            """
 
-    # Decide which template to render
-    template = 'set_password.html' if requires_change else 'change_password.html'
+    if requires_change:
+        template = 'set_password.html'
+    else:
+        flash("Changing passwords is temporarily disabled")
+        return redirect(url_for('auth.login'))
     return render_template(template)
