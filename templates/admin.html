@@ -289,95 +289,89 @@
           <div class="collapse d-lg-block" id="usersCollapse">
             <div class="card shadow-sm mb-4">
               <div class="card-body">
+                <!-- Title Row -->
                 <div
-                  class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2"
+                  class="d-flex justify-content-between align-items-center flex-wrap mb-3"
                 >
                   <h5 class="mb-0">
                     <i class="fa-solid fa-users me-2"></i>Current Users
                   </h5>
-                  <p></p>
+
+                  <!-- Search + Update Button -->
                   <form
                     method="POST"
                     action="{{ url_for('admin.update_users') }}"
                     id="update-settings-form"
-                    class="m-0 flex-grow-1"
+                    class="d-flex align-items-center gap-2 mt-2 mt-md-0"
                   >
-                    <div
-                      class="d-flex align-items-center gap-2 justify-content-end"
-                    >
-                      <input
-                        type="text"
-                        id="stock-search"
-                        class="form-control w-auto"
-                        placeholder="Search users..."
-                        oninput="filterUserTable()"
-                      />
-                      <button type="submit" class="btn btn-success">
-                        <i class="fa-solid fa-floppy-disk me-1"></i>Update
-                      </button>
-                    </div>
-
-                    <!-- Horizontally scrollable table -->
-                    <div class="table-responsive mt-3">
-                      <table
-                        id="user-table"
-                        class="table table-bordered align-middle table-hover"
-                      >
-                        <thead class="bg-primary text-white bg-opacity-75">
-                          <tr>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Privilege</th>
-                            <th>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {% for user in users %}
-                          <tr>
-                            <td>{{ user.name }}</td>
-                            <td>{{ user.username }}</td>
-                            <td>
-                              <select
-                                name="privilege_{{ user.id }}"
-                                class="form-select"
-                              >
-                                <option value="admin" {% if
-                                user.privilege=='admin' %}selected{% endif %}>
-                                Admin <option value="edit" {% if
-                                user.privilege=='edit' %}selected{% endif %}>
-                                Edit <option value="view" {% if
-                                user.privilege=='view' %}selected{% endif %}>
-                                View
-                              </select>
-                            </td>
-                            <td>
-                              <div class="form-check mb-1">
-                                <input
-                                  class="form-check-input"
-                                  type="checkbox"
-                                  name="reset_{{ user.id }}"
-                                />
-                                <label class="form-check-label"
-                                  >Reset Pass</label
-                                >
-                              </div>
-                              <div class="form-check">
-                                <input
-                                  class="form-check-input"
-                                  type="checkbox"
-                                  name="delete_{{ user.id }}"
-                                />
-                                <label class="form-check-label text-danger"
-                                  >Delete</label
-                                >
-                              </div>
-                            </td>
-                          </tr>
-                          {% endfor %}
-                        </tbody>
-                      </table>
-                    </div>
+                    <input
+                      type="text"
+                      id="stock-search"
+                      class="form-control w-auto"
+                      placeholder="Search users..."
+                      oninput="filterUserTable()"
+                    />
+                    <button type="submit" class="btn btn-success">
+                      <i class="fa-solid fa-floppy-disk me-1"></i>Update
+                    </button>
                   </form>
+                </div>
+
+                <!-- Horizontally scrollable table -->
+                <div class="table-responsive">
+                  <table
+                    id="user-table"
+                    class="table table-bordered align-middle table-hover"
+                  >
+                    <thead class="bg-primary text-white bg-opacity-75">
+                      <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Privilege</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for user in users %}
+                      <tr>
+                        <td>{{ user.name }}</td>
+                        <td>{{ user.username }}</td>
+                        <td>
+                          <select
+                            name="privilege_{{ user.id }}"
+                            class="form-select"
+                          >
+                            <option value="admin" {% if user.privilege=='admin'
+                            %}selected{% endif %}>Admin <option value="edit" {%
+                            if user.privilege=='edit' %}selected{% endif %}>Edit
+                            <option value="view" {% if user.privilege=='view'
+                            %}selected{% endif %}>View
+                          </select>
+                        </td>
+                        <td>
+                          <div class="form-check mb-1">
+                            <input
+                              class="form-check-input"
+                              type="checkbox"
+                              name="reset_{{ user.id }}"
+                            />
+                            <label class="form-check-label">Reset Pass</label>
+                          </div>
+                          <div class="form-check">
+                            <input
+                              class="form-check-input"
+                              type="checkbox"
+                              name="delete_{{ user.id }}"
+                            />
+                            <label class="form-check-label text-danger"
+                              >Delete</label
+                            >
+                          </div>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
