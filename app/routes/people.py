@@ -181,8 +181,8 @@ def add_person():
     if not name or not re.fullmatch(r"[A-Za-z\- ()]+", name):
         flash("Name must contain only letters, spaces, hyphens, or brackets.", "danger")
         return redirect(url_for('people.people'))
-    elif len(name) > 15:
-        flash("Name must not exceed 15 characters.", "danger")
+    elif len(name) > 25:
+        flash("Name must not exceed 25 characters.", "danger")
         return redirect(url_for('people.people'))
 
     if rank not in valid_ranks:
@@ -321,8 +321,8 @@ def edit_person():
     if not new_name or not re.fullmatch(r"[A-Za-z\- ]+", new_name):
         flash("Name must contain only letters, spaces, or hyphens.", "danger")
         return redirect(url_for('people.people'))
-    elif len(new_name) > 15:
-        flash("Name must not exceed 15 characters.", "danger")
+    elif len(new_name) > 25:
+        flash("Name must not exceed 25 characters.", "danger")
         return redirect(url_for('people.people'))
 
     # Validate rank
