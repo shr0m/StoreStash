@@ -208,6 +208,9 @@ def add_stock_type():
         flash("Invalid item name or quantity.", "danger")
         return redirect_to_dashboard()
 
+    if initial_quantity > 1000000:
+        flash("Item quantity exceeds maximum quantity allowed (1 million assets).", "warning")
+
     if len(new_type) > 30:
         flash("Item name exceeds character limit.", "danger")
         return redirect_to_dashboard()
@@ -350,7 +353,7 @@ def update_stock_batch():
             continue
 
         category_id = item.get('category_id')
-        if not item_type or new_quantity < 0 or not category_id or not is_valid_uuid(category_id):
+        if not item_type or new_quantity < 0 or not category_id or not is_valid_uuid(category_id) or new_quantity > 1000000:
             continue
 
         # Find/Create item record
