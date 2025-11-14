@@ -181,6 +181,9 @@ def add_person():
     if not name or not re.fullmatch(r"[A-Za-z\- ()]+", name):
         flash("Name must contain only letters, spaces, hyphens, or brackets.", "danger")
         return redirect(url_for('people.people'))
+    elif len(name) > 15:
+        flash("Name must not exceed 15 characters.", "danger")
+        return redirect(url_for('people.people'))
 
     if rank not in valid_ranks:
         flash("Invalid rank selected.", "danger")
@@ -317,6 +320,9 @@ def edit_person():
     # Validate names
     if not new_name or not re.fullmatch(r"[A-Za-z\- ]+", new_name):
         flash("Name must contain only letters, spaces, or hyphens.", "danger")
+        return redirect(url_for('people.people'))
+    elif len(new_name) > 15:
+        flash("Name must not exceed 15 characters.", "danger")
         return redirect(url_for('people.people'))
 
     # Validate rank
@@ -477,10 +483,6 @@ def assign_item():
         supabase.table('stock').update({'quantity': new_quantity}) \
             .eq('id', stock_item['id']).eq('client_id', client_id).execute()
 
-        if new_quantity <= 0:
-            supabase.table('stock').delete() \
-                .eq('id', stock_item['id']).eq('client_id', client_id).execute()
-
         # Check issued_stock for existing records
         issued_query = (
             supabase.table('issued_stock')
@@ -537,18 +539,21 @@ def process_item():
         flash("Invalid client_id")
         return redirect(url_for('auth.login'))
 
+    # Password-change redirect
     redirect_resp = redirect_if_password_change_required()
     if redirect_resp:
         return redirect_resp
 
     supabase = get_supabase_client()
 
+    # Form inputs
     person_name = request.form.get('person_name', '').strip().upper()
     item_type = request.form.get('item_type', '').strip()
     sizing_input = request.form.get('sizing')
     sizing = normalize_sizing(sizing_input)
     action = request.form.get('action')  # "return" or "lost"
 
+    # Quantity validation
     try:
         quantity = int(request.form.get('quantity', 0))
     except ValueError:
@@ -564,7 +569,7 @@ def process_item():
         return redirect(request.referrer)
 
     try:
-        # Resolve person
+        # Get person record
         person_resp = (
             supabase.table('people')
             .select('id')
@@ -573,9 +578,11 @@ def process_item():
             .limit(1)
             .execute()
         )
+
         if not person_resp.data:
             flash("Person not found for this client.", "danger")
             return redirect(request.referrer)
+
         person_id = person_resp.data[0]['id']
 
         # Resolve item
@@ -585,18 +592,31 @@ def process_item():
             .eq('type', item_type)
             .eq('client_id', client_id)
         )
-        item_query = item_query.is_('sizing', None) if sizing is None else item_query.eq('sizing', sizing)
+
+        item_query = (
+            item_query.is_('sizing', None)
+            if sizing is None
+            else item_query.eq('sizing', sizing)
+        )
+
         item_resp = item_query.limit(1).execute()
+
         if not item_resp.data:
-            flash(f"Item '{item_type}' ({sizing or 'N/A'}) not found for this client.", "danger")
+            flash(
+                f"Item '{item_type}' ({sizing or 'N/A'}) not found for this client.",
+                "danger"
+            )
             return redirect(request.referrer)
+
         item_id = item_resp.data[0]['id']
 
+        # Note get
         note = request.form.get('note')
         note = note.strip() if note else None
         if note == '':
             note = None
 
+        # Resolve issued record
         issued_resp = (
             supabase.table('issued_stock')
             .select('id, quantity')
@@ -606,6 +626,7 @@ def process_item():
             .limit(1)
             .execute()
         )
+
         if not issued_resp.data:
             flash("No matching issued items found.", "warning")
             return redirect(request.referrer)
@@ -617,26 +638,41 @@ def process_item():
         if current_quantity < quantity:
             flash("Not enough issued items to process.", "warning")
             return redirect(request.referrer)
-        
-        container_resp = supabase.table("containers").select("name").eq("id", container_id).single().execute()
-        container_name = container_resp.data.get("name") if container_resp.data else "Unknown Container"
 
-        description = ""  # For audit log
+        description = ""  # For audit trail
 
+        # Returning items
         if action == "return":
             container_id = request.form.get('container_id')
+
             if not container_id:
                 flash("You must select a container to return items.", "warning")
                 return redirect(request.referrer)
 
+            # Get container name
+            container_resp = (
+                supabase.table("containers")
+                .select("name")
+                .eq("id", container_id)
+                .single()
+                .execute()
+            )
+
+            container_name = (
+                container_resp.data.get("name") if container_resp.data else "Unknown Container"
+            )
+
+            # Update issued_stock
             new_quantity = current_quantity - quantity
+
             if new_quantity > 0:
                 supabase.table('issued_stock').update({'quantity': new_quantity}) \
                     .eq('id', issued_id).eq('client_id', client_id).execute()
             else:
-                supabase.table('issued_stock').delete().eq('id', issued_id).eq('client_id', client_id).execute()
+                supabase.table('issued_stock').delete() \
+                    .eq('id', issued_id).eq('client_id', client_id).execute()
 
-            # Update stock
+            # Update/add stock
             stock_resp = (
                 supabase.table('stock')
                 .select('id, quantity')
@@ -646,11 +682,13 @@ def process_item():
                 .limit(1)
                 .execute()
             )
+
             stock_records = stock_resp.data or []
 
             if stock_records:
                 stock_id = stock_records[0]['id']
                 stock_qty = stock_records[0].get('quantity', 0)
+
                 supabase.table('stock').update({'quantity': stock_qty + quantity}) \
                     .eq('id', stock_id).eq('client_id', client_id).execute()
             else:
@@ -661,19 +699,37 @@ def process_item():
                     'client_id': client_id
                 }).execute()
 
-            flash(f"Returned {quantity} × {item_type}{f' ({sizing})' if sizing else ''} to stock.", "success")
-            description = f"Returned {quantity} × {item_type}{f' ({sizing})' if sizing else ''} from {person_name} to container {container_name}."
+            flash(
+                f"Returned {quantity} × {item_type}{f' ({sizing})' if sizing else ''} to stock.",
+                "success"
+            )
 
+            description = (
+                f"Returned {quantity} × {item_type}"
+                f"{f' ({sizing})' if sizing else ''} "
+                f"from {person_name} to container {container_name}."
+            )
+
+        #Lost items
         elif action == "lost":
             new_quantity = current_quantity - quantity
+
             if new_quantity > 0:
                 supabase.table('issued_stock').update({'quantity': new_quantity}) \
                     .eq('id', issued_id).eq('client_id', client_id).execute()
             else:
-                supabase.table('issued_stock').delete().eq('id', issued_id).eq('client_id', client_id).execute()
+                supabase.table('issued_stock').delete() \
+                    .eq('id', issued_id).eq('client_id', client_id).execute()
 
-            flash(f"Marked {quantity} × {item_type}{f' ({sizing})' if sizing else ''} as lost.", "success")
-            description = f"Marked {quantity} × {item_type}{f' ({sizing})' if sizing else ''} as lost from {person_name}."
+            flash(
+                f"Marked {quantity} × {item_type}{f' ({sizing})' if sizing else ''} as lost.",
+                "success"
+            )
+
+            description = (
+                f"Marked {quantity} × {item_type}"
+                f"{f' ({sizing})' if sizing else ''} as lost from {person_name}."
+            )
 
         else:
             flash("Invalid action.", "danger")
@@ -692,6 +748,7 @@ def process_item():
         flash(f"Error processing request: {str(e)}", "danger")
 
     return redirect('/people')
+
 
 
 @people_bp.route('/create_label', methods=['POST'])
