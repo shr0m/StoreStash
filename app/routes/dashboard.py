@@ -198,8 +198,9 @@ def add_stock_type():
     sizing = normalize_sizing(sizing_raw)
     category_id = request.form.get('category_id')
 
+    raw_value = request.form.get('initial_quantity')
     try:
-        initial_quantity = int(request.form.get('initial_quantity', 0))
+        initial_quantity = int(raw_value) if raw_value else 0
     except ValueError:
         flash("Initial quantity must be a number.", "danger")
         return redirect_to_dashboard()
@@ -207,9 +208,6 @@ def add_stock_type():
     if not new_type or initial_quantity < 0:
         flash("Invalid item name or quantity.", "danger")
         return redirect_to_dashboard()
-
-    if initial_quantity > 1000000:
-        flash("Item quantity exceeds maximum quantity allowed (1 million assets).", "warning")
 
     if len(new_type) > 30:
         flash("Item name exceeds character limit.", "danger")
@@ -353,7 +351,7 @@ def update_stock_batch():
             continue
 
         category_id = item.get('category_id')
-        if not item_type or new_quantity < 0 or not category_id or not is_valid_uuid(category_id) or new_quantity > 1000000:
+        if not item_type or new_quantity < 0 or not category_id or not is_valid_uuid(category_id):
             continue
 
         # Find/Create item record
@@ -872,10 +870,6 @@ def delete_stock_record():
                 .eq('item_id', item_id) \
                 .eq('client_id', client_id) \
                 .execute()
-
-            print(remaining_stock_resp.data)
-            print()
-            print(remaining_issued_resp.data)
 
             # If no issued/stock records, delete item
             if not remaining_stock_resp.data and not remaining_issued_resp.data:
