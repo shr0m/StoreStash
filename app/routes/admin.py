@@ -230,7 +230,7 @@ def invite_user():
 
 
 @admin_bp.route('/update_users', methods=['POST'])
-@limiter.limit("3 per minute")
+@limiter.limit("15 per minute")
 def update_users():
     if not is_admin():
         flash("Unauthorized action", "danger")
@@ -246,29 +246,19 @@ def update_users():
         flash("Invalid client_id", "danger")
         return redirect(url_for('auth.login'))
 
-    user_id = session.get('user_id')
+    current_user_id = session.get('user_id')
 
-    # Fetch all Auth users
+    # Fetch all auth users
     try:
-        auth_users_resp = supabase.auth.admin.list_users()
-        if isinstance(auth_users_resp, list):
-            all_auth_users = auth_users_resp
-        elif hasattr(auth_users_resp, "users"):
-            all_auth_users = auth_users_resp.users
-        elif hasattr(auth_users_resp, "data"):
-            all_auth_users = auth_users_resp.data
-        elif isinstance(auth_users_resp, dict):
-            all_auth_users = auth_users_resp.get("users") or auth_users_resp.get("data") or []
-        else:
-            all_auth_users = []
+        all_auth_users = supabase.auth.admin.list_users()
     except Exception as e:
         flash(f"Failed to fetch Auth users: {e}", "danger")
         return redirect(url_for('admin.admin'))
 
-    # Filter users belonging to this client
+    # Filter by client_id in user_metadata
     client_auth_users = [
         u for u in all_auth_users
-        if getattr(u, "user_metadata", None)
+        if getattr(u, "user_metadata", {})
         and u.user_metadata.get("client_id") == client_id
     ]
 
@@ -276,92 +266,107 @@ def update_users():
     admin_users = [u for u in client_auth_users if u.user_metadata.get("privilege") == "admin"]
     admin_count = len(admin_users)
 
-    # Fetch internal user table data
+    # Fetch users table
     users_resp = supabase.table("users").select("id").execute()
-    users = users_resp.data or []
+    internal_users = users_resp.data or []
 
-    for user in users:
-        target_user_id = user["id"]
+    # User iteration
+    for row in internal_users:
+        target_user_id = row["id"]
         auth_user = auth_users_by_id.get(target_user_id)
+
         if not auth_user:
-            continue
+            continue  # skip users that don't exist in auth
 
         username = getattr(auth_user, "email", "Unknown")
-        metadata = getattr(auth_user, "user_metadata", {}) or {}
+        metadata = dict(auth_user.user_metadata or {})
         old_priv = metadata.get("privilege", "view")
 
-        reset = request.form.get(f"reset_{target_user_id}")
-        delete = request.form.get(f"delete_{target_user_id}")
+        reset_requested = request.form.get(f"reset_{target_user_id}")
+        delete_requested = request.form.get(f"delete_{target_user_id}")
         new_priv = request.form.get(f"privilege_{target_user_id}")
 
-        # Prevent deleting or demoting last admin
+        # Stop last admin deletion
         if old_priv == "admin" and admin_count == 1:
-            if delete:
+            if delete_requested:
                 flash(f"Cannot delete {username}: at least one admin is required.", "danger")
                 continue
             if new_priv and new_priv != "admin":
                 flash(f"Cannot demote {username}: at least one admin is required.", "danger")
                 continue
 
-        # Privilege update
+        # Privilege upd
         if new_priv and new_priv != old_priv:
             try:
                 metadata["privilege"] = new_priv
-                supabase.auth.admin.update_user_by_id(target_user_id, {"user_metadata": metadata})
+                resp = supabase.auth.admin.update_user_by_id(
+                    target_user_id,
+                    user_metadata=metadata
+                )
+
                 flash(f"Privilege updated for {username}", "success")
 
-                # Log privilege change
                 log_audit_action(
                     client_id=client_id,
-                    user_id=user_id,
+                    user_id=current_user_id,
                     action="update_privilege",
                     description=f"Changed privilege for '{username}' from '{old_priv}' to '{new_priv}'."
                 )
 
-                # Adjust admin count
                 if old_priv == "admin":
                     admin_count -= 1
                 if new_priv == "admin":
                     admin_count += 1
+
             except Exception as e:
                 flash(f"Failed to update privilege for {username}: {e}", "danger")
 
-        # Password reset (do not log)
-        if reset:
+        # Password reset
+        if reset_requested:
             try:
-                passw = "storestash"
-                supabase.auth.admin.update_user_by_id(target_user_id, {"password": passw})
-                supabase.table("users").update({"requires_password_change": True}).eq("id", target_user_id).execute()
+                temp_password = "storestash"
+
+                supabase.auth.admin.update_user_by_id(
+                    target_user_id,
+                    password=temp_password
+                )
+
+                supabase.table("users").update(
+                    {"requires_password_change": True}
+                ).eq("id", target_user_id).execute()
+
                 send_reset_email(username)
-                flash(f"Password reset for {username} - Default password is '{passw}'", "success")
+
+                flash(f"Password reset for {username} – temporary password issued.", "success")
+
             except Exception as e:
                 flash(f"Failed to reset password for {username}: {e}", "danger")
 
-        # Deletion
-        if delete:
+        # Delete
+        if delete_requested:
             try:
                 supabase.auth.admin.delete_user(target_user_id)
             except Exception as e:
                 flash(f"Failed to delete Auth user {username}: {e}", "danger")
+
             supabase.table("users").delete().eq("id", target_user_id).execute()
 
-            # Log deletion
             log_audit_action(
                 client_id=client_id,
-                user_id=user_id,
+                user_id=current_user_id,
                 action="delete_user",
                 description=f"Deleted user '{username}'."
             )
 
-            # Self deletion
-            if target_user_id == user_id:
+            if target_user_id == current_user_id:
                 session.clear()
-                flash("Your account was deleted.", "info")
+                flash("Your account has been deleted.", "info")
                 return redirect(url_for("auth.login"))
 
             flash(f"Deleted {username}", "success")
 
     return redirect(url_for("admin.admin"))
+
 
 
 
