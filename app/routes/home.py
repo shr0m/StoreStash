@@ -6,7 +6,6 @@ import os
 
 home_bp = Blueprint('home', __name__)
 
-
 @home_bp.route('/')
 @limiter.limit("100 per minute")
 def root():
