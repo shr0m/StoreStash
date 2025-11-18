@@ -100,12 +100,38 @@ function prepareUpdateData(event) {
 }
 
 function filterPersonCards() {
-    const filter = document.getElementById("stock-search").value.toLowerCase();
-    const cards = document.querySelectorAll(".person-card");
+    const query = document.getElementById("stock-search").value.toLowerCase();
+    const container = document.querySelector("#personCardList .row");
+
+    const cards = Array.from(container.querySelectorAll(".col-12"));
+
+    const matches = [];
+    const nonMatches = [];
+
     cards.forEach(card => {
-        const name = card.getAttribute("data-name");
-        card.style.display = name.includes(filter) ? "" : "none";
+        const name = card
+            .querySelector(".person-card")
+            .getAttribute("data-name")
+            .toLowerCase();
+
+        if (name.includes(query)) {
+            card.style.display = ""; 
+            matches.push(card);
+        } else {
+            card.style.display = query === "" ? "" : "none";
+            if (query === "") {
+                nonMatches.push(card);
+            }
+        }
     });
+
+    // If searching, reorder so matches go to top
+    if (query !== "") {
+        matches.forEach(card => container.appendChild(card));
+    } else {
+        // Full reset – restore original order
+        [...matches, ...nonMatches].forEach(card => container.appendChild(card));
+    }
 }
 
 // Filter stock table
