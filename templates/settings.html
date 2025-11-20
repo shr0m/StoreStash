@@ -178,13 +178,14 @@
                   contact an admin user to reset your password, or create a
                   support ticket
                 </p>
-                <!--<button
-                  type="button"
-                  class="btn btn-outline-secondary"
-                  onclick="location.href='/change_password'"
+                <form
+                  method="POST"
+                  action="{{ url_for('auth.request_password_change') }}"
                 >
-                  Change Password
-                </button> -->
+                  <button class="btn btn-outline-secondary">
+                    Change Password
+                  </button>
+                </form>
                 <button
                   type="button"
                   class="btn btn-danger"

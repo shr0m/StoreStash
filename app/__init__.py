@@ -20,9 +20,9 @@ def create_app():
 
     # Initialize shared limiter
     limiter.init_app(app)
-    limiter.default_limits = ["200 per day", "50 per hour"]
+    limiter.default_limits = ["1500 per day", "50 per hour"]
 
-    # Initialize Supabase client (just to ensure config is valid)
+    # Initialize Supabase client
     get_supabase_client()
 
     ensure_root_user()

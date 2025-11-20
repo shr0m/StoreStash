@@ -133,7 +133,6 @@ def admin():
     )
 
 
-
 @admin_bp.route('/invite_user', methods=['POST'])
 @limiter.limit("10 per minute")
 def invite_user():
@@ -158,11 +157,6 @@ def invite_user():
     supabase = get_supabase_client()
     user_id = session.get('user_id')
 
-    # If first user, make admin
-    user_count_resp = supabase.table('users').select('id').limit(1).execute()
-    if not (user_count_resp.data or []):
-        privilege = 'admin'
-
     # Check if user exists already
     auth_users_resp = supabase.auth.admin.list_users()
     users_list = auth_users_resp.get("users") if isinstance(auth_users_resp, dict) else auth_users_resp
@@ -170,9 +164,6 @@ def invite_user():
     if any(u.email == email for u in users_list):
         flash(f"User {email} already exists.", "warning")
         return redirect(url_for('admin.admin'))
-
-    # Generate OTP and expiry
-    otp = generate_otp()
 
     try:
         user_data = {
@@ -183,35 +174,27 @@ def invite_user():
             "client_id": client_id
         }
 
-        # Make auth user with OTP as temp password
+        # Create user
         create_resp = supabase.auth.admin.create_user({
             "email": email,
-            "password": otp,
-            "email_confirm": True,
+            "email_confirm": False,  # Send confirmation email
             "user_metadata": user_data
         })
 
-        auth_user = getattr(create_resp, "user", None) or (create_resp.get("user") if isinstance(create_resp, dict) else None)
+        auth_user = getattr(create_resp, "user", None) or (
+            create_resp.get("user") if isinstance(create_resp, dict) else None
+        )
+
         if not auth_user:
             flash("Failed to create auth user.", "danger")
             return redirect(url_for('admin.admin'))
 
-        # Insert metadata into users
+        # Insert metadata into users table
         supabase.table('users').insert({
             'id': auth_user.id,
-            'requires_password_change': True,
+            'requires_password_change': True,   # Set password after confirmation
             'support_allowed': True,
         }).execute()
-
-        # Send OTP
-        if not send_otp_email(email, otp):
-            try:
-                supabase.auth.admin.delete_user(auth_user.id)
-            except Exception:
-                pass
-            supabase.table('users').delete().eq('id', auth_user.id).execute()
-            flash("Failed to send OTP email.", "danger")
-            return redirect(url_for('admin.admin'))
 
         # Log audit action
         log_audit_action(
@@ -221,7 +204,7 @@ def invite_user():
             description=f"Invited user '{name}' ({email}) with privilege '{privilege}'."
         )
 
-        flash(f"User invited; OTP sent to {email}", "success")
+        flash(f"User invited. A confirmation email was sent to {email}.", "success")
 
     except Exception as e:
         flash(f"Error adding user: {e}", "danger")

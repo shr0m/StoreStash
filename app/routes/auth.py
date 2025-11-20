@@ -15,17 +15,17 @@ def login():
 
     if request.method == 'POST':
         email = request.form.get('email', '').strip()
-        password_or_otp = request.form.get('password', '').strip()
+        password = request.form.get('password', '').strip()
 
-        if not email or not password_or_otp:
-            flash("Email and password/OTP are required.", "danger")
+        if not email or not password:
+            flash("Email and password are required.", "danger")
             return redirect(url_for('auth.login'))
 
         try:
-            # Authenticate user
+            # Normal login
             auth_resp = supabase.auth.sign_in_with_password({
                 "email": email,
-                "password": password_or_otp
+                "password": password
             })
 
             auth_user = getattr(auth_resp, "user", None) or (
@@ -37,9 +37,8 @@ def login():
                 return redirect(url_for('auth.login'))
 
             user_id = auth_user.id
-            auth_metadata = getattr(auth_user, "user_metadata", {}) or {}
 
-            # Fetch user record from users table
+            # Fetch user record
             user_resp = supabase.table('users').select('*').eq('id', user_id).maybe_single().execute()
             user_record = user_resp.data if user_resp else None
 
@@ -47,43 +46,14 @@ def login():
                 flash("User record not found.", "danger")
                 return redirect(url_for('auth.login'))
 
-            requires_password_change = user_record.get('requires_password_change', False)
-            otp_created_str = user_record.get('otp_created_at')
-
-            # Check OTP expiry based on users.otp_created
-            if requires_password_change and otp_created_str:
-                try:
-                    otp_created = datetime.fromisoformat(otp_created_str)
-                    if otp_created.tzinfo is None:
-                        otp_created = otp_created.replace(tzinfo=timezone.utc)
-
-                    now = datetime.now(timezone.utc)
-                    hours_since_creation = (now - otp_created).total_seconds() / 3600
-
-                    if hours_since_creation > 12:
-                        supabase.table('users').delete().eq('id', user_id).execute()
-                        flash("Your password reset link expired over 12 hours ago. Your account has been removed. Please contact an admin.", "danger")
-                        return redirect(url_for('auth.login'))
-
-                    else:
-                        # Reset otp_created to NULL if within 12 hours
-                        supabase.table('users').update({"otp_created": None}).eq('id', user_id).execute()
-
-                except Exception as e:
-                    print(f"Error checking OTP expiry from users table: {e}")
-                    pass
-
-            # Save session info
             session['user_id'] = user_id
             session['username'] = email
-            session['privilege'] = auth_metadata.get('privilege')
-            session['client_id'] = auth_metadata.get('client_id')
+            session['privilege'] = auth_user.user_metadata.get('privilege')
+            session['client_id'] = auth_user.user_metadata.get('client_id')
 
-            # Redirect if change password required
-            if requires_password_change:
+            if user_record.get('requires_password_change', False):
                 return redirect(url_for('auth.change_password'))
 
-            # Login successful
             return redirect(url_for('home.home'))
 
         except Exception as e:
@@ -92,6 +62,7 @@ def login():
             return redirect(url_for('auth.login'))
 
     return render_template("login.html")
+
 
 @auth_bp.route("/logout", methods=['GET'])
 def logout():
@@ -109,69 +80,47 @@ def change_password():
     user_id = session['user_id']
 
     # Fetch user record
-    user_resp = supabase.table('users').select('requires_password_change').eq('id', user_id).maybe_single().execute()
+    user_resp = supabase.table('users').select('*').eq('id', user_id).maybe_single().execute()
     user_record = user_resp.data if user_resp else None
 
     if not user_record:
-        flash("User not found.", "danger")
+        flash("User record not found.", "danger")
         return redirect(url_for('auth.login'))
 
-    email = session.get('username')
     requires_change = user_record.get('requires_password_change', False)
+    email = session.get('username')
 
+    # - requires_password_change (first login)
+    # - password_reset_session (magic link)
+    if not requires_change and not session.get('password_reset_session'):
+        flash("Password change requires email confirmation.", "danger")
+        return redirect(url_for('auth.login'))
+
+    # POST
     if request.method == 'POST':
-        
-        current_password = request.form.get('current_password', '').strip()
         new_password = request.form.get('new_password', '').strip()
         confirm_password = request.form.get('confirm_password', '').strip()
 
-        # Require old password unless it's a forced change
-        if not requires_change and not current_password:
-            flash("Old password is required.", "danger")
-            return redirect(url_for('auth.change_password'))
-
         if not new_password or not confirm_password:
-            flash("Both new password fields are required.", "danger")
+            flash("Both password fields are required.", "danger")
             return redirect(url_for('auth.change_password'))
 
         if new_password != confirm_password:
             flash("Passwords do not match.", "danger")
             return redirect(url_for('auth.change_password'))
 
-        # Verify old password (if not a forced change)
-        if not requires_change:
-            try:
-                # Attempt login using old password
-                auth_check = supabase.auth.sign_in_with_password({
-                    "email": email,
-                    "password": current_password
-                })
-                if not getattr(auth_check, "user", None):
-                    flash("Old password is incorrect.", "danger")
-                    return redirect(url_for('auth.change_password'))
-            except Exception as e:
-                flash("Old password is incorrect.", "danger")
-                print(e)
-                return redirect(url_for('auth.change_password'))
-
         try:
-            # Fetch current auth user to update metadata
-            auth_user_resp = supabase.auth.admin.get_user_by_id(user_id)
-            auth_user = getattr(auth_user_resp, "user", None) or (
-                auth_user_resp.get("user") if isinstance(auth_user_resp, dict) else None
-            )
-            metadata = getattr(auth_user, "user_metadata", {}) or {}
-
-            metadata.pop('otp_expires_at', None)
-
-            # Update password and metadata
+            # Update password
             supabase.auth.admin.update_user_by_id(user_id, {
-                "password": new_password,
-                "user_metadata": metadata
+                "password": new_password
             })
 
-            # Clear requires_password_change flag
-            supabase.table('users').update({'requires_password_change': False}).eq('id', user_id).execute()
+            # Clear flags
+            supabase.table('users').update({
+                'requires_password_change': False
+            }).eq('id', user_id).execute()
+
+            session.pop('password_reset_session', None)
 
             flash("Password updated successfully!", "success")
             return redirect(url_for('home.home'))
@@ -179,11 +128,83 @@ def change_password():
         except Exception as e:
             flash(f"Error updating password: {e}", "danger")
             return redirect(url_for('auth.change_password'))
-            
 
-    if requires_change:
-        template = 'set_password.html'
-    else:
-        flash("Changing passwords is temporarily disabled")
+    return render_template('set_password.html')
+
+
+@auth_bp.route('/confirm', methods=['GET'])
+def confirm_magic_link():
+    supabase = get_supabase_client()
+
+    access_token = request.args.get("access_token")
+    refresh_token = request.args.get("refresh_token")
+    type_param = request.args.get("type")
+
+    if not access_token or not refresh_token:
+        flash("Invalid or expired confirmation link.", "danger")
         return redirect(url_for('auth.login'))
-    return render_template(template)
+
+    # Validate user session from magic link
+    try:
+        user_resp = supabase.auth.get_user(access_token)
+        auth_user = user_resp.user
+    except Exception:
+        flash("Session could not be verified.", "danger")
+        return redirect(url_for('auth.login'))
+
+    user_id = auth_user.id
+    email = auth_user.email
+
+    # Fetch user record
+    user_db = supabase.table('users').select('*').eq('id', user_id).maybe_single().execute()
+    user_record = user_db.data
+
+    if not user_record:
+        flash("User record not found.", "danger")
+        return redirect(url_for('auth.login'))
+
+    # Store Flask session
+    session['user_id'] = user_id
+    session['username'] = email
+    session['privilege'] = auth_user.user_metadata.get('privilege')
+    session['client_id'] = auth_user.user_metadata.get('client_id')
+
+    # Firs time confirm
+    if type_param == "signup":
+        # requires_password_change already true from invite flow
+        return redirect(url_for('auth.change_password'))
+
+    # Existing user reset
+    if type_param == "recovery":
+        session['password_reset_session'] = True
+
+        # Enforce password update
+        supabase.table('users').update({
+            "requires_password_change": True
+        }).eq('id', user_id).execute()
+
+        return redirect(url_for('auth.change_password'))
+
+    # fallback: normal login if no special action
+    return redirect(url_for('home.home'))
+
+
+
+@auth_bp.route('/request_password_change', methods=['POST'])
+def request_password_change():
+    if 'username' not in session:
+        return redirect(url_for('auth.login'))
+
+    email = session['username']
+    supabase = get_supabase_client()
+
+    try:
+        supabase.auth.reset_password_for_email(
+            email,
+            redirect_to=request.url_root.rstrip('/') + url_for('auth.confirm_magic_link')
+        )
+        flash("Password reset email sent.", "success")
+    except Exception as e:
+        flash(f"Could not send password reset email: {e}", "danger")
+
+    return redirect(url_for('settings.settings'))
