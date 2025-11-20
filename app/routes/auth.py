@@ -94,7 +94,7 @@ def change_password():
     # - password_reset_session (magic link)
     if not requires_change and not session.get('password_reset_session'):
         flash("Password change requires email confirmation.", "danger")
-        return redirect(url_for('auth.login'))
+        return redirect(url_for('home.home'))
 
     # POST
     if request.method == 'POST':
@@ -131,25 +131,52 @@ def change_password():
 
     return render_template('set_password.html')
 
-
 @auth_bp.route('/confirm', methods=['GET'])
-def confirm_magic_link():
-    supabase = get_supabase_client()
+def confirm_magic_link_page():
+    if 'user_id' in session:
+        return redirect(url_for('home.home'))
+    return render_template("confirm.html")
 
-    access_token = request.args.get("access_token")
-    refresh_token = request.args.get("refresh_token")
-    type_param = request.args.get("type")
 
-    if not access_token or not refresh_token:
-        flash("Invalid or expired confirmation link.", "danger")
+@auth_bp.route('/request_password_change', methods=['POST'])
+@limiter.limit("10 per minute")
+def request_password_change():
+    if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
-    # Validate user session from magic link
+    email = session['username']
+    supabase = get_supabase_client()
+
+    try:
+        supabase.auth.reset_password_for_email(
+            email,
+            redirect_to=request.url_root.rstrip('/') + url_for('auth.confirm_magic_link_page')
+        )
+        flash("Password reset email sent.", "success")
+    except Exception as e:
+        flash(f"Could not send password reset email: {e}", "danger")
+
+    return redirect(url_for('settings.settings'))
+
+
+@auth_bp.route('/confirm/complete', methods=['POST'])
+@limiter.limit('10 per minute')
+def confirm_magic_link_complete():
+    supabase = get_supabase_client()
+    data = request.json
+
+    access_token = data.get("access_token")
+    refresh_token = data.get("refresh_token")
+    type_param = data.get("type")
+
+    if not access_token or not refresh_token:
+        return redirect(url_for('auth.login'))
+
+    # Get the user from the token
     try:
         user_resp = supabase.auth.get_user(access_token)
         auth_user = user_resp.user
     except Exception:
-        flash("Session could not be verified.", "danger")
         return redirect(url_for('auth.login'))
 
     user_id = auth_user.id
@@ -160,7 +187,6 @@ def confirm_magic_link():
     user_record = user_db.data
 
     if not user_record:
-        flash("User record not found.", "danger")
         return redirect(url_for('auth.login'))
 
     # Store Flask session
@@ -169,42 +195,18 @@ def confirm_magic_link():
     session['privilege'] = auth_user.user_metadata.get('privilege')
     session['client_id'] = auth_user.user_metadata.get('client_id')
 
-    # Firs time confirm
+    # First-time signup confirmation
     if type_param == "signup":
-        # requires_password_change already true from invite flow
         return redirect(url_for('auth.change_password'))
 
-    # Existing user reset
+    # Password recovery
     if type_param == "recovery":
         session['password_reset_session'] = True
-
-        # Enforce password update
         supabase.table('users').update({
             "requires_password_change": True
         }).eq('id', user_id).execute()
 
         return redirect(url_for('auth.change_password'))
 
-    # fallback: normal login if no special action
+    # Normal login fallback
     return redirect(url_for('home.home'))
-
-
-
-@auth_bp.route('/request_password_change', methods=['POST'])
-def request_password_change():
-    if 'username' not in session:
-        return redirect(url_for('auth.login'))
-
-    email = session['username']
-    supabase = get_supabase_client()
-
-    try:
-        supabase.auth.reset_password_for_email(
-            email,
-            redirect_to=request.url_root.rstrip('/') + url_for('auth.confirm_magic_link')
-        )
-        flash("Password reset email sent.", "success")
-    except Exception as e:
-        flash(f"Could not send password reset email: {e}", "danger")
-
-    return redirect(url_for('settings.settings'))

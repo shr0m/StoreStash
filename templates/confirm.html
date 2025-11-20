@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Signing you in...</title>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <p>Signing you in...</p>
+
+    <script>
+      // Extract URL fragment (after #)
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+
+      const access_token = params.get("access_token");
+      const refresh_token = params.get("refresh_token");
+      const type_param = params.get("type");
+
+      if (!access_token || !refresh_token) {
+        // Missing tokens — fallback to login
+        window.location.href = "/auth/login";
+      }
+
+      // Send tokens to the backend for session creation
+      fetch("/confirm/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          access_token,
+          refresh_token,
+          type: type_param,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.redirect) {
+            window.location.href = data.redirect;
+          } else {
+            window.location.href = "/home";
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          window.location.href = "/home";
+        });
+    </script>
+  </body>
+</html>
