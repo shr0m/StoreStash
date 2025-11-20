@@ -60,7 +60,8 @@ def login():
             print(e)
             flash("Invalid credentials.", "danger")
             return redirect(url_for('auth.login'))
-
+    else:
+        session.clear()
     return render_template("login.html")
 
 
@@ -150,14 +151,16 @@ def request_password_change():
     try:
         supabase.auth.reset_password_for_email(
             email,
-            redirect_to=request.url_root.rstrip('/') + url_for('auth.confirm_magic_link_page')
+            {
+                "redirect_to": request.url_root.rstrip('/') + url_for('auth.confirm_magic_link_page')
+            }
         )
-        flash("Password reset email sent.", "success")
+        flash("Password reset email sent. Please check your emails", "success")
+        return redirect(url_for('auth.login'))
     except Exception as e:
         flash(f"Could not send password reset email: {e}", "danger")
-
-    return redirect(url_for('settings.settings'))
-
+        return redirect(url_for('settings.settings'))
+    
 
 @auth_bp.route('/confirm/complete', methods=['POST'])
 @limiter.limit('10 per minute')

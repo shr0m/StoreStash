@@ -18,7 +18,7 @@
 
       if (!access_token || !refresh_token) {
         // Missing tokens — fallback to login
-        window.location.href = "/auth/login";
+        window.location.href = "/login";
       }
 
       // Send tokens to the backend for session creation
