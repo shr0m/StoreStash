@@ -169,29 +169,34 @@
 
         <!-- Profile Settings -->
         <div class="col-lg-6">
-          <div class="card shadow-sm h-100">
+          <div class="card shadow-sm h-100 border-0">
             <div class="card-body">
-              <h2 class="h5 mb-3"><i class="fa-solid fa-user"></i> Profile</h2>
-              <div class="d-grid gap-2">
-                <p>
-                  Password changing has been temporarily disabled. Please
-                  contact an admin user to reset your password, or create a
-                  support ticket
-                </p>
+              <h2 class="h5 mb-3">
+                <i class="fa-solid fa-user me-2"></i> Profile
+              </h2>
+
+              <div class="d-flex flex-column gap-3">
+                <!-- Change Password -->
                 <form
                   method="POST"
                   action="{{ url_for('auth.request_password_change') }}"
                 >
-                  <button class="btn btn-outline-secondary">
-                    Change Password
+                  <button
+                    type="submit"
+                    class="btn btn-primary w-100 py-2 shadow-sm"
+                  >
+                    <i class="fa-solid fa-key me-2"></i> Change Password
                   </button>
                 </form>
+
+                <!-- Hard Reset -->
                 <button
                   type="button"
-                  class="btn btn-danger"
-                  onclick="if (confirm('Are you sure you want to perform a hard reset? This action cannot be undone.')) { location.href = '/hard_reset'; }"
+                  class="btn btn-outline-danger w-100 py-2 shadow-sm"
+                  onclick="confirmHardReset()"
                 >
-                  Hard Reset
+                  <i class="fa-solid fa-triangle-exclamation me-2"></i> Hard
+                  Reset
                 </button>
               </div>
             </div>
@@ -258,6 +263,16 @@
           htmlElement.setAttribute("data-bs-theme", newTheme);
         });
       });
+
+      function confirmHardReset() {
+        if (
+          confirm(
+            "Are you sure you want to perform a HARD RESET?\n\nThis action cannot be undone."
+          )
+        ) {
+          window.location.href = "/hard_reset";
+        }
+      }
     </script>
   </body>
 </html>

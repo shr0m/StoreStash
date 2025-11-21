@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from app.db import get_supabase_client
 from app import limiter
 from app.utils.audit import log_audit_action
-from app.utils.otp_utils import generate_otp, send_otp_email, redirect_if_password_change_required, get_client_id
+from app.utils.otp_utils import generate_otp, redirect_if_password_change_required, get_client_id
 from app.utils.email_utils import send_reset_email
 from datetime import datetime, timezone, timedelta
 import re
@@ -307,23 +307,31 @@ def update_users():
         # Password reset
         if reset_requested:
             try:
-                temp_password = "storestash"
-
-                supabase.auth.admin.update_user_by_id(
-                    target_user_id,
-                    password=temp_password
+                # Recovery email
+                supabase.auth.reset_password_for_email(
+                    username,
+                    {
+                        "redirect_to": request.url_root.rstrip('/') + url_for('auth.confirm_magic_link_page')
+                    }
                 )
 
+                # New password needed on login
                 supabase.table("users").update(
                     {"requires_password_change": True}
                 ).eq("id", target_user_id).execute()
 
-                send_reset_email(username)
+                flash(f"Password recovery email sent to {username}.", "success")
 
-                flash(f"Password reset for {username} – temporary password issued.", "success")
+                # Log action
+                log_audit_action(
+                    client_id=client_id,
+                    user_id=current_user_id,
+                    action="admin_reset_password",
+                    description=f"Admin triggered password reset for '{username}'."
+                )
 
             except Exception as e:
-                flash(f"Failed to reset password for {username}: {e}", "danger")
+                flash(f"Failed to initiate password reset for {username}: {e}", "danger")
 
         # Delete
         if delete_requested:
